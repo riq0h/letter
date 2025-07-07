@@ -34,7 +34,7 @@ class Actor < ApplicationRecord
 
   # カスタムアップロードメソッド（フォルダ構造対応）
   def attach_avatar_with_folder(io:, filename:, content_type:)
-    ActorImageProcessor.new(self).attach_avatar_with_folder(io: io, filename: filename, content_type: content_type)
+    ActorImageProcessor.new(self).attach_avatar_with_folder(io: io, filename: filename, _content_type: content_type)
   end
 
   # フォロー関係

@@ -105,7 +105,7 @@ RSpec.describe ApplicationHelper, type: :helper do
         File.write(config_file_path, 'valid: config')
         allow(File).to receive(:exist?).and_call_original
         allow(File).to receive(:exist?).with(config_file_path).and_return(true)
-        allow(YAML).to receive(:load_file).and_raise(Errno::EACCES, 'Permission denied')
+        allow(YAML).to receive(:safe_load_file).and_raise(Errno::EACCES, 'Permission denied')
 
         allow(Rails.logger).to receive(:error).with(/Failed to load config.*Permission denied/)
         result = helper.send(:load_instance_config)

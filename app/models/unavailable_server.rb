@@ -59,7 +59,7 @@ class UnavailableServer < ApplicationRecord
   def self.normalize_domain_name(domain)
     return nil if domain.blank?
 
-    domain.to_s.strip.downcase
+    domain.to_s.strip.downcase.chomp('.')
   end
 
   # 関連するフォロー関係を削除
