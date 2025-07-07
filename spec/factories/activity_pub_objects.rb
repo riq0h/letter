@@ -18,6 +18,10 @@ FactoryBot.define do
       end
     end
 
+    trait :note do
+      object_type { 'Note' }
+    end
+
     trait :unlisted do
       visibility { 'unlisted' }
     end
