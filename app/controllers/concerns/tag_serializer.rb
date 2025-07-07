@@ -31,7 +31,7 @@ module TagSerializer
     # パフォーマンスを考慮して、キャッシュを使用することを推奨
     tag.object_tags
        .joins(object: :actor)
-       .where(activity_pub_objects: { published_at: Time.current.beginning_of_day.. })
+       .where(objects: { published_at: Time.current.beginning_of_day.. })
        .distinct
        .count('actors.id')
   rescue StandardError => e
