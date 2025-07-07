@@ -170,10 +170,8 @@ module ActivityPubCreateHandlers
 
     Rails.logger.info "🔄 Updating pin posts for #{actor.username}@#{actor.domain} (activity-based)"
 
-    # 既存のpin投稿を削除して再取得
-    actor.pinned_statuses.destroy_all
-
     # バックグラウンドで実行して応答時間に影響しないようにする
+    # ジョブ内で削除と再取得を同一トランザクションで処理
     UpdatePinPostsJob.perform_later(actor.id)
   rescue StandardError => e
     Rails.logger.error "❌ Failed to trigger pin posts update for #{actor.username}@#{actor.domain}: #{e.message}"

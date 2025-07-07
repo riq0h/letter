@@ -238,7 +238,6 @@ class FollowService
     Follow.create!(follow_params)
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create follow relationship: #{e.message}"
-    Rails.logger.error "Backtrace: #{e.backtrace.first(5).join("\n")}"
     raise
   end
 

@@ -52,7 +52,7 @@ module MediaSerializer
       width: media.width,
       height: media.height,
       size: "#{media.width}x#{media.height}",
-      aspect: (media.width.to_f / media.height).round(2)
+      aspect: media.height.zero? ? 0 : (media.width.to_f / media.height).round(2)
     }
   end
 
@@ -60,12 +60,12 @@ module MediaSerializer
     return {} unless media.width && media.height
 
     if media.width > 400
-      small_height = (media.height * 400 / media.width).round
+      small_height = media.width.zero? ? 0 : (media.height * 400 / media.width).round
       {
         width: 400,
         height: small_height,
         size: "400x#{small_height}",
-        aspect: (media.width.to_f / media.height).round(2)
+        aspect: media.height.zero? ? 0 : (media.width.to_f / media.height).round(2)
       }
     else
       build_original_meta(media)

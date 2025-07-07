@@ -30,7 +30,12 @@ module Api
 
       # PUT /api/v1/scheduled_statuses/:id
       def update
-        new_scheduled_at = Time.zone.parse(params[:scheduled_at])
+        begin
+          new_scheduled_at = Time.zone.parse(params[:scheduled_at])
+        rescue ArgumentError, TypeError
+          render_validation_failed('Invalid scheduled_at format')
+          return
+        end
 
         if @scheduled_status.update(scheduled_at: new_scheduled_at)
           render json: @scheduled_status.to_mastodon_api
@@ -39,8 +44,6 @@ module Api
             error: @scheduled_status.errors.full_messages.join(', ')
           }, status: :unprocessable_entity
         end
-      rescue ArgumentError
-        render_validation_failed('Invalid scheduled_at format')
       end
 
       # DELETE /api/v1/scheduled_statuses/:id

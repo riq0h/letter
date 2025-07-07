@@ -75,7 +75,7 @@ module Api
       def destroy
         return render_authentication_required unless current_user
 
-        domain = params[:domain]&.strip&.downcase
+        domain = normalized_domain_param
         return render_validation_failed('Domain parameter is required') if domain.blank?
 
         domain_block = current_user.domain_blocks.find_by(domain: domain)

@@ -101,7 +101,6 @@ module AccountRelationshipActions
     end
   rescue StandardError => e
     Rails.logger.error "💥 Exception in create_new_follow: #{e.class}: #{e.message}"
-    Rails.logger.error "Backtrace: #{e.backtrace.first(10).join("\n")}"
-    render json: { error: 'Internal Server Error', message: e.message }, status: :internal_server_error
+    render json: { error: 'Internal Server Error' }, status: :internal_server_error
   end
 end

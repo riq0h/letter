@@ -13,7 +13,7 @@ module ConfigBuilder
   def build_stored_config_hash
     config_file = Rails.root.join('config', 'instance_config.yml')
     if File.exist?(config_file)
-      YAML.load_file(config_file) || {}
+      YAML.safe_load_file(config_file) || {}
     else
       {}
     end

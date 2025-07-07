@@ -6,10 +6,13 @@ module ConversationSerializer
   include MediaSerializer
 
   def serialized_conversation(conversation)
+    # participantsはコントローラーでincludesされているので、filterのみ行う
+    other_participants = conversation.participants.reject { |p| p.id == current_user.id }
+
     {
       id: conversation.id.to_s,
       unread: conversation.unread,
-      accounts: conversation.other_participants(current_user).map { |participant| serialized_account(participant) },
+      accounts: other_participants.map { |participant| serialized_account(participant) },
       last_status: conversation.last_status ? serialized_conversation_status(conversation.last_status) : nil
     }
   end

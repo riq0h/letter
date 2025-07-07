@@ -3,7 +3,7 @@
 module Api
   module V1
     class FollowedTagsController < Api::BaseController
-      include HashtagHistoryBuilder
+      include TagSerializer
 
       before_action :doorkeeper_authorize!
       before_action :require_user!
@@ -14,12 +14,7 @@ module Api
         followed_tags = current_user.followed_tags.includes(:tag).recent.limit(limit)
 
         tags = followed_tags.map do |followed_tag|
-          {
-            name: followed_tag.tag.name,
-            url: "#{request.base_url}/tags/#{followed_tag.tag.name}",
-            history: build_hashtag_history(followed_tag.tag),
-            following: true
-          }
+          serialized_tag(followed_tag.tag, include_history: true).merge(following: true)
         end
 
         render json: tags

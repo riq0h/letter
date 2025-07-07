@@ -65,7 +65,7 @@ module Admin
     end
 
     def apply_emoji_filters(scope)
-      scope = scope.where('shortcode LIKE ?', "%#{params[:q]}%") if params[:q].present?
+      scope = scope.where('shortcode LIKE ?', "%#{sanitize_sql_like(params[:q])}%") if params[:q].present?
       scope = scope.where(disabled: false) if params[:enabled] == 'true'
       scope = scope.where(disabled: true) if params[:enabled] == 'false'
       scope

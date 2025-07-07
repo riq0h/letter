@@ -41,8 +41,10 @@ module FileUploadHandler
     allowed_types = %w[image/jpeg image/jpg image/png image/gif image/webp]
     max_size = 5.megabytes
 
-    unless allowed_types.include?(file.content_type)
-      Rails.logger.warn "Invalid file type: #{file.content_type}"
+    # Marcel gemを使って実際のファイル内容からMIMEタイプを判定
+    actual_type = Marcel::MimeType.for(file)
+    unless allowed_types.include?(actual_type)
+      Rails.logger.warn "Unsupported file type: #{actual_type}"
       return false
     end
 

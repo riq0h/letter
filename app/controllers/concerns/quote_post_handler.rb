@@ -44,7 +44,7 @@ module QuotePostHandler
     )
 
     unless quote_post.save
-      Rails.logger.error "Failed to create quote post: #{quote_post.errors.full_messages}"
+      Rails.logger.error "Failed to create quote post: #{quote_post.errors.full_messages.join(', ')}"
       raise '引用投稿の作成に失敗しました'
     end
 

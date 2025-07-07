@@ -31,11 +31,13 @@ module Api
           return
         end
 
-        @follow_request.update!(accepted: true, accepted_at: Time.current)
+        ActiveRecord::Base.transaction do
+          @follow_request.update!(accepted: true, accepted_at: Time.current)
 
-        # フォロワー数を更新
-        @follow_request.actor.increment!(:following_count)
-        @follow_request.target_actor.increment!(:followers_count)
+          # フォロワー数を更新
+          @follow_request.actor.increment!(:following_count)
+          @follow_request.target_actor.increment!(:followers_count)
+        end
 
         # Mastodon API準拠のRelationshipオブジェクトを返す
         render json: relationship_json(@follow_request.actor)

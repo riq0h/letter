@@ -11,20 +11,12 @@ module Api
       # GET /api/v1/trends
       def index
         # デフォルトではタグのトレンドを返す
-        limit = [params[:limit].to_i, 20].min
-        limit = 10 if limit <= 0
-
-        trending_tags = generate_trending_tags(limit)
-        render json: trending_tags.map { |tag| serialized_tag(tag, include_history: true) }
+        render_trending_tags
       end
 
       # GET /api/v1/trends/tags
       def tags
-        limit = [params[:limit].to_i, 20].min
-        limit = 10 if limit <= 0
-
-        trending_tags = generate_trending_tags(limit)
-        render json: trending_tags.map { |tag| serialized_tag(tag, include_history: true) }
+        render_trending_tags
       end
 
       # GET /api/v1/trends/statuses
@@ -40,6 +32,14 @@ module Api
       end
 
       private
+
+      def render_trending_tags
+        limit = [params[:limit].to_i, 20].min
+        limit = 10 if limit <= 0
+
+        trending_tags = generate_trending_tags(limit)
+        render json: trending_tags.map { |tag| serialized_tag(tag, include_history: true) }
+      end
 
       def generate_trending_tags(limit)
         # letterでは簡素化されたトレンド機能

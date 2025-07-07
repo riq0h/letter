@@ -45,7 +45,7 @@ module Search
       return [] if %w[accounts statuses].include?(search_type)
 
       tag_query = search_query.gsub(/^#/, '')
-      Tag.where('name LIKE ?', "%#{tag_query}%")
+      Tag.where('name LIKE ?', "%#{ActiveRecord::Base.sanitize_sql_like(tag_query)}%")
          .order(usage_count: :desc)
          .limit(hashtag_limit)
     end
@@ -87,9 +87,10 @@ module Search
       end
 
       # ローカルアカウントの部分一致検索
+      sanitized_query = ActiveRecord::Base.sanitize_sql_like(clean_search_query)
       partial_matches = Actor.where(local: true)
                              .where('username LIKE ? OR display_name LIKE ?',
-                                    "%#{clean_search_query}%", "%#{clean_search_query}%")
+                                    "%#{sanitized_query}%", "%#{sanitized_query}%")
                              .limit(account_limit)
 
       results.concat(partial_matches)
