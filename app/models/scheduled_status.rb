@@ -25,34 +25,11 @@ class ScheduledStatus < ApplicationRecord
   end
 
   def publish!
-    ActiveRecord::Base.transaction do
-      # StatusServiceを使用してステータスを作成
-      status_params = prepare_status_params
+    result = PublishScheduledStatusOrganizer.call(self)
 
-      # ステータスを作成
-      status = actor.objects.create!(
-        object_type: 'Note',
-        content: status_params[:status],
-        visibility: status_params[:visibility] || 'public',
-        sensitive: status_params[:sensitive] || false,
-        summary: status_params[:spoiler_text],
-        in_reply_to_ap_id: status_params[:in_reply_to_id],
-        published_at: Time.current,
-        local: true,
-        ap_id: generate_ap_id
-      )
+    raise StandardError, result.error unless result.success?
 
-      # メディアが存在する場合は添付
-      attach_media_to_status(status) if media_attachment_ids.present?
-
-      # 投票が存在する場合は処理
-      create_poll_for_status(status) if status_params[:poll].present?
-
-      # スケジュール済みステータスを削除
-      destroy!
-
-      status
-    end
+    result.status
   end
 
   def due?
@@ -100,38 +77,6 @@ class ScheduledStatus < ApplicationRecord
     return unless params['status'].to_s.length > 9999
 
     errors.add(:params, 'status text too long (maximum 9999 characters)')
-  end
-
-  def prepare_status_params
-    base_params = params.dup
-
-    # 適切なデフォルト値を確保
-    base_params['visibility'] ||= 'public'
-    base_params['sensitive'] ||= false
-
-    base_params.symbolize_keys
-  end
-
-  def generate_ap_id
-    base_url = Rails.application.config.activitypub.base_url
-    "#{base_url}/users/#{actor.username}/statuses/#{SecureRandom.hex(8)}"
-  end
-
-  def attach_media_to_status(status)
-    return unless media_attachment_ids.is_a?(Array)
-
-    media_attachments = MediaAttachment.where(id: media_attachment_ids, actor: actor)
-    media_attachments.update_all(status_id: status.id)
-  end
-
-  def create_poll_for_status(status)
-    poll_params = params['poll']
-    return unless poll_params.is_a?(Hash)
-
-    # パラメータをシンボルキーに変換
-    symbolized_params = poll_params.deep_symbolize_keys
-
-    PollCreationService.create_for_status(status, symbolized_params)
   end
 
   def serialize_params
