@@ -45,7 +45,7 @@ module ActivityPubMediaHandler
   end
 
   def extract_filename_from_url(url)
-    UrlFilenameExtractor.extract(url)
+    UrlFilename.from_url(url).to_s
   end
 
   def determine_media_type_from_content_type(content_type)

@@ -60,7 +60,7 @@ class RemoteMediaProcessor
   end
 
   def self.extract_filename_from_url(url)
-    UrlFilenameExtractor.extract(url)
+    UrlFilename.from_url(url).to_s
   end
 
   def self.determine_media_type(content_type)
