@@ -14,8 +14,14 @@ module Api
       private
 
       def perform_search
-        search_service = Search::SearchService.new(params, current_user)
-        search_service.perform_search
+        result = SearchInteractor.search(params, current_user)
+
+        if result.success?
+          result.results
+        else
+          Rails.logger.error "Search failed: #{result.error}"
+          { accounts: [], statuses: [], hashtags: [] }
+        end
       end
 
       def render_search_results
