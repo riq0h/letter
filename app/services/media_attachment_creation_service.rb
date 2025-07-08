@@ -62,7 +62,7 @@ class MediaAttachmentCreationService
   end
 
   def detect_content_type(filename)
-    ContentTypeDetector.detect_from_filename(filename)
+    ContentType.from_filename(filename).to_s
   end
 
   def extract_file_metadata(file, media_type)
