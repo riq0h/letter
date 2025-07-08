@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class UserTimelineFilter
+class UserTimelineQuery
   def initialize(user)
     @user = user
   end
@@ -33,6 +33,9 @@ class UserTimelineFilter
     blocked_domains = user.domain_blocks.pluck(:domain)
     return query unless blocked_domains.any?
 
-    query.where.not(actors: { domain: blocked_domains })
+    query.where(
+      'actors.domain IS NULL OR actors.domain NOT IN (?)',
+      blocked_domains
+    )
   end
 end

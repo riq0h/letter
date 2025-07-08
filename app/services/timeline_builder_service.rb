@@ -53,7 +53,7 @@ class TimelineBuilderService
                              .where(is_pinned_only: false)
                              .order('objects.id DESC')
 
-    query = UserTimelineFilter.new(user).apply(query) if user
+    query = UserTimelineQuery.new(user).apply(query) if user
     query
   end
 
