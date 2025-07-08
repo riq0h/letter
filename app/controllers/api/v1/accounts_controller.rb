@@ -42,7 +42,7 @@ module Api
         service_params = params.permit(:pinned, :exclude_replies, :only_media, :max_id, :since_id, :min_id)
                                .merge(limit: limit_param)
 
-        statuses = AccountStatusesService.new(@account, service_params).call
+        statuses = AccountStatusesQuery.new(@account, service_params).call
 
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }

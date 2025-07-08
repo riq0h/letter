@@ -144,7 +144,7 @@ class SearchInteractor
     # ハッシュタグクエリはスキップ（投稿検索でハッシュタグ文字は問題を起こすため）
     return [] if search_query.start_with?('#')
 
-    search_service = OptimizedSearchService.new(
+    search_query_obj = SearchQuery.new(
       query: search_query,
       since_time: parse_time(params[:since]),
       until_time: parse_time(params[:until]),
@@ -152,7 +152,7 @@ class SearchInteractor
       offset: params[:offset].to_i
     )
 
-    results = search_service.search
+    results = search_query_obj.search
     return [] if results.empty?
 
     # 文字列IDが返された場合はActivityPubObjectに変換

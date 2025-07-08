@@ -30,7 +30,7 @@ class SearchController < ApplicationController
   end
 
   def create_search_service
-    OptimizedSearchService.new(
+    SearchQuery.new(
       query: @query,
       limit: 30,
       offset: params[:offset].to_i
