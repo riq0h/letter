@@ -47,15 +47,16 @@ module StatusEditHandler
     return unless edit_params[:content]
 
     content = edit_params[:content]
-    parser = TextParser.new(content)
+    parsed_content = Content.parse(content)
 
     # メンションの処理
-    mentions = parser.extract_mentions
-    edit_params[:mentions] = mentions.pluck(:username).uniq if mentions.any?
+    if parsed_content.mentions?
+      mentions = parsed_content.mentions.pluck(:username).uniq
+      edit_params[:mentions] = mentions
+    end
 
     # ハッシュタグの処理
-    hashtags = parser.extract_hashtags
-    edit_params[:tags] = hashtags.uniq if hashtags.any?
+    edit_params[:tags] = parsed_content.hashtags if parsed_content.hashtags?
   end
 
   def build_current_version
@@ -147,11 +148,10 @@ module StatusEditHandler
     tags_objs = []
 
     if edit.content.present?
-      parser = TextParser.new(edit.content)
+      parsed_content = Content.parse(edit.content)
 
       # メンション用の簡易オブジェクト作成
-      mentions_data = parser.extract_mentions
-      mentions_objs = mentions_data.map do |mention_data|
+      mentions_objs = parsed_content.mentions.map do |mention_data|
         TempMention.new(
           TempActor.new(
             0,
@@ -163,8 +163,7 @@ module StatusEditHandler
       end
 
       # タグ用の簡易オブジェクト作成
-      hashtags = parser.extract_hashtags
-      tags_objs = hashtags.map { |tag_name| TempTag.new(tag_name) }
+      tags_objs = parsed_content.hashtags.map { |tag_name| TempTag.new(tag_name) }
     end
 
     # 既存のserializedメソッドと互換性のある構造を作成
