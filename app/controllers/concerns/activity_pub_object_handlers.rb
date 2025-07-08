@@ -52,9 +52,8 @@ module ActivityPubObjectHandlers
 
     @sender.update!(update_attrs)
 
-    # 既存のFollowServiceメソッドを使用してアバター・ヘッダー画像を更新
-    follow_service = FollowService.new(@sender)
-    follow_service.send(:attach_remote_images, @sender, object_data)
+    # アバター・ヘッダー画像を更新
+    ActorCreationService.new.send(:attach_remote_images, @sender, object_data)
 
     Rails.logger.info "👤 Actor profile updated: #{@sender.username}"
   end

@@ -132,7 +132,7 @@ class Follow < ApplicationRecord
   end
 
   def should_auto_accept?
-    actor&.local? && target_actor&.local?
+    actor&.local? && target_actor&.local? && !target_actor.manually_approves_followers
   end
 
   def cannot_follow_self

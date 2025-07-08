@@ -424,8 +424,8 @@ class Actor < ApplicationRecord
 
   # フォロー実行
   def follow!(target_actor_or_uri)
-    follow_service = FollowService.new(self)
-    follow_service.follow!(target_actor_or_uri)
+    result = FollowInteractor.follow(self, target_actor_or_uri)
+    result.success? ? result.follow : nil
   end
 
   # アンフォロー実行

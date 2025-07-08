@@ -581,7 +581,7 @@ RSpec.describe Actor, type: :model do
     let(:target_actor) { create(:actor, :remote) }
 
     describe '#follow!' do
-      it 'successfully calls FollowService to follow target actor' do
+      it 'successfully calls FollowInteractor to follow target actor' do
         expect do
           actor.follow!(target_actor)
         end.not_to raise_error
