@@ -14,7 +14,7 @@ class TimelineQuery
 
     reblogs = fetch_reblogs(followed_ids)
 
-    TimelineMerger.new(statuses, reblogs, limit).merge
+    MergedTimeline.merge(statuses, reblogs, limit).to_a
   end
 
   def build_public_timeline
