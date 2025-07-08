@@ -210,8 +210,8 @@ RSpec.describe Content do
     it 'creates hashtags and mentions for object' do
       content = described_class.new('Hello #world @alice')
 
-      expect(Tag).to receive(:find_or_create_by).with(name: 'world') # rubocop:todo RSpec/MessageSpies
-      expect(object_tags).to receive(:find_or_create_by) # rubocop:todo RSpec/MessageSpies
+      expect(Tag).to receive(:find_or_create_by).with(name: 'world')
+      expect(object_tags).to receive(:find_or_create_by)
 
       content.process_for_object(object)
     end

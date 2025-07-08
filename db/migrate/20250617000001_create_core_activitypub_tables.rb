@@ -14,6 +14,7 @@ class CreateCoreActivitypubTables < ActiveRecord::Migration[8.0]
       t.string :ap_id, null: false, index: { unique: true }
       t.string :inbox_url, null: false
       t.string :outbox_url, null: false
+      t.string :shared_inbox_url
       t.string :followers_url
       t.string :following_url
       t.string :featured_url

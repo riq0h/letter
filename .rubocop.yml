@@ -103,6 +103,15 @@ RSpec/MultipleExpectations:
 RSpec/NestedGroups:
   Max: 3
 
+RSpec/MessageSpies:
+  Enabled: false
+
+RSpec/AnyInstance:
+  Enabled: false
+
+RSpec/MultipleMemoizedHelpers:
+  Max: 10
+
 Naming/PredicateName:
   Exclude:
     - 'app/controllers/api/base_controller.rb'
