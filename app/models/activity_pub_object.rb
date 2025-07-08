@@ -455,13 +455,13 @@ class ActivityPubObject < ApplicationRecord
   # === Action Cableブロードキャスト ===
 
   def broadcast_status_update
-    ActivityPubBroadcaster.new(self).broadcast_status_update
+    StreamingDelivery.deliver_status_update(self)
   rescue StandardError => e
     Rails.logger.error "💥 Streaming broadcast error: #{e.message}"
   end
 
   def broadcast_status_delete
-    ActivityPubBroadcaster.new(self).broadcast_status_delete
+    StreamingDelivery.deliver_status_delete(id)
   rescue StandardError => e
     Rails.logger.error "💥 Streaming delete broadcast error: #{e.message}"
   end

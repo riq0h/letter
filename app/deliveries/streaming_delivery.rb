@@ -1,42 +1,33 @@
 # frozen_string_literal: true
 
-class StreamingBroadcastService
+class StreamingDelivery
   include MediaSerializer
   include ActionView::Helpers::SanitizeHelper
 
-  def self.broadcast_status_update(status)
-    new.broadcast_status_update(status)
+  # ステータス更新配信
+  def self.deliver_status_update(status)
+    new.deliver_status_update(status)
   end
 
-  def self.broadcast_status_delete(status_id)
-    new.broadcast_status_delete(status_id)
+  # ステータス削除配信
+  def self.deliver_status_delete(status_id)
+    new.deliver_status_delete(status_id)
   end
 
-  def self.broadcast_notification(notification)
-    new.broadcast_notification(notification)
+  # 通知配信
+  def self.deliver_notification(notification)
+    new.deliver_notification(notification)
   end
 
-  def broadcast_status_update(status)
+  def deliver_status_update(status)
     return unless status.is_a?(ActivityPubObject) && status.object_type == 'Note'
 
     serialized_status = serialize_status(status)
 
     # パブリックタイムラインへの配信
     if status.visibility == 'public'
-      ActionCable.server.broadcast('timeline:public', {
-                                     event: 'update',
-                                     payload: serialized_status
-                                   })
-
-      # ローカル投稿の場合はローカルタイムラインにも配信
-      if status.local?
-        ActionCable.server.broadcast('timeline:public:local', {
-                                       event: 'update',
-                                       payload: serialized_status
-                                     })
-      end
-
-      # ハッシュタグストリームへの配信
+      broadcast_to_public_timeline(serialized_status)
+      broadcast_to_local_timeline(serialized_status) if status.local?
       broadcast_to_hashtag_streams(status, serialized_status)
     end
 
@@ -47,18 +38,15 @@ class StreamingBroadcastService
     broadcast_to_list_timelines(status, serialized_status)
   end
 
-  def broadcast_status_delete(status_id)
-    delete_event = {
-      event: 'delete',
-      payload: status_id.to_s
-    }
+  def deliver_status_delete(status_id)
+    delete_event = build_delete_event(status_id)
 
-    # 全てのタイムラインに削除イベントをブロードキャスト
+    # 全てのタイムラインに削除イベントを配信
     ActionCable.server.broadcast('timeline:public', delete_event)
     ActionCable.server.broadcast('timeline:public:local', delete_event)
   end
 
-  def broadcast_notification(notification)
+  def deliver_notification(notification)
     serialized_notification = serialize_notification(notification)
 
     ActionCable.server.broadcast("notifications:#{notification.account_id}", {
@@ -69,12 +57,26 @@ class StreamingBroadcastService
 
   private
 
+  # パブリックタイムライン配信
+  def broadcast_to_public_timeline(serialized_status)
+    ActionCable.server.broadcast('timeline:public', {
+                                   event: 'update',
+                                   payload: serialized_status
+                                 })
+  end
+
+  # ローカルタイムライン配信
+  def broadcast_to_local_timeline(serialized_status)
+    ActionCable.server.broadcast('timeline:public:local', {
+                                   event: 'update',
+                                   payload: serialized_status
+                                 })
+  end
+
+  # ハッシュタグストリーム配信
   def broadcast_to_hashtag_streams(status, serialized_status)
     status.tags.each do |tag|
-      hashtag_event = {
-        event: 'update',
-        payload: serialized_status
-      }
+      hashtag_event = build_hashtag_event(serialized_status)
 
       # グローバルハッシュタグストリーム
       ActionCable.server.broadcast("hashtag:#{tag.name.downcase}", hashtag_event)
@@ -84,26 +86,28 @@ class StreamingBroadcastService
     end
   end
 
+  # ホームタイムライン配信
   def broadcast_to_home_timelines(status, serialized_status)
     # フォロワーのホームタイムラインに配信
     follower_ids = status.actor.followers.local.pluck(:id)
 
     follower_ids.each do |follower_id|
-      ActionCable.server.broadcast("timeline:home:#{follower_id}", {
-                                     event: 'update',
-                                     payload: serialized_status
-                                   })
+      broadcast_to_home_timeline(follower_id, serialized_status)
     end
 
     # 自分のホームタイムラインにも配信
-    return unless status.actor.local?
+    broadcast_to_home_timeline(status.actor_id, serialized_status) if status.actor.local?
+  end
 
-    ActionCable.server.broadcast("timeline:home:#{status.actor_id}", {
+  # 個別ホームタイムライン配信
+  def broadcast_to_home_timeline(actor_id, serialized_status)
+    ActionCable.server.broadcast("timeline:home:#{actor_id}", {
                                    event: 'update',
                                    payload: serialized_status
                                  })
   end
 
+  # リストタイムライン配信
   def broadcast_to_list_timelines(status, serialized_status)
     # リストメンバーに含まれているかチェック
     list_memberships = ListMembership.joins(:list)
@@ -111,13 +115,34 @@ class StreamingBroadcastService
                                      .includes(:list)
 
     list_memberships.each do |membership|
-      ActionCable.server.broadcast("list:#{membership.list_id}", {
-                                     event: 'update',
-                                     payload: serialized_status
-                                   })
+      broadcast_to_list_timeline(membership.list_id, serialized_status)
     end
   end
 
+  # 個別リストタイムライン配信
+  def broadcast_to_list_timeline(list_id, serialized_status)
+    ActionCable.server.broadcast("list:#{list_id}", {
+                                   event: 'update',
+                                   payload: serialized_status
+                                 })
+  end
+
+  # イベント構築メソッド
+  def build_delete_event(status_id)
+    {
+      event: 'delete',
+      payload: status_id.to_s
+    }
+  end
+
+  def build_hashtag_event(serialized_status)
+    {
+      event: 'update',
+      payload: serialized_status
+    }
+  end
+
+  # シリアライゼーションメソッド
   def serialize_status(status)
     {
       id: status.id.to_s,

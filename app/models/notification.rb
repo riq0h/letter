@@ -170,7 +170,7 @@ class Notification < ApplicationRecord
   end
 
   def broadcast_notification
-    StreamingBroadcastService.broadcast_notification(self)
+    StreamingDelivery.deliver_notification(self)
   rescue StandardError => e
     Rails.logger.error "💥 Notification broadcast error: #{e.message}"
   end

@@ -112,6 +112,10 @@ RSpec/AnyInstance:
 RSpec/MultipleMemoizedHelpers:
   Max: 10
 
+RSpec/VerifiedDoubles:
+  Exclude:
+    - 'spec/deliveries/streaming_delivery_spec.rb'
+
 Naming/PredicateName:
   Exclude:
     - 'app/controllers/api/base_controller.rb'

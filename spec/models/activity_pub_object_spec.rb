@@ -334,18 +334,18 @@ RSpec.describe ActivityPubObject, type: :model do
     let(:object) { create(:activity_pub_object) }
 
     describe '#broadcast_status_update' do
-      it 'successfully calls ActivityPubBroadcaster to broadcast status update' do
-        expect do
-          object.send(:broadcast_status_update)
-        end.not_to raise_error
+      it 'successfully calls StreamingDelivery to broadcast status update' do
+        expect(StreamingDelivery).to receive(:deliver_status_update).with(object)
+
+        object.send(:broadcast_status_update)
       end
     end
 
     describe '#broadcast_status_delete' do
-      it 'successfully calls ActivityPubBroadcaster to broadcast status delete' do
-        expect do
-          object.send(:broadcast_status_delete)
-        end.not_to raise_error
+      it 'successfully calls StreamingDelivery to broadcast status delete' do
+        expect(StreamingDelivery).to receive(:deliver_status_delete).with(object.id)
+
+        object.send(:broadcast_status_delete)
       end
     end
   end
