@@ -130,9 +130,9 @@ class Notification < ApplicationRecord
 
   def send_follow_notification
     if notification_type == 'follow'
-      WebPushNotificationService.notification_for_follow(from_account, account, id)
+      WebPushDelivery.deliver_follow_notification(from_account, account, id)
     else
-      WebPushNotificationService.notification_for_follow_request(from_account, account, id)
+      WebPushDelivery.deliver_follow_request_notification(from_account, account, id)
     end
   end
 
@@ -142,13 +142,13 @@ class Notification < ApplicationRecord
 
     case notification_type
     when 'mention'
-      WebPushNotificationService.notification_for_mention(status, account, id)
+      WebPushDelivery.deliver_mention_notification(status, account, id)
     when 'poll'
-      WebPushNotificationService.notification_for_poll(status, account, id)
+      WebPushDelivery.deliver_poll_notification(status, account, id)
     when 'status'
-      WebPushNotificationService.notification_for_status(status, account, id)
+      WebPushDelivery.deliver_status_notification(status, account, id)
     when 'update'
-      WebPushNotificationService.notification_for_update(status, account, id)
+      WebPushDelivery.deliver_update_notification(status, account, id)
     end
   end
 
@@ -159,13 +159,13 @@ class Notification < ApplicationRecord
     case notification_type
     when 'favourite'
       favourite = Favourite.find_by(actor: from_account, object: status)
-      WebPushNotificationService.notification_for_favourite(favourite, id) if favourite
+      WebPushDelivery.deliver_favourite_notification(favourite, id) if favourite
     when 'reblog'
       reblog = Reblog.find_by(actor: from_account, object: status)
-      WebPushNotificationService.notification_for_reblog(reblog, id) if reblog
+      WebPushDelivery.deliver_reblog_notification(reblog, id) if reblog
     when 'quote'
       quote_post = QuotePost.find_by(object: status)
-      WebPushNotificationService.notification_for_quote(quote_post, id) if quote_post
+      WebPushDelivery.deliver_quote_notification(quote_post, id) if quote_post
     end
   end
 

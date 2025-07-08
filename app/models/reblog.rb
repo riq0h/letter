@@ -30,6 +30,6 @@ class Reblog < ApplicationRecord
   end
 
   def send_push_notification
-    WebPushNotificationService.notification_for_reblog(self)
+    WebPushDelivery.deliver_reblog_notification(self)
   end
 end

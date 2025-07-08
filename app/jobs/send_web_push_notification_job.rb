@@ -7,7 +7,7 @@ class SendWebPushNotificationJob < ApplicationJob
     subscription = WebPushSubscription.find_by(id: subscription_id)
     return unless subscription
 
-    WebPushNotificationService.send_to_subscription(
+    WebPushDelivery.deliver_to_subscription(
       subscription,
       notification_type,
       title,

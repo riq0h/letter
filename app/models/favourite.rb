@@ -32,6 +32,6 @@ class Favourite < ApplicationRecord
   end
 
   def send_push_notification
-    WebPushNotificationService.notification_for_favourite(self)
+    WebPushDelivery.deliver_favourite_notification(self)
   end
 end
