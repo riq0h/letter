@@ -52,7 +52,8 @@ class WellKnownController < ApplicationController
   end
 
   def parse_acct_resource(resource)
-    AccountIdentifierParser.parse_acct_uri(resource) || []
+    identifier = AccountIdentifier.parse_acct_uri(resource)
+    identifier ? [identifier.username, identifier.domain] : []
   end
 
   def find_actor_by_url(resource)

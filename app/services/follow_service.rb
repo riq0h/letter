@@ -61,7 +61,10 @@ class FollowService
   end
 
   def parse_acct(acct)
-    AccountIdentifierParser.parse_acct(acct)
+    identifier = AccountIdentifier.parse(acct)
+    return [nil, nil] unless identifier
+
+    [identifier.username, identifier.domain]
   end
 
   def find_or_fetch_actor(username, domain)
@@ -79,7 +82,7 @@ class FollowService
   end
 
   def fetch_remote_actor(username, domain)
-    webfinger_uri = AccountIdentifierParser.build_webfinger_uri(username, domain)
+    webfinger_uri = AccountIdentifier.new(username, domain).to_webfinger_uri
     webfinger_service = WebFingerService.new
 
     actor_data = webfinger_service.fetch_actor_data(webfinger_uri)

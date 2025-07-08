@@ -24,12 +24,15 @@ class WebFingerService
   private
 
   def parse_acct_uri(acct_uri)
-    AccountIdentifierParser.parse_acct_uri(acct_uri)
+    identifier = AccountIdentifier.parse_acct_uri(acct_uri)
+    return nil unless identifier
+
+    [identifier.username, identifier.domain]
   end
 
   def fetch_webfinger(username, domain)
     webfinger_url = "https://#{domain}/.well-known/webfinger"
-    resource = AccountIdentifierParser.build_webfinger_uri(username, domain)
+    resource = AccountIdentifier.new(username, domain).to_webfinger_uri
 
     response = HTTParty.get(webfinger_url, {
                               query: { resource: resource },

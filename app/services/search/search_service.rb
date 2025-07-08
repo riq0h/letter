@@ -149,11 +149,11 @@ module Search
     end
 
     def account_query?
-      AccountIdentifierParser.account_query?(search_query)
+      AccountIdentifier.account_query?(search_query)
     end
 
     def domain_query?
-      AccountIdentifierParser.domain_query?(search_query)
+      AccountIdentifier.domain_query?(search_query)
     end
 
     def should_search_domain_accounts?
