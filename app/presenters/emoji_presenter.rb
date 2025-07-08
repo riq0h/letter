@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
-class EmojiParser
+# 絵文字表示ロジックを専門的に扱うPresenter
+# HTML生成とコード処理を分離
+class EmojiPresenter
   EMOJI_REGEX = /:([a-zA-Z0-9_]+):/
 
   def initialize(text)
@@ -9,7 +11,8 @@ class EmojiParser
     @remote_emojis = {}
   end
 
-  def parse
+  # 絵文字をHTMLに変換
+  def to_html
     @text.gsub(EMOJI_REGEX) do |match|
       shortcode = Regexp.last_match(1)
       emoji = find_emoji(shortcode)
@@ -22,12 +25,14 @@ class EmojiParser
     end
   end
 
-  def extract_emoji_shortcodes
+  # ショートコードを抽出
+  def extract_shortcodes
     @text.scan(EMOJI_REGEX).flatten.uniq
   end
 
-  def emojis_used
-    shortcodes = extract_emoji_shortcodes
+  # 使用されている絵文字のリストを取得
+  def used_emojis
+    shortcodes = extract_shortcodes
     return [] if shortcodes.empty?
 
     normalized_shortcodes = shortcodes.map(&:downcase)
@@ -38,8 +43,27 @@ class EmojiParser
     (local_emojis + remote_emojis).uniq(&:shortcode)
   end
 
+  # クラスメソッド
+  class << self
+    # テキストを絵文字HTML付きで表示
+    def present_with_emojis(text)
+      new(text).to_html
+    end
+
+    # テキストから絵文字のリストを抽出
+    def extract_emojis_from(text)
+      new(text).used_emojis
+    end
+
+    # ショートコードのみを抽出
+    def extract_shortcodes_from(text)
+      new(text).extract_shortcodes
+    end
+  end
+
   private
 
+  # 絵文字を検索（キャッシュ付き）
   def find_emoji(shortcode)
     normalized_shortcode = shortcode.downcase
 
@@ -54,22 +78,19 @@ class EmojiParser
                                                         .find_by(shortcode: normalized_shortcode)
   end
 
+  # 絵文字HTML要素を構築
   def build_emoji_html(emoji)
-    style = 'width: 1.2em; height: 1.2em; display: inline-block; ' \
-            'vertical-align: text-bottom; object-fit: contain;'
+    style = emoji_inline_style
+    alt_text = ":#{emoji.shortcode}:"
 
-    "<img src=\"#{emoji.image_url}\" alt=\":#{emoji.shortcode}:\" " \
-      "title=\":#{emoji.shortcode}:\" class=\"custom-emoji\" " \
-      "style=\"#{style}\" draggable=\"false\" />"
+    <<~HTML.strip
+      <img src="#{emoji.image_url}" alt="#{alt_text}" title="#{alt_text}" class="custom-emoji" style="#{style}" draggable="false" />
+    HTML
   end
 
-  class << self
-    def parse_text(text)
-      new(text).parse
-    end
-
-    def extract_emojis(text)
-      new(text).emojis_used
-    end
+  # 絵文字用のインラインスタイル
+  def emoji_inline_style
+    'width: 1.2em; height: 1.2em; display: inline-block; ' \
+      'vertical-align: text-bottom; object-fit: contain;'
   end
 end

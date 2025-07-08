@@ -35,7 +35,7 @@ module ActivityBuilders
     def emoji_tags
       return [] if @object.content.blank?
 
-      emojis = EmojiParser.new(@object.content).emojis_used
+      emojis = EmojiPresenter.extract_emojis_from(@object.content)
       emojis.map do |emoji|
         {
           'type' => 'Emoji',

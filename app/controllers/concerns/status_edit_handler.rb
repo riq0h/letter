@@ -135,7 +135,7 @@ module StatusEditHandler
   def extract_emojis_from_status(status)
     # コンテンツと概要からカスタム絵文字を抽出
     text_content = [status.content, status.summary].compact.join(' ')
-    emojis = EmojiParser.extract_emojis(text_content)
+    emojis = EmojiPresenter.extract_emojis_from(text_content)
     emojis.map(&:to_activitypub)
   rescue StandardError
     []

@@ -9,7 +9,7 @@ module StatusSerializer
   def parse_content_with_emojis(content)
     return content if content.blank?
 
-    EmojiParser.new(content).parse
+    EmojiPresenter.present_with_emojis(content)
   end
 
   def parse_content_links_only(content)
@@ -29,14 +29,14 @@ module StatusSerializer
       if content.include?('<img') && content.include?('custom-emoji')
         content
       else
-        EmojiParser.new(content).parse
+        EmojiPresenter.present_with_emojis(content)
       end
     else
       # ローカル投稿: 絵文字処理 + URLリンク化
       emoji_processed_content = if content.include?('<img') && content.include?('custom-emoji')
                                   content
                                 else
-                                  EmojiParser.new(content).parse
+                                  EmojiPresenter.present_with_emojis(content)
                                 end
 
       auto_link_urls(emoji_processed_content)
@@ -46,7 +46,7 @@ module StatusSerializer
   def serialized_emojis(status)
     return [] if status.content.blank?
 
-    emojis = EmojiParser.new(status.content).emojis_used
+    emojis = EmojiPresenter.extract_emojis_from(status.content)
     emojis.map(&:to_activitypub)
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize emojis for status #{status.id}: #{e.message}"

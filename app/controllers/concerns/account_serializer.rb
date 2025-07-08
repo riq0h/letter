@@ -88,7 +88,7 @@ module AccountSerializer
     end
 
     # emojis抽出
-    emojis = EmojiParser.new(text_content).emojis_used
+    emojis = EmojiPresenter.extract_emojis_from(text_content)
     emojis.map(&:to_activitypub)
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize account emojis for actor #{account.id}: #{e.message}"
