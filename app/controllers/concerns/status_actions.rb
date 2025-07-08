@@ -6,96 +6,46 @@ module StatusActions
   private
 
   def create_like_activity(status)
-    # Like アクティビティを作成
-    activity = Activity.create!(
-      ap_id: "#{Rails.application.config.activitypub.base_url}/#{Letter::Snowflake.generate}",
-      activity_type: 'Like',
-      actor: current_user,
-      target_ap_id: status.ap_id,
-      object_ap_id: nil,
-      published_at: Time.current,
-      local: true
-    )
+    result = StatusActionOrganizer.call(current_user, action_type: 'like', status: status)
 
-    # ジョブをキューに追加
-    return if status.actor.inbox_url.blank?
+    unless result.success?
+      Rails.logger.error "❌ Failed to create like activity: #{result.error}"
+      raise StandardError, result.error
+    end
 
-    SendActivityJob.perform_later(activity.id, [status.actor.inbox_url])
+    result.activity
   end
 
   def create_undo_like_activity(status, _favourite)
-    like_activity = Activity.find_by(
-      activity_type: 'Like',
-      actor: current_user,
-      target_ap_id: status.ap_id
-    )
+    result = StatusActionOrganizer.call(current_user, action_type: 'undo_like', status: status)
 
-    return unless like_activity
+    unless result.success?
+      Rails.logger.error "❌ Failed to create undo like activity: #{result.error}"
+      return
+    end
 
-    # Undo アクティビティを作成
-    undo_activity = Activity.create!(
-      ap_id: "#{Rails.application.config.activitypub.base_url}/#{Letter::Snowflake.generate}",
-      activity_type: 'Undo',
-      actor: current_user,
-      target_ap_id: like_activity.ap_id,
-      object_ap_id: nil,
-      published_at: Time.current,
-      local: true
-    )
-
-    # 元のLikeアクティビティを削除
-    like_activity.destroy
-
-    # ジョブをキューに追加
-    return if status.actor.inbox_url.blank?
-
-    SendActivityJob.perform_later(undo_activity.id, [status.actor.inbox_url])
+    result.activity
   end
 
   def create_announce_activity(status)
-    # Announce アクティビティを作成
-    activity = Activity.create!(
-      ap_id: "#{Rails.application.config.activitypub.base_url}/#{Letter::Snowflake.generate}",
-      activity_type: 'Announce',
-      actor: current_user,
-      target_ap_id: status.ap_id,
-      object_ap_id: nil,
-      published_at: Time.current,
-      local: true
-    )
+    result = StatusActionOrganizer.call(current_user, action_type: 'announce', status: status)
 
-    # ジョブをキューに追加
-    return if status.actor.inbox_url.blank?
+    unless result.success?
+      Rails.logger.error "❌ Failed to create announce activity: #{result.error}"
+      raise StandardError, result.error
+    end
 
-    SendActivityJob.perform_later(activity.id, [status.actor.inbox_url])
+    result.activity
   end
 
   def create_undo_announce_activity(status, _reblog)
-    announce_activity = Activity.find_by(
-      activity_type: 'Announce',
-      actor: current_user,
-      target_ap_id: status.ap_id
-    )
+    result = StatusActionOrganizer.call(current_user, action_type: 'undo_announce', status: status)
 
-    return unless announce_activity
+    unless result.success?
+      Rails.logger.error "❌ Failed to create undo announce activity: #{result.error}"
+      return
+    end
 
-    # Undo アクティビティを作成
-    undo_activity = Activity.create!(
-      ap_id: "#{Rails.application.config.activitypub.base_url}/#{Letter::Snowflake.generate}",
-      activity_type: 'Undo',
-      actor: current_user,
-      target_ap_id: announce_activity.ap_id,
-      object_ap_id: nil,
-      published_at: Time.current,
-      local: true
-    )
-
-    # 元のAnnounceアクティビティを削除
-    announce_activity.destroy
-
-    # ジョブをキューに追加
-    return if status.actor.inbox_url.blank?
-
-    SendActivityJob.perform_later(undo_activity.id, [status.actor.inbox_url])
+    result.activity
   end
 end
