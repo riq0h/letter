@@ -1,65 +1,105 @@
 # frozen_string_literal: true
 
-module ActivityPubCreateHandlers
-  extend ActiveSupport::Concern
+# ActivityPubのCreateアクティビティ処理を統括するOrganizer
+class CreateActivityOrganizer
   include ActivityPubVisibilityHelper
   include ActivityPubMediaHandler
   include ActivityPubConversationHandler
   include ActivityPubUtilityHelpers
 
-  private
+  class Result
+    attr_reader :success, :object, :error
 
-  def handle_create_activity
+    def initialize(success:, object: nil, error: nil)
+      @success = success
+      @object = object
+      @error = error
+      freeze
+    end
+
+    def success?
+      success
+    end
+
+    def failure?
+      !success
+    end
+  end
+
+  def self.call(activity, sender, preserve_relay_info: nil)
+    new(activity, sender, preserve_relay_info: preserve_relay_info).call
+  end
+
+  def initialize(activity, sender, preserve_relay_info: nil)
+    @activity = activity
+    @sender = sender
+    @preserve_relay_info = preserve_relay_info
+  end
+
+  # Create アクティビティを処理
+  def call
     Rails.logger.info '📝 Processing Create activity'
 
     object_data = @activity['object']
 
-    unless valid_create_object?(object_data)
-      Rails.logger.warn '⚠️ Invalid object in Create activity'
-      head :accepted
-      return
+    return failure('Invalid object in Create activity') unless valid_create_object?(object_data)
+    return success(nil) if handle_existing_object?(object_data)
+
+    # Voteオブジェクトは特別処理
+    if vote_object?(object_data)
+      handle_vote_activity_only(object_data)
+      return success(nil)
     end
 
-    return handle_existing_object(object_data) if object_exists?(object_data)
+    # 新しいオブジェクトを作成
+    object = create_new_object(object_data)
+    return failure('Failed to create object') unless object
 
-    create_new_object(object_data)
+    # 関連データの処理
+    process_object_associations(object, object_data)
+    update_related_data(object)
+
+    Rails.logger.info "📝 Object created: #{object.id}"
+    success(object)
+  rescue StandardError => e
+    Rails.logger.error "Create activity processing failed: #{e.message}"
+    failure(e.message)
+  end
+
+  private
+
+  attr_reader :activity, :sender, :preserve_relay_info
+
+  def success(object)
+    Result.new(success: true, object: object)
+  end
+
+  def failure(error)
+    Result.new(success: false, error: error)
   end
 
   def valid_create_object?(object_data)
     object_data.is_a?(Hash)
   end
 
-  def object_exists?(object_data)
-    ActivityPubObject.find_by(ap_id: object_data['id'])
+  def handle_existing_object?(object_data)
+    if ActivityPubObject.find_by(ap_id: object_data['id'])
+      Rails.logger.warn "⚠️ Object already exists: #{object_data['id']}"
+      true
+    else
+      false
+    end
   end
 
-  def handle_existing_object(object_data)
-    Rails.logger.warn "⚠️ Object already exists: #{object_data['id']}"
-    head :accepted
+  def vote_object?(object_data)
+    object_data['type'] == 'Vote'
   end
 
   def create_new_object(object_data)
-    # Voteオブジェクトは投稿として作成せず、投票処理のみ行う
-    if object_data['type'] == 'Vote'
-      handle_vote_activity_only(object_data)
-      return head :accepted
-    end
-
-    object = ActivityPubObject.create!(build_object_attributes(object_data))
-
-    handle_media_attachments(object, object_data)
-    handle_mentions(object, object_data)
-    handle_emojis(object, object_data)
-    handle_poll(object, object_data) if object_data['type'] == 'Question' || object_data['oneOf'] || object_data['anyOf']
-    handle_quote_post(object, object_data) if object_data['quoteUrl'] || object_data['_misskey_quote'] || object_data['quoteUri']
-    handle_direct_message_conversation(object, object_data) if object.visibility == 'direct'
-    update_reply_count_if_needed(object)
-
-    # アクティビティベースでpin投稿を更新
-    update_pin_posts_if_needed(object.actor)
-
-    Rails.logger.info "📝 Object created: #{object.id}"
-    head :accepted
+    ActivityPubObject.create!(build_object_attributes(object_data))
+  rescue StandardError => e
+    Rails.logger.error "❌ Failed to create object: #{e.message}"
+    nil
   end
 
   def build_object_attributes(object_data)
@@ -84,6 +124,33 @@ module ActivityPubCreateHandlers
     attributes[:relay_id] = @preserve_relay_info.id if @preserve_relay_info
 
     attributes
+  end
+
+  def process_object_associations(object, object_data)
+    handle_media_attachments(object, object_data)
+    handle_mentions(object, object_data)
+    handle_emojis(object, object_data)
+    handle_poll(object, object_data) if poll_object?(object_data)
+    handle_quote_post(object, object_data) if quote_post_object?(object_data)
+    handle_direct_message_conversation(object, object_data) if object.visibility == 'direct'
+  end
+
+  def update_related_data(object)
+    update_reply_count_if_needed(object)
+    update_pin_posts_if_needed(object.actor)
+  end
+
+  def poll_object?(object_data)
+    result = object_data['type'] == 'Question' || object_data['oneOf'] || object_data['anyOf']
+    Rails.logger.debug do
+      "poll_object? check: type=#{object_data['type']}, " \
+        "oneOf=#{object_data['oneOf']}, anyOf=#{object_data['anyOf']}, result=#{result}"
+    end
+    result
+  end
+
+  def quote_post_object?(object_data)
+    object_data['quoteUrl'] || object_data['_misskey_quote'] || object_data['quoteUri']
   end
 
   def handle_mentions(object, object_data)
@@ -125,7 +192,6 @@ module ActivityPubCreateHandlers
       next unless remote_domain
 
       existing_emoji = CustomEmoji.find_by(shortcode: shortcode, domain: remote_domain)
-
       next if existing_emoji
 
       CustomEmoji.create!(
@@ -178,7 +244,9 @@ module ActivityPubCreateHandlers
   end
 
   def handle_poll(object, object_data)
+    Rails.logger.debug { "handle_poll called with object_data: #{object_data.inspect}" }
     poll_options = object_data['oneOf'] || object_data['anyOf']
+    Rails.logger.debug { "poll_options: #{poll_options.inspect}" }
     return if poll_options.blank?
 
     options = poll_options.map { |option| { 'title' => option['name'] } }
@@ -189,7 +257,7 @@ module ActivityPubCreateHandlers
                    1.day.from_now
                  end
 
-    Poll.create!(
+    poll = Poll.create!(
       object: object,
       options: options,
       expires_at: expires_at,
@@ -199,9 +267,12 @@ module ActivityPubCreateHandlers
       voters_count: object_data['votersCount'] || 0
     )
 
-    Rails.logger.info "📊 Poll created with #{options.count} options for object #{object.id}"
+    Rails.logger.info "📊 Poll created with #{options.count} options for object #{object.id}, poll ID: #{poll.id}"
+    poll
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create poll: #{e.message}"
+    Rails.logger.error "Poll creation stacktrace: #{e.backtrace.join("\n")}"
+    raise
   end
 
   def handle_vote_activity_only(object_data)

@@ -95,10 +95,10 @@ Rails/OutputSafety:
     - 'app/helpers/**/*'
 
 RSpec/ExampleLength:
-  Max: 10
+  Max: 30
 
 RSpec/MultipleExpectations:
-  Max: 5
+  Max: 15
 
 RSpec/NestedGroups:
   Max: 3

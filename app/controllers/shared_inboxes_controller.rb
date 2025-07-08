@@ -4,7 +4,6 @@ class SharedInboxesController < ApplicationController
   include ActivityPubVerification
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
-  include ActivityPubCreateHandlers
   include GeneralErrorHandler
 
   # CSRFトークン無効化（外部からのPOST）
@@ -72,7 +71,7 @@ class SharedInboxesController < ApplicationController
     # 通常のActivityPub活動処理（既存のInboxControllerと同様）
     case @activity['type']
     when 'Create'
-      handle_create_activity
+      handle_create_activity_with_organizer
     when 'Update'
       handle_update_activity
     when 'Delete'
@@ -87,6 +86,13 @@ class SharedInboxesController < ApplicationController
       Rails.logger.warn "⚠️ Unsupported activity type: #{@activity['type']}"
       head :accepted
     end
+  end
+
+  def handle_create_activity_with_organizer
+    result = CreateActivityOrganizer.call(@activity, @sender, preserve_relay_info: @preserve_relay_info)
+
+    Rails.logger.error "Create activity failed: #{result.error}" unless result.success?
+    head :accepted
   end
 
   def handle_relay_accept

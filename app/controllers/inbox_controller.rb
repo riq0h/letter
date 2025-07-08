@@ -4,7 +4,6 @@ class InboxController < ApplicationController
   include ActivityPubVerification
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
-  include ActivityPubCreateHandlers
   include GeneralErrorHandler
 
   # CSRFトークン無効化（外部からのPOST）
@@ -39,7 +38,7 @@ class InboxController < ApplicationController
     when 'Undo'
       handle_undo_activity
     when 'Create'
-      handle_create_activity
+      handle_create_activity_with_organizer
     when 'Update'
       handle_update_activity
     when 'Delete'
@@ -51,6 +50,13 @@ class InboxController < ApplicationController
     else
       handle_unsupported_activity
     end
+  end
+
+  def handle_create_activity_with_organizer
+    result = CreateActivityOrganizer.call(@activity, @sender)
+
+    Rails.logger.error "Create activity failed: #{result.error}" unless result.success?
+    head :accepted
   end
 
   def handle_unsupported_activity

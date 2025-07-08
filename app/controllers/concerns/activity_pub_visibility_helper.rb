@@ -13,6 +13,6 @@ module ActivityPubVisibilityHelper
     return 'unlisted' if cc.include?('https://www.w3.org/ns/activitystreams#Public')
     return 'direct' if to.any? && cc.empty?
 
-    'followers'
+    'private'
   end
 end
