@@ -102,7 +102,7 @@ RSpec.describe UserTimelineQuery do
     end
 
     context 'with multiple filter types combined' do
-      it 'excludes all filtered user types' do # rubocop:todo RSpec/ExampleLength
+      it 'excludes all filtered user types' do
         blocked_user = create(:actor, local: true)
         muted_user = create(:actor, local: true)
         domain_blocked_user = create(:actor, :remote, domain: 'blocked.example.com')
@@ -111,15 +111,20 @@ RSpec.describe UserTimelineQuery do
         create(:mute, actor: user, target_actor: muted_user)
         create(:domain_block, actor: user, domain: 'blocked.example.com')
 
-        blocked_post = create(:activity_pub_object, :note, actor: blocked_user)
-        muted_post = create(:activity_pub_object, :note, actor: muted_user)
-        domain_blocked_post = create(:activity_pub_object, :note, actor: domain_blocked_user)
-        normal_post = create(:activity_pub_object, :note, actor: other_user)
-
+        posts = create_test_posts(blocked_user, muted_user, domain_blocked_user)
         result_ids = query.apply(base_query).pluck(:id)
 
-        expect(result_ids).to include(normal_post.id)
-        expect(result_ids).not_to include(blocked_post.id, muted_post.id, domain_blocked_post.id)
+        expect(result_ids).to include(posts[:normal].id)
+        expect(result_ids).not_to include(posts[:blocked].id, posts[:muted].id, posts[:domain_blocked].id)
+      end
+
+      def create_test_posts(blocked_user, muted_user, domain_blocked_user)
+        {
+          blocked: create(:activity_pub_object, :note, actor: blocked_user),
+          muted: create(:activity_pub_object, :note, actor: muted_user),
+          domain_blocked: create(:activity_pub_object, :note, actor: domain_blocked_user),
+          normal: create(:activity_pub_object, :note, actor: other_user)
+        }
       end
     end
 
@@ -136,8 +141,8 @@ RSpec.describe UserTimelineQuery do
       end
     end
 
-    context 'when integrating with TimelineBuilderService pattern' do
-      it 'works with complex queries like TimelineBuilderService uses' do
+    context 'when integrating with TimelineQuery pattern' do
+      it 'works with complex queries like TimelineQuery uses' do
         timeline_query = ActivityPubObject.joins(:actor)
                                           .includes(:poll)
                                           .where(object_type: %w[Note Question])

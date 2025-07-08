@@ -15,8 +15,8 @@ module Api
       def home
         return render_authentication_required unless current_user
 
-        timeline_builder = TimelineBuilderService.new(current_user, timeline_params)
-        timeline_items = timeline_builder.build_home_timeline
+        timeline_query = TimelineQuery.new(current_user, timeline_params)
+        timeline_items = timeline_query.build_home_timeline
 
         @paginated_items = timeline_items
         render json: timeline_items.map { |item| serialize_timeline_item(item) }
@@ -24,8 +24,8 @@ module Api
 
       # GET /api/v1/timelines/public
       def public
-        timeline_builder = TimelineBuilderService.new(current_user, timeline_params)
-        statuses = timeline_builder.build_public_timeline
+        timeline_query = TimelineQuery.new(current_user, timeline_params)
+        statuses = timeline_query.build_public_timeline
 
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }
@@ -33,8 +33,8 @@ module Api
 
       # GET /api/v1/timelines/tag/:hashtag
       def tag
-        timeline_builder = TimelineBuilderService.new(current_user, timeline_params)
-        statuses = timeline_builder.build_hashtag_timeline(params[:hashtag])
+        timeline_query = TimelineQuery.new(current_user, timeline_params)
+        statuses = timeline_query.build_hashtag_timeline(params[:hashtag])
 
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }

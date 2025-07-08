@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class TimelineBuilderService
+class TimelineQuery
   def initialize(user, params = {})
     @user = user
     @params = params
