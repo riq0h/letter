@@ -122,12 +122,6 @@ RSpec.describe CreateActivityOrganizer do
       organizer = described_class.new(poll_activity, sender)
       result = organizer.call
 
-      # デバッグ情報を出力
-      puts "Poll activity object: #{poll_activity['object'].inspect}"
-      puts "Result success: #{result.success?}"
-      puts "Poll count: #{Poll.count}"
-      puts "Object created: #{result.object.inspect}"
-
       expect(result).to be_success
       expect(Poll.count).to eq(1)
       poll = Poll.first

@@ -232,10 +232,18 @@ class PublishActivityOrganizer
 
   # Inbox URLの最適化（shared_inboxを優先）
   def optimize_inbox_urls(shared_inboxes, inbox_urls)
-    shared_domains = shared_inboxes.filter_map { |url| URI(url).host }
+    shared_domains = shared_inboxes.filter_map do |url|
+      URI(url).host
+    rescue URI::InvalidURIError => e
+      Rails.logger.warn "Invalid shared inbox URL: #{url} - #{e.message}"
+      nil
+    end
 
     individual_inboxes = inbox_urls.reject do |inbox_url|
       shared_domains.include?(URI(inbox_url).host)
+    rescue URI::InvalidURIError => e
+      Rails.logger.warn "Invalid inbox URL: #{inbox_url} - #{e.message}"
+      false
     end
 
     shared_inboxes + individual_inboxes

@@ -24,7 +24,7 @@ class WebFingerService
   private
 
   def parse_acct_uri(acct_uri)
-    identifier = AccountIdentifier.parse_acct_uri(acct_uri)
+    identifier = AccountIdentifier.new_from_acct_uri(acct_uri)
     return nil unless identifier
 
     [identifier.username, identifier.domain]

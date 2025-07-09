@@ -4,7 +4,7 @@ require 'rails_helper'
 
 RSpec.describe TagSerializer, type: :controller do
   controller(ApplicationController) do
-    include described_class
+    include TagSerializer # rubocop:disable RSpec/DescribedClass
 
     def test_action
       render json: { test: 'success' }

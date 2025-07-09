@@ -209,8 +209,7 @@ class WebPushDelivery
     def strip_tags(html)
       return '' if html.blank?
 
-      # HTMLタグを除去してプレーンテキストに変換
-      html.gsub(/<[^>]*>/, '').strip.truncate(100)
+      ActionView::Base.full_sanitizer.sanitize(html).strip.truncate(100)
     end
 
     # VAPID公開キー

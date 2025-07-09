@@ -47,11 +47,12 @@ module StatusEditHandler
     return unless edit_params[:content]
 
     content = edit_params[:content]
-    parsed_content = Content.parse(content)
+    parsed_content = Content.new_from_text(content)
 
     # メンションの処理
     if parsed_content.mentions?
-      mentions = parsed_content.mentions.pluck(:username).uniq
+      # parsed_content.mentionsはハッシュの配列なのでpluckは使用できない
+      mentions = parsed_content.mentions.map { |m| m[:username] }.uniq # rubocop:disable Rails/Pluck
       edit_params[:mentions] = mentions
     end
 
@@ -148,7 +149,7 @@ module StatusEditHandler
     tags_objs = []
 
     if edit.content.present?
-      parsed_content = Content.parse(edit.content)
+      parsed_content = Content.new_from_text(edit.content)
 
       # メンション用の簡易オブジェクト作成
       mentions_objs = parsed_content.mentions.map do |mention_data|

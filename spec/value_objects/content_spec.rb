@@ -3,14 +3,14 @@
 require 'rails_helper'
 
 RSpec.describe Content do
-  describe '.parse' do
+  describe '.new_from_text' do
     it 'creates a Content object from text' do
-      content = described_class.parse('Hello world!')
+      content = described_class.new_from_text('Hello world!')
       expect(content.text).to eq('Hello world!')
     end
 
     it 'strips whitespace from text' do
-      content = described_class.parse('  Hello world!  ')
+      content = described_class.new_from_text('  Hello world!  ')
       expect(content.text).to eq('Hello world!')
     end
   end

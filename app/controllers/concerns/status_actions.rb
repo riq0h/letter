@@ -21,7 +21,7 @@ module StatusActions
 
     unless result.success?
       Rails.logger.error "❌ Failed to create undo like activity: #{result.error}"
-      return
+      raise StandardError, result.error
     end
 
     result.activity
@@ -43,7 +43,7 @@ module StatusActions
 
     unless result.success?
       Rails.logger.error "❌ Failed to create undo announce activity: #{result.error}"
-      return
+      raise StandardError, result.error
     end
 
     result.activity

@@ -52,7 +52,7 @@ class WellKnownController < ApplicationController
   end
 
   def parse_acct_resource(resource)
-    identifier = AccountIdentifier.parse_acct_uri(resource)
+    identifier = AccountIdentifier.new_from_acct_uri(resource)
     identifier ? [identifier.username, identifier.domain] : []
   end
 

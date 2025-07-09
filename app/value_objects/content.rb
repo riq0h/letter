@@ -16,9 +16,14 @@ class Content
     freeze
   end
 
-  # ファクトリメソッド
-  def self.parse(text)
+  # テキストからコンテンツを生成
+  def self.new_from_text(text)
     new(text)
+  end
+
+  # ステータスオブジェクトからコンテンツを生成
+  def self.new_from_status(status)
+    new(status.content || '')
   end
 
   # 空のコンテンツかどうか

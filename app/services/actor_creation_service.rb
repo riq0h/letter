@@ -5,7 +5,6 @@ require 'stringio'
 
 # リモートアクターの作成を担当するサービス
 class ActorCreationService
-  require_relative 'concerns/actor_attachment_processing'
   include ActorAttachmentProcessing
 
   def self.create_from_activitypub_data(actor_data)

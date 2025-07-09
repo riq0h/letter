@@ -13,7 +13,7 @@ class AccountIdentifier
 
   # 文字列からAccountIdentifierを生成
   # @username@domain、username@domain、acct:username@domain形式をサポート
-  def self.parse(string)
+  def self.new_from_string(string)
     return nil if string.blank?
 
     # acct:、@プレフィックスを除去
@@ -29,7 +29,7 @@ class AccountIdentifier
   end
 
   # acct URI形式の文字列からAccountIdentifierを生成
-  def self.parse_acct_uri(acct_uri)
+  def self.new_from_acct_uri(acct_uri)
     return nil if acct_uri.blank?
 
     # acct:username@domain形式を処理
@@ -42,13 +42,20 @@ class AccountIdentifier
   end
 
   # メンション形式（@username）から生成
-  def self.from_mention(mention)
+  def self.new_from_mention(mention)
     return nil if mention.blank?
 
     parts = mention.split('@', 2)
     return nil if parts.empty?
 
     new(parts[0], parts[1])
+  end
+
+  # Actorオブジェクトから生成
+  def self.new_from_account(account)
+    return nil unless account
+
+    new(account.username, account.domain)
   end
 
   # ローカルアカウントかどうか

@@ -291,10 +291,13 @@ class CreateActivityOrganizer
     choice_index = target_object.poll.option_titles.index(choice_name)
     return unless choice_index
 
-    # 投票の選択肢を更新
-    vote_counts = target_object.poll.vote_counts.dup
-    vote_counts[choice_index] += 1
-    target_object.poll.update!(vote_counts: vote_counts)
+    # 投票の選択肢を更新（レースコンディション対策のためトランザクション内でロック）
+    Poll.transaction do
+      poll = target_object.poll.lock!
+      vote_counts = poll.vote_counts.dup
+      vote_counts[choice_index] += 1
+      poll.update!(vote_counts: vote_counts)
+    end
 
     Rails.logger.info "🗳️ Vote processed for poll #{target_object.poll.id}: #{choice_name}"
   rescue StandardError => e

@@ -69,26 +69,19 @@ class SearchQuery
   private
 
   def search_with_time_range
-    since_id = since_time.present? ? time_to_snowflake_id(since_time) : nil
-    until_id = until_time.present? ? time_to_snowflake_id(until_time) : nil
-    fts5_query = build_fts5_query
+    object_ids = matching_object_ids_with_time_range
+    return [] if object_ids.empty?
 
-    if since_id && until_id
-      fts5_query += " AND object_id BETWEEN '#{since_id}' AND '#{until_id}'"
-    elsif since_id
-      fts5_query += " AND object_id >= '#{since_id}'"
-    elsif until_id
-      fts5_query += " AND object_id <= '#{until_id}'"
-    end
-
-    execute_fts5_search(fts5_query)
+    ActivityPubObject.where(id: object_ids)
+                     .includes(:actor)
+                     .order('objects.id DESC')
   end
 
   def search_full_text_only
     if contains_special_characters?
       try_like_search
     else
-      execute_fts5_search(build_fts5_query)
+      execute_fts5_search
     end
   end
 
@@ -101,7 +94,7 @@ class SearchQuery
     end
   end
 
-  def execute_fts5_search(_fts5_query)
+  def execute_fts5_search
     object_ids = matching_object_ids
     return [] if object_ids.empty?
 
@@ -115,6 +108,55 @@ class SearchQuery
     return fts_results if fts_results.any?
 
     try_like_search
+  end
+
+  def matching_object_ids_with_time_range
+    return [] unless fts5_table?
+
+    since_id = since_time.present? ? time_to_snowflake_id(since_time) : nil
+    until_id = until_time.present? ? time_to_snowflake_id(until_time) : nil
+    fts_query = build_japanese_friendly_fts_query
+
+    sql = build_time_range_sql(since_id, until_id)
+    params = build_time_range_params(sql, fts_query, since_id, until_id)
+
+    results = ActiveRecord::Base.connection.execute(
+      ActiveRecord::Base.sanitize_sql(params)
+    )
+
+    results.pluck('object_id')
+  end
+
+  def build_time_range_sql(since_id, until_id)
+    base_sql = <<~SQL.squish
+      SELECT fts.object_id
+      FROM post_search_fts fts
+      INNER JOIN objects o ON fts.object_id = o.id
+      INNER JOIN actors a ON o.actor_id = a.id
+      WHERE fts.content_plaintext MATCH ?
+    SQL
+
+    if since_id && until_id
+      "#{base_sql} AND fts.object_id BETWEEN ? AND ? AND a.local = 1 ORDER BY fts.object_id DESC LIMIT ? OFFSET ?"
+    elsif since_id
+      "#{base_sql} AND fts.object_id >= ? AND a.local = 1 ORDER BY fts.object_id DESC LIMIT ? OFFSET ?"
+    elsif until_id
+      "#{base_sql} AND fts.object_id <= ? AND a.local = 1 ORDER BY fts.object_id DESC LIMIT ? OFFSET ?"
+    else
+      "#{base_sql} AND a.local = 1 ORDER BY fts.object_id DESC LIMIT ? OFFSET ?"
+    end
+  end
+
+  def build_time_range_params(sql, fts_query, since_id, until_id)
+    if since_id && until_id
+      [sql, fts_query, since_id, until_id, limit, offset]
+    elsif since_id
+      [sql, fts_query, since_id, limit, offset]
+    elsif until_id
+      [sql, fts_query, until_id, limit, offset]
+    else
+      [sql, fts_query, limit, offset]
+    end
   end
 
   def try_fts5_search

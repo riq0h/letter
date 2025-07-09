@@ -3,71 +3,71 @@
 require 'rails_helper'
 
 RSpec.describe AccountIdentifier do
-  describe '.parse' do
+  describe '.new_from_string' do
     it 'parses @username@domain format correctly' do
-      identifier = described_class.parse('@alice@example.com')
+      identifier = described_class.new_from_string('@alice@example.com')
       expect(identifier.username).to eq('alice')
       expect(identifier.domain).to eq('example.com')
     end
 
     it 'parses username@domain format correctly' do
-      identifier = described_class.parse('alice@example.com')
+      identifier = described_class.new_from_string('alice@example.com')
       expect(identifier.username).to eq('alice')
       expect(identifier.domain).to eq('example.com')
     end
 
     it 'parses acct:username@domain format correctly' do
-      identifier = described_class.parse('acct:alice@example.com')
+      identifier = described_class.new_from_string('acct:alice@example.com')
       expect(identifier.username).to eq('alice')
       expect(identifier.domain).to eq('example.com')
     end
 
     it 'sets domain to nil for local username only' do
-      identifier = described_class.parse('alice')
+      identifier = described_class.new_from_string('alice')
       expect(identifier.username).to eq('alice')
       expect(identifier.domain).to be_nil
     end
 
     it 'returns nil for empty string' do
-      expect(described_class.parse('')).to be_nil
+      expect(described_class.new_from_string('')).to be_nil
     end
 
     it 'returns nil for nil input' do
-      expect(described_class.parse(nil)).to be_nil
+      expect(described_class.new_from_string(nil)).to be_nil
     end
   end
 
-  describe '.parse_acct_uri' do
+  describe '.new_from_acct_uri' do
     it 'parses acct:username@domain format correctly' do
-      identifier = described_class.parse_acct_uri('acct:alice@example.com')
+      identifier = described_class.new_from_acct_uri('acct:alice@example.com')
       expect(identifier.username).to eq('alice')
       expect(identifier.domain).to eq('example.com')
     end
 
     it 'returns nil for format without @' do
-      expect(described_class.parse_acct_uri('alice')).to be_nil
+      expect(described_class.new_from_acct_uri('alice')).to be_nil
     end
 
     it 'returns nil for multiple @ symbols' do
-      expect(described_class.parse_acct_uri('alice@bob@example.com')).to be_nil
+      expect(described_class.new_from_acct_uri('alice@bob@example.com')).to be_nil
     end
   end
 
-  describe '.from_mention' do
+  describe '.new_from_mention' do
     it 'creates from mention format' do
-      identifier = described_class.from_mention('alice@example.com')
+      identifier = described_class.new_from_mention('alice@example.com')
       expect(identifier.username).to eq('alice')
       expect(identifier.domain).to eq('example.com')
     end
 
     it 'creates from local mention without @' do
-      identifier = described_class.from_mention('alice')
+      identifier = described_class.new_from_mention('alice')
       expect(identifier.username).to eq('alice')
       expect(identifier.domain).to be_nil
     end
 
     it 'returns nil for empty string' do
-      expect(described_class.from_mention('')).to be_nil
+      expect(described_class.new_from_mention('')).to be_nil
     end
   end
 

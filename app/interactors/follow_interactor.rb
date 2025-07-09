@@ -105,7 +105,7 @@ class FollowInteractor
   end
 
   def parse_acct(acct)
-    identifier = AccountIdentifier.parse(acct)
+    identifier = AccountIdentifier.new_from_string(acct)
     return [nil, nil] unless identifier
 
     [identifier.username, identifier.domain]
