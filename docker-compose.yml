@@ -2,9 +2,15 @@ version: '3.8'
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      target: runner
+      args:
+        RUBY_VERSION: 3.4.1
+    image: letter:latest
+    container_name: letter_web
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     environment:
       # ActivityPub設定
       ACTIVITYPUB_DOMAIN: ${ACTIVITYPUB_DOMAIN:-localhost:3000}
@@ -32,18 +38,33 @@ services:
       S3_ALIAS_HOST: ${S3_ALIAS_HOST:-}
       
       # Rails設定
-      RAILS_ENV: ${RAILS_ENV:-development}
+      RAILS_ENV: ${RAILS_ENV:-production}
       RAILS_LOG_LEVEL: ${RAILS_LOG_LEVEL:-info}
+      RAILS_LOG_TO_STDOUT: ${RAILS_LOG_TO_STDOUT:-true}
+      RAILS_SERVE_STATIC_FILES: ${RAILS_SERVE_STATIC_FILES:-true}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-}
+      
+      # データベース設定
+      DATABASE_URL: ${DATABASE_URL:-}
+      
+      # アプリケーション設定
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
       
     volumes:
       # ログ永続化
-      - ./log:/app/log
+      - letter_logs:/app/log
       
       # ストレージ永続化（SQLiteデータベースとActive Storageファイル）
-      - ./storage:/app/storage
+      - letter_storage:/app/storage
       
-      # オプション: .envファイルが存在する場合はマウント
-      - ./.env:/app/.env:ro
+      # アップロードファイル永続化
+      - letter_uploads:/app/public/uploads
+      
+      # 開発環境用ボリューム（本番環境では不要）
+      # - ./app:/app/app:cached
+      # - ./config:/app/config:cached
+      # - ./db:/app/db:cached
       
     restart: unless-stopped
     
@@ -52,11 +73,28 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
+    
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
-# Optional: Add volumes for explicit persistence
+# 名前付きボリューム
 volumes:
   letter_storage:
     driver: local
   letter_logs:
+    driver: local
+  letter_uploads:
     driver: local

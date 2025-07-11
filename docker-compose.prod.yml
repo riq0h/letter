@@ -1,0 +1,90 @@
+# 本番環境用のDocker Compose設定
+# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+version: '3.8'
+
+services:
+  web:
+    build:
+      target: runner
+    image: letter:prod
+    environment:
+      # 本番環境設定
+      RAILS_ENV: production
+      RAILS_LOG_LEVEL: info
+      RAILS_LOG_TO_STDOUT: true
+      RAILS_SERVE_STATIC_FILES: true
+      
+      # 本番用のActivityPub設定
+      ACTIVITYPUB_PROTOCOL: https
+      
+      # セキュリティ設定
+      FORCE_SSL: ${FORCE_SSL:-true}
+      
+      # パフォーマンス設定
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-10}
+      
+    # 本番環境では名前付きボリュームのみ使用
+    volumes:
+      - letter_storage:/app/storage
+      - letter_logs:/app/log
+      - letter_uploads:/app/public/uploads
+      
+    # 本番環境用リソース制限
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 60s
+    
+    # 本番環境用ヘルスチェック（より頻繁）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/up"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    
+    # ログローテーション設定
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # 本番環境用Nginx（オプション）
+  nginx:
+    image: nginx:alpine
+    container_name: letter_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+      - letter_uploads:/var/www/uploads:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  letter_storage:
+    driver: local
+  letter_logs:
+    driver: local  
+  letter_uploads:
+    driver: local
