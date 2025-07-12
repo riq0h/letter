@@ -41,12 +41,12 @@ Metrics/MethodLength:
 Metrics/AbcSize:
   Max: 30
   Exclude:
-   - 'app/**/*'
+    - 'app/**/*'
 
 Metrics/PerceivedComplexity:
   Max: 10
   Exclude:
-   - 'app/**/*'
+    - 'app/**/*'
 
 Metrics/ClassLength:
   Max: 300
@@ -119,7 +119,7 @@ RSpec/VerifiedDoubles:
 Naming/PredicateName:
   Exclude:
     - 'app/controllers/api/base_controller.rb'
-    - 'app/models/activity_pub_object.rb' 
+    - 'app/models/activity_pub_object.rb'
     - 'app/models/media_attachment.rb'
     - 'app/services/follow_service.rb'
     - 'app/services/web_push_notification_service.rb'

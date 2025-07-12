@@ -21,10 +21,26 @@ letterはRails8およびSQLite、Hotwireで構成されるミニマルなActivit
 RAILS_ENV=production bin/setup
 ```
 
+## セットアップ（Docker）
+
+```
+./docker-quick-start.sh
+```
+
+## 起動（Docker）
+
+```
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
 ## 統合管理ツール
 
 ```
 bin/letter_manager.rb
+```
+
+```
+docker compose exec web rails runner bin/letter_manager.rb
 ```
 
 ## スクリーンショット
