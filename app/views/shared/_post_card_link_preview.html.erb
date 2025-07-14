@@ -37,7 +37,7 @@
           
           <% if link_preview.description.present? %>
             <div class="text-xs text-gray-600 line-clamp-2">
-              <%= CGI.escapeHTML(link_preview.truncated_description(120)) %>
+              <%= CGI.escapeHTML(truncate(link_preview.description, length: 120)) %>
             </div>
           <% end %>
           

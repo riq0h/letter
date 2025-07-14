@@ -4,8 +4,8 @@ module Letter
   # Mastodon互換のSnowflake ID生成
   # 48ビットタイムスタンプ + 16ビットシーケンス = 64ビット整数（文字列として処理）
   class Snowflake
-    # エポック（2024年1月1日 00:00:00 UTC）
-    EPOCH = Time.new(2024, 1, 1, 0, 0, 0, '+00:00').to_i * 1000
+    # エポック（2016年3月16日 00:00:00 UTC）
+    EPOCH = Time.new(2016, 3, 16, 0, 0, 0, '+00:00').to_i * 1000
 
     # ビット配置
     TIMESTAMP_BITS = 48
