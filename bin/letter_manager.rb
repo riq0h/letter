@@ -464,14 +464,26 @@ def cleanup_and_start
   # データベースメンテナンス
   print_info '4. データベースのメンテナンス...'
   system("RAILS_ENV=#{rails_env} bin/rails db:migrate 2>/dev/null || true")
+  print_success 'データベースメンテナンスが完了しました'
 
   # キャッシュデータベースのチェックと修復
   cache_db_file = "storage/cache_#{rails_env}.sqlite3"
   if File.exist?(cache_db_file)
     tables = `sqlite3 "#{cache_db_file}" ".tables" 2>/dev/null`.strip
+    has_schema_migrations = tables.include?('schema_migrations')
+    has_app_tables = tables.include?('actors') || tables.include?('objects') || tables.include?('activities')
+    
     # アプリケーションのテーブルが入っている場合は修復
-    if tables.include?('actors') || tables.include?('objects') || tables.include?('activities')
+    if has_app_tables && tables.include?('solid_cache_entries')
+      # アプリケーションテーブルとキャッシュテーブルが混在している場合は修復
       print_warning 'キャッシュデータベースに誤ったテーブルが含まれています。修復します...'
+      
+      # 現在のマイグレーション状態を保存
+      current_migrations = []
+      if has_schema_migrations
+        current_migrations = `sqlite3 "#{cache_db_file}" "SELECT version FROM schema_migrations;" 2>/dev/null`.strip.split("\n")
+      end
+      
       FileUtils.rm_f(cache_db_file)
       require 'sqlite3'
       SQLite3::Database.new(cache_db_file).close
@@ -497,6 +509,17 @@ def cleanup_and_start
       system("sqlite3 \"#{cache_db_file}\" <<EOF
 #{create_cache_table_sql}
 EOF")
+      
+      # 保存されたマイグレーション情報を復元
+      if current_migrations.any?
+        print_info 'マイグレーション情報を復元中...'
+        current_migrations.each do |version|
+          next if version.empty?
+          system("sqlite3 \"#{cache_db_file}\" \"INSERT OR IGNORE INTO schema_migrations (version) VALUES ('#{version}');\"")
+        end
+        print_success 'マイグレーション情報を復元しました'
+      end
+      
       print_success 'キャッシュデータベースを修復しました'
     elsif !tables.include?('solid_cache_entries')
       print_warning 'Solid Cacheテーブルが存在しません。作成します...'
@@ -2775,37 +2798,88 @@ def perform_mastodon_import(dump_path, mastodon_username, actor)
               begin
                 if media_info[:remote_url] && !media_info[:remote_url].empty?
                   # リモートURLがある場合はダウンロードして処理
-                  uri = URI.parse(media_info[:remote_url])
-                  response = Net::HTTP.get_response(uri)
-                  
-                  if response.code == '200'
-                    temp_file = Tempfile.new(['media', '.jpg'])
-                    temp_file.binmode
-                    temp_file.write(response.body)
-                    temp_file.rewind
+                  begin
+                    require 'net/http'
+                    require 'openssl'
                     
-                    media_attachment = MediaAttachment.create!(
-                      actor: actor,
-                      object: obj,
-                      media_type: 'image',
-                      content_type: response.content_type || 'image/jpeg',
-                      file_name: "\#{media_info[:shortcode] || 'image'}.jpg",
-                      file_size: response.body.size,
-                      remote_url: media_info[:remote_url],
-                      description: media_info[:description] || ''
-                    )
+                    uri = URI.parse(media_info[:remote_url])
                     
-                    media_attachment.attach_file_with_folder(
-                      io: temp_file,
-                      filename: media_attachment.file_name,
-                      content_type: media_attachment.content_type
-                    )
+                    # HTTPSサポートとリダイレクト対応
+                    http = Net::HTTP.new(uri.host, uri.port)
+                    http.use_ssl = (uri.scheme == 'https')
+                    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+                    http.read_timeout = 30
                     
-                    temp_file.close
-                    temp_file.unlink
-                    puts "メディア作成成功: \#{media_attachment.id}"
-                  else
-                    puts "ダウンロード失敗: \#{response.code}"
+                    request = Net::HTTP::Get.new(uri.request_uri)
+                    request['User-Agent'] = 'Letter/1.0 (Mastodon Import)'
+                    
+                    response = http.request(request)
+                    
+                    # リダイレクト対応
+                    if response.code.to_i >= 300 && response.code.to_i < 400 && response['location']
+                      uri = URI.parse(response['location'])
+                      http = Net::HTTP.new(uri.host, uri.port)
+                      http.use_ssl = (uri.scheme == 'https')
+                      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+                      request = Net::HTTP::Get.new(uri.request_uri)
+                      request['User-Agent'] = 'Letter/1.0 (Mastodon Import)'
+                      response = http.request(request)
+                    end
+                    
+                    if response.code == '200'
+                      # content-typeから拡張子を推定
+                      content_type = response.content_type || media_info[:content_type] || 'image/jpeg'
+                      ext = case content_type
+                            when /jpeg|jpg/i then '.jpg'
+                            when /png/i then '.png'
+                            when /gif/i then '.gif'
+                            when /webp/i then '.webp'
+                            when /avif/i then '.avif'
+                            else '.jpg'
+                            end
+                      
+                      # URLから拡張子を取得する試み
+                      if media_info[:remote_url].match(/\.(jpg|jpeg|png|gif|webp|avif)$/i)
+                        ext = ".\#{$1.downcase}"
+                      end
+                      
+                      temp_file = Tempfile.new(['media', ext])
+                      temp_file.binmode
+                      temp_file.write(response.body)
+                      temp_file.rewind
+                      
+                      file_name = if media_info[:shortcode] && media_info[:shortcode] != '\\\\N'
+                                    "\#{media_info[:shortcode]}\#{ext}"
+                                  else
+                                    "image_\#{SecureRandom.hex(8)}\#{ext}"
+                                  end
+                      
+                      media_attachment = MediaAttachment.create!(
+                        actor: actor,
+                        object: obj,
+                        media_type: 'image',
+                        content_type: content_type,
+                        file_name: file_name,
+                        file_size: response.body.size,
+                        remote_url: media_info[:remote_url],
+                        description: media_info[:description] || ''
+                      )
+                      
+                      media_attachment.attach_file_with_folder(
+                        io: temp_file,
+                        filename: media_attachment.file_name,
+                        content_type: media_attachment.content_type
+                      )
+                      
+                      temp_file.close
+                      temp_file.unlink
+                      puts "メディア作成成功: \#{media_attachment.id}"
+                    else
+                      puts "ダウンロード失敗: \#{response.code} - \#{uri}"
+                    end
+                  rescue => e
+                    puts "HTTPエラー: \#{e.message}"
+                    puts "  URL: \#{media_info[:remote_url]}"
                   end
                 else
                   # ローカルファイルの場合はメタデータのみ作成

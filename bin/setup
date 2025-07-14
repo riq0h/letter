@@ -240,10 +240,33 @@ FileUtils.chdir APP_ROOT do
         # アプリケーションのテーブルが入っている場合は削除して再作成
         if tables.include?("actors") || tables.include?("objects") || tables.include?("activities")
           print_warning "#{name}データベースに誤ったテーブルが含まれています。再作成します..."
+          
+          # 現在のマイグレーション状態を保存
+          current_migrations = []
+          if tables.include?("schema_migrations")
+            current_migrations = `sqlite3 "#{db_file}" "SELECT version FROM schema_migrations;" 2>/dev/null`.strip.split("\n")
+          end
+          
           FileUtils.rm_f(db_file)
           require 'sqlite3'
           SQLite3::Database.new(db_file).close
           print_success "#{name}データベースを再作成しました"
+          
+          # 再作成後にマイグレーション情報を復元
+          if current_migrations.any?
+            print_info "キャッシュデータベースのマイグレーション情報を復元中..."
+            
+            # まずschema_migrationsテーブルを作成
+            system("sqlite3 \"#{db_file}\" \"CREATE TABLE IF NOT EXISTS schema_migrations (version varchar NOT NULL PRIMARY KEY);\"")
+            
+            # 保存されたマイグレーション情報を復元
+            current_migrations.each do |version|
+              next if version.empty?
+              system("sqlite3 \"#{db_file}\" \"INSERT OR IGNORE INTO schema_migrations (version) VALUES ('#{version}');\"")
+            end
+            
+            print_success "マイグレーション情報を復元しました"
+          end
         end
       end
     end
@@ -313,7 +336,19 @@ FileUtils.chdir APP_ROOT do
   # Cache database schema
   if File.exist?(cache_db_file)
     cache_tables = `sqlite3 "#{cache_db_file}" ".tables" 2>/dev/null`.strip
-    unless cache_tables.include?("solid_cache_entries")
+    
+    # schema_migrationsテーブルがあるかチェック
+    has_schema_migrations = cache_tables.include?("schema_migrations")
+    
+    # アプリケーションテーブルがあるかチェック（誤ってマイグレーションが適用された場合）
+    has_app_tables = cache_tables.include?("actors") || cache_tables.include?("objects")
+    
+    if has_app_tables && !cache_tables.include?("solid_cache_entries")
+      # アプリケーションテーブルがあってキャッシュテーブルがない場合は、アプリケーションマイグレーションを実行
+      print_warning "Cacheデータベースにアプリケーションマイグレーションを適用中..."
+      system! "#{env_cmd} bin/rails db:migrate"
+      print_success "Cacheデータベースのマイグレーションを完了しました"
+    elsif !cache_tables.include?("solid_cache_entries")
       print_info "Solid Cacheテーブルを作成中..."
       
       # Solid Cache専用のテーブル構造を動的に生成
@@ -345,6 +380,20 @@ EOF")
       end
     else
       print_success "Solid Cacheテーブルが存在します"
+      
+      # schema_migrationsテーブルをチェックしてアプリケーションマイグレーションが必要か判断
+      if has_schema_migrations
+        applied_migrations = `sqlite3 "#{cache_db_file}" "SELECT version FROM schema_migrations;" 2>/dev/null`.strip.split("\n")
+        # 20240101000001より新しいマイグレーションがあるかチェック
+        app_migrations = applied_migrations.select { |v| v > "20240101000001" }
+        
+        if app_migrations.empty?
+          # アプリケーションマイグレーションが未適用の場合
+          print_info "Cacheデータベースにアプリケーションマイグレーションを適用中..."
+          system! "#{env_cmd} bin/rails db:migrate"
+          print_success "Cacheデータベースのマイグレーションを完了しました"
+        end
+      end
     end
   end
 
