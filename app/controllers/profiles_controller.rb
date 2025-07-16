@@ -175,7 +175,8 @@ class ProfilesController < ApplicationController
   end
 
   def find_post_by_id(id)
-    ActivityPubObject.find_by(id: id)
+    numeric_id = id.to_s.start_with?('post_') ? id.sub('post_', '') : id
+    ActivityPubObject.find_by(id: numeric_id)
   end
 
   def get_post_display_id(timeline_item)
