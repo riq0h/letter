@@ -4,6 +4,11 @@ set -e
 # Dockerエントリーポイント
 # データベースセットアップ、環境検証、プロセス管理を処理
 
+# bundlerの環境を設定（グローバル）
+export BUNDLE_GEMFILE=/app/Gemfile
+export BUNDLE_PATH=/usr/local/bundle
+export PATH="/usr/local/bundle/bin:$PATH"
+
 echo "=== アプリケーション開始 ==="
 
 # 依存関係の待機関数
@@ -37,6 +42,12 @@ validate_environment() {
 setup_database() {
     echo "データベースをセットアップ中..."
     
+    cd /app
+    
+    # bundlerの環境を設定
+    export BUNDLE_GEMFILE=/app/Gemfile
+    export BUNDLE_PATH=/usr/local/bundle
+    
     # データベースが存在するかチェック  
     RAILS_ENV=${RAILS_ENV:-development}
     DB_FILE="storage/${RAILS_ENV}.sqlite3"
@@ -56,13 +67,32 @@ setup_database() {
 prepare_assets() {
     echo "アセットを準備中..."
     
+    cd /app
+    
+    # bundlerの環境を設定
+    export BUNDLE_GEMFILE=/app/Gemfile
+    export BUNDLE_PATH=/usr/local/bundle
+    
     # 本番環境またはアセットが存在しない場合のみプリコンパイル
     if [ "$RAILS_ENV" = "production" ] || [ ! -d "public/assets" ]; then
         echo "アセットをプリコンパイル中..."
         bundle exec rails assets:precompile
         echo "OK: アセットプリコンパイル完了"
     else
-        echo "OK: アセットは既に準備済み"
+        echo "OK: アセット準備済み"
+    fi
+    
+    # 開発環境でTailwind CSS watcherを利用可能にする
+    if [ "$RAILS_ENV" = "development" ]; then
+        echo "開発モード: Tailwind CSSはオンデマンドでコンパイルされます"
+        # 開発用にTailwind CSSビルドプロセスをバックグラウンド開始
+        if [ -f "package.json" ] && grep -q "build:css" package.json; then
+            echo "Tailwind CSS watcherを開始中..."
+            npm run build:css &
+            TAILWIND_PID=$!
+            echo $TAILWIND_PID > tmp/pids/tailwind.pid
+            echo "OK: Tailwind CSS watcher開始 (PID: $TAILWIND_PID)"
+        fi
     fi
 }
 
@@ -73,6 +103,7 @@ cleanup_processes() {
     # PIDファイルを削除
     rm -f tmp/pids/server.pid
     rm -f tmp/pids/solid_queue.pid
+    rm -f tmp/pids/tailwind.pid
     
     echo "OK: プロセスクリーンアップ完了"
 }
@@ -81,12 +112,23 @@ cleanup_processes() {
 start_solid_queue() {
     echo "Solid Queueワーカーを開始中..."
     
-    # Solid Queueをバックグラウンドプロセスとして開始
-    bundle exec bin/jobs &
-    SOLID_QUEUE_PID=$!
-    echo $SOLID_QUEUE_PID > tmp/pids/solid_queue.pid
+    cd /app
     
-    echo "OK: Solid Queue開始 (PID: $SOLID_QUEUE_PID)"
+    # bundlerの環境を設定
+    export BUNDLE_GEMFILE=/app/Gemfile
+    export BUNDLE_PATH=/usr/local/bundle
+    
+    # Pumaで実行していない場合のみ開始（SOLID_QUEUE_IN_PUMAをチェック）
+    if [ "$SOLID_QUEUE_IN_PUMA" != "true" ]; then
+        # Solid Queueをバックグラウンドプロセスとして開始
+        bundle exec bin/jobs &
+        SOLID_QUEUE_PID=$!
+        echo $SOLID_QUEUE_PID > tmp/pids/solid_queue.pid
+        
+        echo "OK: Solid Queue開始 (PID: $SOLID_QUEUE_PID)"
+    else
+        echo "OK: Solid QueueはPumaプロセス内で実行されます"
+    fi
 }
 
 # グレースフルシャットダウンハンドラー
@@ -98,11 +140,22 @@ shutdown_handler() {
     if [ -f tmp/pids/solid_queue.pid ]; then
         SOLID_QUEUE_PID=$(cat tmp/pids/solid_queue.pid)
         if kill -0 $SOLID_QUEUE_PID 2>/dev/null; then
-            echo "Solid Queue停止中 (PID: $SOLID_QUEUE_PID)..."
+            echo "Solid Queueを停止中 (PID: $SOLID_QUEUE_PID)..."
             kill -TERM $SOLID_QUEUE_PID
             wait $SOLID_QUEUE_PID 2>/dev/null || true
         fi
         rm -f tmp/pids/solid_queue.pid
+    fi
+    
+    # Tailwind CSS watcherを停止
+    if [ -f tmp/pids/tailwind.pid ]; then
+        TAILWIND_PID=$(cat tmp/pids/tailwind.pid)
+        if kill -0 $TAILWIND_PID 2>/dev/null; then
+            echo "Tailwind CSS watcherを停止中 (PID: $TAILWIND_PID)..."
+            kill -TERM $TAILWIND_PID
+            wait $TAILWIND_PID 2>/dev/null || true
+        fi
+        rm -f tmp/pids/tailwind.pid
     fi
     
     echo "OK: グレースフルシャットダウン完了"
@@ -117,6 +170,14 @@ main() {
     wait_for_dependencies
     validate_environment
     cleanup_processes
+    
+    # 作業ディレクトリを設定
+    cd /app
+    
+    # bundlerの環境を設定
+    export BUNDLE_GEMFILE=/app/Gemfile
+    export BUNDLE_PATH=/usr/local/bundle
+    
     setup_database
     prepare_assets
     start_solid_queue
