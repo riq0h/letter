@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'English'
 require 'fileutils'
 require 'openssl'
 require 'base64'
@@ -7,7 +10,6 @@ require 'time'
 require 'net/http'
 require 'uri'
 require 'tempfile'
-require 'set'
 
 APP_ROOT = File.expand_path('..', __dir__)
 
@@ -27,7 +29,7 @@ end
 
 def print_header(message)
   puts '========================================'
-  puts "#{message}"
+  puts message
   puts '========================================'
 end
 
@@ -79,7 +81,7 @@ def show_menu
   puts '  k) リモート画像キャッシュ管理'
   puts ''
   puts 'データ管理:'
-  puts '  l) Mastodonバックアップからインポート'
+  puts '  l) Mastodonのバックアップからインポート'
   puts ''
   puts '  x) 終了'
   puts ''
@@ -109,7 +111,7 @@ def run_rails_command(code)
   File.write(temp_file, code)
 
   result = `RAILS_ENV=#{rails_env} #{env_string} bin/rails runner "#{temp_file}" 2>&1`
-  File.delete(temp_file) if File.exist?(temp_file)
+  FileUtils.rm_f(temp_file)
 
   # ActivityPub メッセージをフィルタリング
   filtered_lines = result.strip.lines.reject do |line|
@@ -118,7 +120,7 @@ def run_rails_command(code)
   end
   filtered_lines.join.strip
 ensure
-  File.delete(temp_file) if File.exist?(temp_file)
+  FileUtils.rm_f(temp_file)
 end
 
 def run_rails_command_with_params(code, params = {})
@@ -141,18 +143,18 @@ def run_rails_command_with_params(code, params = {})
 
   result = `RAILS_ENV=#{rails_env} #{env_string} bin/rails runner "#{temp_file}" 2>/dev/null`
 
-  [temp_file, params_file].each { |f| File.delete(f) if File.exist?(f) }
+  [temp_file, params_file].each { |f| FileUtils.rm_f(f) }
 
   result
 ensure
-  [temp_file, params_file].each { |f| File.delete(f) if File.exist?(f) }
+  [temp_file, params_file].each { |f| FileUtils.rm_f(f) }
 end
 
 # a. セットアップ
 def setup_new_installation
   puts ''
   print_header 'セットアップスクリプト'
-  print_info "実行時刻: #{Time.now}"
+  print_info "実行時刻: #{Time.zone.now}"
   puts ''
 
   # 環境ファイルの設定
@@ -282,7 +284,7 @@ def setup_new_installation
   print_info 'マイグレーションの確認...'
 
   migrate_output = `RAILS_ENV=#{rails_env} bin/rails db:migrate:status 2>&1`
-  if $?.success?
+  if $CHILD_STATUS.success?
     pending_migrations = migrate_output.lines.select { |line| line.include?('down') }
 
     if pending_migrations.empty?
@@ -428,7 +430,7 @@ end
 def cleanup_and_start
   puts ''
   print_header 'クリーンアップ＆再起動'
-  print_info "実行時刻: #{Time.now}"
+  print_info "実行時刻: #{Time.zone.now}"
 
   # プロセス終了（SOLID_QUEUE_IN_PUMAを考慮）
   print_info '1. 関連プロセスの終了...'
@@ -472,24 +474,24 @@ def cleanup_and_start
     tables = `sqlite3 "#{cache_db_file}" ".tables" 2>/dev/null`.strip
     has_schema_migrations = tables.include?('schema_migrations')
     has_app_tables = tables.include?('actors') || tables.include?('objects') || tables.include?('activities')
-    
+
     # アプリケーションのテーブルが入っている場合は修復
     if has_app_tables && tables.include?('solid_cache_entries')
       # アプリケーションテーブルとキャッシュテーブルが混在している場合は修復
       print_warning 'キャッシュデータベースに誤ったテーブルが含まれています。修復します...'
-      
+
       # 現在のマイグレーション状態を保存
       current_migrations = []
       if has_schema_migrations
         current_migrations = `sqlite3 "#{cache_db_file}" "SELECT version FROM schema_migrations;" 2>/dev/null`.strip.split("\n")
       end
-      
+
       FileUtils.rm_f(cache_db_file)
       require 'sqlite3'
       SQLite3::Database.new(cache_db_file).close
 
       # Solid Cacheテーブルを作成
-      create_cache_table_sql = <<~SQL
+      create_cache_table_sql = <<~SQL.squish
         CREATE TABLE IF NOT EXISTS schema_migrations (version varchar NOT NULL PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS ar_internal_metadata (key varchar NOT NULL PRIMARY KEY, value varchar, created_at datetime(6) NOT NULL, updated_at datetime(6) NOT NULL);
         CREATE TABLE IF NOT EXISTS solid_cache_entries (
@@ -509,21 +511,22 @@ def cleanup_and_start
       system("sqlite3 \"#{cache_db_file}\" <<EOF
 #{create_cache_table_sql}
 EOF")
-      
+
       # 保存されたマイグレーション情報を復元
       if current_migrations.any?
         print_info 'マイグレーション情報を復元中...'
         current_migrations.each do |version|
           next if version.empty?
+
           system("sqlite3 \"#{cache_db_file}\" \"INSERT OR IGNORE INTO schema_migrations (version) VALUES ('#{version}');\"")
         end
         print_success 'マイグレーション情報を復元しました'
       end
-      
+
       print_success 'キャッシュデータベースを修復しました'
     elsif !tables.include?('solid_cache_entries')
       print_warning 'Solid Cacheテーブルが存在しません。作成します...'
-      create_cache_table_sql = <<~SQL
+      create_cache_table_sql = <<~SQL.squish
         CREATE TABLE IF NOT EXISTS schema_migrations (version varchar NOT NULL PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS ar_internal_metadata (key varchar NOT NULL PRIMARY KEY, value varchar, created_at datetime(6) NOT NULL, updated_at datetime(6) NOT NULL);
         CREATE TABLE IF NOT EXISTS solid_cache_entries (
@@ -825,7 +828,7 @@ def manage_accounts
       line.strip.start_with?('ActivityPub configured') ||
         line.strip.empty?
     end
-    account_count = filtered_lines[0]&.strip&.to_i || 0
+    account_count = filtered_lines[0]&.strip.to_i
   rescue StandardError
     print_error 'データベースアクセスエラー'
     return
@@ -1062,7 +1065,7 @@ def change_password
 
   username = safe_gets('ユーザ名を入力してください: ')
 
-  return unless username.present?
+  return if username.nil? || username.empty?
 
   # ユーザ存在チェック
   check_code = "puts Actor.exists?(username: '#{username}', local: true) ? 'exists' : 'not_found'"
@@ -1290,7 +1293,7 @@ def perform_account_deletion(identifier)
     print_info "残りのローカルアカウント数: #{remaining_count}"
     true
   else
-    detail = filtered_lines[1..-1]&.join("\n")
+    detail = filtered_lines[1..]&.join("\n")
     print_error "削除に失敗しました: #{detail}"
     false
   end
@@ -1366,7 +1369,7 @@ def delete_account_by_identifier(identifier)
   when 'found'
     puts ''
     print_warning '削除対象のアカウント詳細:'
-    info_lines[1..-1].each { |line| puts "  #{line.strip}" }
+    info_lines[1..].each { |line| puts "  #{line.strip}" }
     puts ''
 
     print_error '⚠️ 重要な警告 ⚠️'
@@ -1459,12 +1462,12 @@ def delete_account_by_identifier(identifier)
       print_info "残りのローカルアカウント数: #{remaining_count}"
       true
     else
-      detail = result_lines[1..-1]&.join("\n")
+      detail = result_lines[1..]&.join("\n")
       print_error "削除に失敗しました: #{detail}"
       false
     end
   when 'error'
-    detail = info_lines[1..-1]&.join("\n")
+    detail = info_lines[1..]&.join("\n")
     print_error 'アカウント情報取得中にエラーが発生しました:'
     puts detail
     false
@@ -1707,12 +1710,12 @@ def generate_vapid_keys
 
     # 公開鍵のバイナリデータを取得（64バイト、0x04プレフィックスを除く）
     public_key_point = private_key.public_key
-    public_key_bytes = public_key_point.to_bn.to_s(2)[1..-1] # 最初の0x04バイトを除去
+    public_key_bytes = public_key_point.to_bn.to_s(2)[1..] # 最初の0x04バイトを除去
     public_key_b64 = Base64.urlsafe_encode64(public_key_bytes).delete('=')
 
     # 一時ファイルを削除
-    File.delete(private_key_file) if File.exist?(private_key_file)
-    File.delete(public_key_file) if File.exist?(public_key_file)
+    FileUtils.rm_f(private_key_file)
+    FileUtils.rm_f(public_key_file)
 
     raise 'キーの抽出に失敗しました' if private_key_b64.empty? || public_key_b64.empty?
 
@@ -1744,7 +1747,7 @@ def generate_vapid_keys
         env_content.gsub!(/^VAPID_PRIVATE_KEY=.*\n?/, '')
 
         # ファイルの最後に新しいキーを追加
-        env_content = env_content.rstrip + "\n"
+        env_content = "#{env_content.rstrip}\n"
         env_content += "VAPID_PUBLIC_KEY=#{public_key_b64}\n"
         env_content += "VAPID_PRIVATE_KEY=#{private_key_b64}\n"
 
@@ -1817,8 +1820,8 @@ def migrate_to_r2
 
   result = run_rails_command(stats_code)
 
-  local_total = result.lines.find { |l| l.start_with?('total_local|') }&.split('|', 2)&.last&.strip&.to_i || 0
-  r2_total = result.lines.find { |l| l.start_with?('total_r2|') }&.split('|', 2)&.last&.strip&.to_i || 0
+  local_total = result.lines.find { |l| l.start_with?('total_local|') }&.split('|', 2)&.last&.strip.to_i
+  r2_total = result.lines.find { |l| l.start_with?('total_r2|') }&.split('|', 2)&.last&.strip.to_i
 
   puts ''
   print_info 'ファイル状況:'
@@ -1826,7 +1829,7 @@ def migrate_to_r2
   puts "  R2合計: #{r2_total}"
   puts ''
 
-  if local_total == 0
+  if local_total.zero?
     print_success '移行対象のローカルファイルはありません'
     return
   end
@@ -1872,8 +1875,8 @@ def migrate_to_r2
 
       # 最終統計を取得
       final_result = run_rails_command(stats_code)
-      final_local = final_result.lines.find { |l| l.start_with?('total_local|') }&.split('|', 2)&.last&.strip&.to_i || 0
-      final_r2 = final_result.lines.find { |l| l.start_with?('total_r2|') }&.split('|', 2)&.last&.strip&.to_i || 0
+      final_local = final_result.lines.find { |l| l.start_with?('total_local|') }&.split('|', 2)&.last&.strip.to_i
+      final_r2 = final_result.lines.find { |l| l.start_with?('total_r2|') }&.split('|', 2)&.last&.strip.to_i
 
       puts ''
       print_info '移行後の状況:'
@@ -1927,16 +1930,16 @@ def manage_remote_image_cache
 
   result = run_rails_command(stats_code)
 
-  total_remote = result.lines.find { |l| l.start_with?('total_remote|') }&.split('|', 2)&.last&.strip&.to_i || 0
-  cached_remote = result.lines.find { |l| l.start_with?('cached_remote|') }&.split('|', 2)&.last&.strip&.to_i || 0
-  cache_entries = result.lines.find { |l| l.start_with?('cache_entries|') }&.split('|', 2)&.last&.strip&.to_i || 0
-  total_blobs = result.lines.find { |l| l.start_with?('total_blobs|') }&.split('|', 2)&.last&.strip&.to_i || 0
-  total_blob_size = result.lines.find { |l| l.start_with?('total_blob_size|') }&.split('|', 2)&.last&.strip&.to_i || 0
+  total_remote = result.lines.find { |l| l.start_with?('total_remote|') }&.split('|', 2)&.last&.strip.to_i
+  cached_remote = result.lines.find { |l| l.start_with?('cached_remote|') }&.split('|', 2)&.last&.strip.to_i
+  cache_entries = result.lines.find { |l| l.start_with?('cache_entries|') }&.split('|', 2)&.last&.strip.to_i
+  total_blobs = result.lines.find { |l| l.start_with?('total_blobs|') }&.split('|', 2)&.last&.strip.to_i
+  total_blob_size = result.lines.find { |l| l.start_with?('total_blob_size|') }&.split('|', 2)&.last&.strip.to_i
 
   puts ''
   print_info 'リモート画像キャッシュ統計:'
   puts "  リモート画像合計: #{total_remote}"
-  puts "  キャッシュ済み: #{cached_remote} (#{cached_remote > 0 ? ((cached_remote.to_f / total_remote) * 100).round(1) : 0}%)"
+  puts "  キャッシュ済み: #{cached_remote} (#{cached_remote.positive? ? ((cached_remote.to_f / total_remote) * 100).round(1) : 0}%)"
   puts "  キャッシュエントリ: #{cache_entries}"
   puts "  ストレージ使用量: #{(total_blob_size / 1024.0 / 1024.0).round(2)} MB (#{total_blobs}ファイル)"
   puts ''
@@ -2408,7 +2411,7 @@ end
 
 def import_mastodon_backup
   puts ''
-  print_header 'Mastodonバックアップからインポート'
+  print_header 'Mastodonのバックアップからインポート'
 
   # 1. ダンプファイルのパスを取得
   dump_path = get_mastodon_dump_path
@@ -2428,10 +2431,11 @@ def import_mastodon_backup
 
   # 5. メディアドメインを入力
   puts ''
-  media_domain = safe_gets('メディアドメイン: ')
-  return unless media_domain && !media_domain.strip.empty?
+  media_domain = safe_gets('移行元メディアドメイン:')
+  return unless media_domain
   
   media_domain = media_domain.strip
+  media_domain = nil if media_domain.empty?
 
   # 6. インポート実行
   result = perform_mastodon_import(dump_path, selected_account[:username], actor, media_domain)
@@ -2479,7 +2483,7 @@ def scan_local_accounts(dump_path)
   if dump_path.end_with?('.gz')
     temp_uncompressed = "/tmp/mastodon_uncompressed_scan_#{Time.now.to_i}.dump"
     system('zcat', dump_path, out: temp_uncompressed, err: File::NULL)
-    return nil unless $?.success?
+    return nil unless $CHILD_STATUS.success?
 
     actual_dump_path = temp_uncompressed
   end
@@ -2492,7 +2496,7 @@ def scan_local_accounts(dump_path)
 
   File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
 
-  unless $?.success?
+  unless $CHILD_STATUS.success?
     puts ' ❌'
     return nil
   end
@@ -2524,7 +2528,7 @@ def scan_local_accounts(dump_path)
     end
   end
 
-  File.delete(accounts_file) if File.exist?(accounts_file)
+  FileUtils.rm_f(accounts_file)
 
   puts " ✅ #{local_accounts.length}件"
   local_accounts
@@ -2540,7 +2544,7 @@ def select_mastodon_account(local_accounts)
 
   choice = safe_gets("選択 (1-#{local_accounts.length}): ").to_i
 
-  if choice >= 1 && choice <= local_accounts.length
+  if choice.between?(1, local_accounts.length)
     selected = local_accounts[choice - 1]
     print_success "選択: @#{selected[:username]}"
     selected
@@ -2602,7 +2606,7 @@ def select_local_actor_for_import
 
   choice = safe_gets("選択してください (1-#{actors.length}): ").to_i
 
-  if choice >= 1 && choice <= actors.length
+  if choice.between?(1, actors.length)
     selected_actor = actors[choice - 1]
 
     # Actorオブジェクトを取得
@@ -2628,7 +2632,7 @@ def extract_mastodon_statuses_with_account_id(dump_path, account_id)
   if dump_path.end_with?('.gz')
     temp_uncompressed = "/tmp/mastodon_uncompressed_#{Time.now.to_i}.dump"
     system('zcat', dump_path, out: temp_uncompressed, err: File::NULL)
-    return nil unless $?.success?
+    return nil unless $CHILD_STATUS.success?
 
     actual_dump_path = temp_uncompressed
   end
@@ -2641,16 +2645,16 @@ def extract_mastodon_statuses_with_account_id(dump_path, account_id)
 
   File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
 
-  unless $?.success?
+  unless $CHILD_STATUS.success?
     puts ' ❌'
-    File.delete(statuses_file) if File.exist?(statuses_file)
+    FileUtils.rm_f(statuses_file)
     return nil
   end
 
   # SQLファイルを解析
   statuses = parse_mastodon_statuses_sql_with_account_id(statuses_file, account_id)
 
-  File.delete(statuses_file) if File.exist?(statuses_file)
+  FileUtils.rm_f(statuses_file)
 
   puts " ✅ #{statuses.length}件"
   statuses
@@ -2666,7 +2670,7 @@ def extract_mastodon_statuses(dump_path, mastodon_username)
   if dump_path.end_with?('.gz')
     temp_uncompressed = "/tmp/mastodon_uncompressed_#{Time.now.to_i}.dump"
     system('zcat', dump_path, out: temp_uncompressed, err: File::NULL)
-    return nil unless $?.success?
+    return nil unless $CHILD_STATUS.success?
 
     actual_dump_path = temp_uncompressed
   end
@@ -2677,16 +2681,16 @@ def extract_mastodon_statuses(dump_path, mastodon_username)
          '--no-privileges', "--file=#{accounts_file}", actual_dump_path,
          out: File::NULL, err: File::NULL)
 
-  unless $?.success?
+  unless $CHILD_STATUS.success?
     puts ' ❌'
-    File.delete(accounts_file) if File.exist?(accounts_file)
+    FileUtils.rm_f(accounts_file)
     File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
     return nil
   end
 
   # アカウントID取得
   account_id = find_mastodon_account_id(accounts_file, mastodon_username)
-  File.delete(accounts_file) if File.exist?(accounts_file)
+  FileUtils.rm_f(accounts_file)
 
   unless account_id
     puts ' ❌'
@@ -2702,15 +2706,15 @@ def extract_mastodon_statuses(dump_path, mastodon_username)
 
   File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
 
-  unless $?.success?
+  unless $CHILD_STATUS.success?
     puts ' ❌'
-    File.delete(statuses_file) if File.exist?(statuses_file)
+    FileUtils.rm_f(statuses_file)
     return nil
   end
 
   # 投稿解析
   statuses = parse_mastodon_statuses_sql(statuses_file, account_id)
-  File.delete(statuses_file) if File.exist?(statuses_file)
+  FileUtils.rm_f(statuses_file)
 
   puts " ✅ #{statuses&.length || 0}件"
   statuses
@@ -2718,7 +2722,7 @@ end
 
 def find_mastodon_account_id(accounts_file, username)
   in_copy_data = false
-  debug_count = 0
+  local_accounts_found = []
 
   File.readlines(accounts_file).each do |line|
     if line.include?('COPY public.accounts')
@@ -2731,36 +2735,34 @@ def find_mastodon_account_id(accounts_file, username)
     next unless in_copy_data && line.include?("\t")
 
     fields = line.chomp.split("\t")
-    next if fields.length < 3
+    next if fields.length < 28 # 必要なフィールド数を厳格化
 
     account_username = fields[0]
     account_domain = fields[1]
     account_id = fields[27]
 
-    # デバッグ: 最初の10件のアカウント情報を確認
-    if debug_count < 10
-      puts "アカウント#{debug_count + 1}: username=#{account_username}, domain=#{account_domain}, id=#{account_id}"
-      debug_count += 1
-    end
+    # ローカルアカウントのみを対象（domainがNULL）
+    next unless account_domain == '\\N' || account_domain.nil? || account_domain.empty?
 
-    # ローカルアカウント（domainがNULL）で指定されたユーザー名と一致
-    if (account_domain == '\\N' || account_domain.nil? || account_domain.empty?) && account_username == username
-      puts "マッチしたアカウント: #{account_username} (ID: #{account_id})"
-      return account_id
-    end
-    
-    # riq0hに関連する全てのアカウントIDを表示
-    if account_username == username
-      puts "関連アカウント: #{account_username}@#{account_domain} (ID: #{account_id})"
-    end
+    # ユーザー名の有効性チェック
+    next if account_username.nil? || account_username.empty? || account_username == '\\N'
 
-    # フルドメイン指定での検索
-    next unless username.include?('@')
+    # ドメイン名やメールアドレス形式を除外
+    next if account_username.include?('.') || account_username.include?('@')
 
-    target_username, target_domain = username.split('@', 2)
-    return account_id if account_username == target_username && account_domain == target_domain
+    # システムアカウント名を除外
+    next if account_username.start_with?('mystech')
+
+    local_accounts_found << {
+      username: account_username,
+      id: account_id
+    }
+
+    # 指定されたユーザー名と完全一致
+    return account_id if account_username == username
   end
 
+  puts "❌ 指定されたユーザー名 '#{username}' のローカルアカウントが見つかりませんでした"
   nil
 end
 
@@ -2768,176 +2770,223 @@ def find_mastodon_account_id_for_media(dump_path, username)
   # gzip展開
   actual_dump_path = dump_path
   temp_uncompressed = nil
-  
+
   if dump_path.end_with?('.gz')
     temp_uncompressed = "/tmp/mastodon_account_id_#{Time.now.to_i}.dump"
     system('zcat', dump_path, out: temp_uncompressed, err: File::NULL)
-    return nil unless $?.success?
+    return nil unless $CHILD_STATUS.success?
+
     actual_dump_path = temp_uncompressed
   end
-  
+
   # accounts抽出
   accounts_file = "/tmp/mastodon_accounts_id_#{Time.now.to_i}.sql"
   system('pg_restore', '--data-only', '--table=accounts', '--no-owner',
          '--no-privileges', "--file=#{accounts_file}", actual_dump_path,
          out: File::NULL, err: File::NULL)
-  
+
   File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
-  
-  unless $?.success?
-    File.delete(accounts_file) if File.exist?(accounts_file)
+
+  unless $CHILD_STATUS.success?
+    FileUtils.rm_f(accounts_file)
     return nil
   end
-  
+
   account_id = find_mastodon_account_id(accounts_file, username)
-  File.delete(accounts_file) if File.exist?(accounts_file)
-  
+  FileUtils.rm_f(accounts_file)
+
   account_id
 end
 
 def perform_mastodon_import(dump_path, mastodon_username, actor, media_domain)
-  print "インポート処理を開始..."
-  
+  print 'インポート処理を開始...'
+
   # アカウントIDを取得
   account_id = find_mastodon_account_id_for_media(dump_path, mastodon_username)
   unless account_id
-    puts " ❌ アカウントIDが見つかりません"
+    puts ' ❌ アカウントIDが見つかりません'
     return { success: false, count: 0 }
   end
-  
-  # 1. 画像付き投稿のstatus_idを特定
-  puts "1. 画像付き投稿を特定中..."
+
+  puts "使用するアカウントID: #{account_id}"
+
+  # 1. 投稿を抽出
+  puts '1. 投稿を抽出中...'
+  all_statuses = extract_mastodon_statuses_with_account_id(dump_path, account_id)
+
+  if all_statuses.nil? || all_statuses.empty?
+    puts ' ❌ 投稿が見つかりませんでした'
+    return { success: false, count: 0 }
+  end
+
+  # 2. 画像付き投稿の情報を取得
+  puts '2. 画像情報を取得中...'
   image_post_ids = extract_image_post_ids(dump_path, account_id)
-  
-  # 2. 画像付き投稿をインポート
-  puts "2. 画像付き投稿インポート中..."
+  image_posts_map = {}
+  image_post_ids.each do |img_post|
+    image_posts_map[img_post[:status_id]] = img_post
+  end
+
+  # 3. 投稿をインポート
+  puts "3. 投稿をインポート中... (#{all_statuses.length}件)"
   imported_count = 0
+  batch_size = 100
+  total_batches = (all_statuses.length / batch_size.to_f).ceil
   
-  image_post_ids.each do |post_info|
-    import_code = <<~RUBY
+  all_statuses.each_slice(batch_size).with_index do |batch, batch_index|
+    progress = ((batch_index + 1).to_f / total_batches * 100).round(1)
+    puts "\nバッチ #{batch_index + 1}/#{total_batches} (#{progress}%) - #{imported_count}件完了"
+    
+    # バッチ用の画像情報を準備
+    batch_image_infos = batch.map { |status| image_posts_map[status[:id]] }
+    
+    batch_import_code = <<~RUBY
       require 'letter/snowflake'
-      
       actor = Actor.find(#{actor.id})
-      post_info = #{post_info.inspect}
+      batch_statuses = #{batch.inspect}
+      batch_image_infos = #{batch_image_infos.inspect}
       media_domain = #{media_domain.inspect}
       
-      begin
-        created_at = Time.parse(post_info[:created_at])
-        post_id = post_info[:status_id]
-        
-        # 既存投稿をチェック
-        existing_obj = ActivityPubObject.find_by(id: post_id)
-        if existing_obj
-          puts "スキップ: 投稿 \#{post_id} は既に存在します"
-          puts "POST_IMPORTED:0"
-        else
-        
-        # 投稿作成（空のcontentも許可）
-        content = post_info[:content]
-        content = '' if content.nil? || content == '\\N'
-        
-        obj = ActivityPubObject.new(
-          id: post_id,
-          ap_id: "https://\#{ENV['DOMAIN'] || 'localhost'}/objects/\#{post_id}",
-          actor: actor,
-          object_type: 'Note',
-          content: content,
-          published_at: created_at,
-          visibility: 'public',
-          local: true,
-          created_at: created_at,
-          updated_at: Time.current
-        )
-        obj.save!(validate: false)
-        
-        # 画像をダウンロード・アップロード
-        if post_info[:file_name]
-          id_str = post_info[:status_id].to_s.rjust(18, '0')
-          path_parts = []
-          6.times { |i| path_parts << id_str[i * 3, 3] }
+      imported_count = 0
+      
+      batch_statuses.each_with_index do |status_info, batch_index|
+        begin
+          created_at = Time.parse(status_info[:created_at] + ' UTC')
+          post_id = Letter::Snowflake.generate_at(created_at)
           
-          r2_url = "https://\#{media_domain}/media_attachments/files/\#{path_parts.join('/')}/original/\#{post_info[:file_name]}"
-          
-          begin
-            require 'net/http'
-            require 'openssl'
-            require 'tempfile'
-            
-            uri = URI.parse(r2_url)
-            http = Net::HTTP.new(uri.host, uri.port)
-            http.use_ssl = true
-            http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-            http.read_timeout = 30
-            
-            request = Net::HTTP::Get.new(uri.request_uri)
-            response = http.request(request)
-            
-            if response.code == '200'
-              content_type = response.content_type || 'image/jpeg'
-              ext = case content_type
-                    when /jpeg|jpg/i then '.jpg'
-                    when /png/i then '.png'
-                    when /gif/i then '.gif'
-                    else '.jpg'
-                    end
-              
-              temp_file = Tempfile.new(['media', ext])
-              temp_file.binmode
-              temp_file.write(response.body)
-              temp_file.rewind
-              
-              media_type = content_type.start_with?('video') ? 'video' : 'image'
-              
-              media_attachment = MediaAttachment.create!(
-                actor: actor,
-                object: obj,
-                media_type: media_type,
-                content_type: content_type,
-                file_name: post_info[:file_name],
-                file_size: response.body.size,
-                description: post_info[:description] || ''
-              )
-              
-              media_attachment.attach_file_with_folder(
-                io: temp_file,
-                filename: media_attachment.file_name,
-                content_type: media_attachment.content_type
-              )
-              
-              temp_file.close
-              temp_file.unlink
-              
-              puts "✅ 画像アップロード成功: \#{media_attachment.id}"
-            else
-              puts "❌ 画像ダウンロード失敗: \#{response.code} - \#{r2_url}"
-            end
-          rescue => e
-            puts "❌ 画像処理エラー: \#{e.message}"
+          # リブログの場合はスキップ
+          if status_info[:reblog_of_id]
+            imported_count += 1
+            next
           end
+          
+          # 既存投稿をチェック
+          existing_obj = ActivityPubObject.find_by(id: post_id)
+          should_process_image = false
+          
+          if existing_obj
+            # 既存投稿に画像がアタッチされているかチェック
+            if existing_obj.media_attachments.any?
+              # 既に画像がある場合はスキップ
+              next
+            else
+              obj = existing_obj
+              should_process_image = true
+            end
+          else
+            # 新規投稿作成
+            content = status_info[:content]
+            content = '' if content.nil? || content == '\\N'
+            
+            obj = ActivityPubObject.new(
+              id: post_id,
+              ap_id: "https://\#{ENV['DOMAIN'] || 'localhost'}/objects/\#{post_id}",
+              actor: actor,
+              object_type: 'Note',
+              content: content,
+              published_at: created_at,
+              visibility: 'public',
+              local: true,
+              created_at: created_at,
+              updated_at: Time.current
+            )
+            obj.save!(validate: false)
+            should_process_image = true
+          end
+          
+          # 画像処理（メディアドメインが指定されている場合のみ）
+          image_info = batch_image_infos[batch_index]
+          if media_domain && image_info && image_info[:file_name] && should_process_image
+            # media_attachment_idを使ってURL構築
+            if image_info[:media_id]
+              media_id_str = image_info[:media_id].to_s.rjust(18, '0')
+              path_parts = []
+              6.times { |i| path_parts << media_id_str[i * 3, 3] }
+              r2_url = "https://\#{media_domain}/media_attachments/files/\#{path_parts.join('/')}/original/\#{image_info[:file_name]}"
+            else
+              # フォールバック: status_idを使用
+              status_id_str = post_id.to_s.rjust(18, '0')
+              path_parts = []
+              6.times { |i| path_parts << status_id_str[i * 3, 3] }
+              r2_url = "https://\#{media_domain}/media_attachments/files/\#{path_parts.join('/')}/original/\#{image_info[:file_name]}"
+            end
+            
+            begin
+              require 'net/http'
+              require 'openssl'
+              require 'tempfile'
+              
+              uri = URI.parse(r2_url)
+              http = Net::HTTP.new(uri.host, uri.port)
+              http.use_ssl = true
+              http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+              http.read_timeout = 30
+              
+              request = Net::HTTP::Get.new(uri.request_uri)
+              response = http.request(request)
+              
+              if response.code == '200'
+                content_type = response.content_type || 'image/jpeg'
+                ext = case content_type
+                      when /jpeg|jpg/i then '.jpg'
+                      when /png/i then '.png'
+                      when /gif/i then '.gif'
+                      else '.jpg'
+                      end
+                
+                temp_file = Tempfile.new(['media', ext])
+                temp_file.binmode
+                temp_file.write(response.body)
+                temp_file.rewind
+                
+                media_type = content_type.start_with?('video') ? 'video' : 'image'
+                
+                media_attachment = MediaAttachment.create!(
+                  actor: actor,
+                  object: obj,
+                  media_type: media_type,
+                  content_type: content_type,
+                  file_name: image_info[:file_name],
+                  file_size: response.body.size,
+                  remote_url: r2_url,
+                  description: image_info[:description] || ''
+                )
+                
+                media_attachment.attach_file_with_folder(
+                  io: temp_file,
+                  filename: media_attachment.file_name,
+                  content_type: media_attachment.content_type
+                )
+                
+                temp_file.close
+                temp_file.unlink
+              end
+            rescue => e
+              # 画像処理エラーは無視して続行
+            end
+          end
+          
+          imported_count += 1
+          
+        rescue => e
+          # 個別の投稿エラーは無視して続行
         end
-        
-          puts "POST_IMPORTED:1"
-        end
-      rescue => e
-        puts "投稿インポートエラー: \#{e.message}"
-        puts "POST_IMPORTED:0"
       end
+      
+      puts "BATCH_IMPORTED:\#{imported_count}"
     RUBY
     
-    result = run_rails_command(import_code)
-    
-    if result.include?("POST_IMPORTED:1")
-      imported_count += 1
-      print "."
+    result = run_rails_command(batch_import_code)
+    if result.match(/BATCH_IMPORTED:(\d+)/)
+      batch_imported = $1.to_i
+      imported_count += batch_imported
+      print "#{batch_imported}件"
     else
       print "×"
-      if result.include?("エラー")
-        puts "\nエラー詳細: #{result}"
-      end
     end
   end
-  
-  puts " ✅"
+
+  puts "\n✅ インポート完了: #{imported_count}/#{all_statuses.length}件"
   { success: true, count: imported_count }
 end
 
@@ -2946,7 +2995,6 @@ def parse_mastodon_statuses_sql_with_account_id(sql_file, target_account_id)
   in_copy_data = false
   debug_count = 0
   matched_count = 0
-  target_media_status_ids = ["110692777337193606", "111788140740104108", "110762120113002047"]
 
   File.readlines(sql_file).each do |line|
     if line.include?('COPY public.statuses')
@@ -2959,63 +3007,29 @@ def parse_mastodon_statuses_sql_with_account_id(sql_file, target_account_id)
     next unless in_copy_data && line.include?("\t")
 
     fields = line.chomp.split("\t")
-    
-    # 画像付き投稿を探す（フィールド数に関係なく）
-    if fields[0] && target_media_status_ids.include?(fields[0])
-      puts "\n★★★ 画像付き投稿を発見！ ★★★"
-      puts "  status_id: #{fields[0]}"
-      puts "  フィールド数: #{fields.length}"
-      puts "  account_id位置[15]: #{fields[15] if fields.length > 15}"
-      puts "  content位置[2]: #{fields[2] if fields.length > 2}"
-    end
-    
+
     next if fields.length < 20
 
     status_id = fields[0]
     account_id = fields[15]
     content = fields[2]
     created_at = fields[3]
+    in_reply_to_id = fields[5]
+    reblog_of_id = fields[6]
 
-    # 特定の画像付き投稿を探す（フィルタリング前）
-    if target_media_status_ids.include?(status_id)
-      puts "\n★★★ 画像付き投稿を発見！ ★★★"
-      puts "  status_id: #{status_id}"
-      puts "  account_id: #{account_id} (期待値: #{target_account_id})"
-      puts "  content: #{content}"
-      puts "  created_at: #{created_at}"
-      puts "  フィールド数: #{fields.length}"
-    end
-
-    # 対象アカウントの投稿のみ（メディアのみの投稿も含める）
     next unless account_id == target_account_id
 
     matched_count += 1
-    
-    # デバッグ: 最初の10件の構造を確認（フィルタリング後）
-    if debug_count < 10
-      puts "マッチした投稿#{debug_count + 1}: #{fields.length}フィールド"
-      puts "  status_id=#{status_id}, account_id=#{account_id}, created_at=#{created_at}"
-      puts "  content=#{content[0..50] if content}..."
-      debug_count += 1
-    end
 
     statuses << {
       id: status_id,
       content: content && content != '\\N' ? content.gsub('\\n', "\n").gsub('\\t', "\t") : '',
-      created_at: created_at
+      created_at: created_at,
+      in_reply_to_id: in_reply_to_id && in_reply_to_id != '\\N' ? in_reply_to_id : nil,
+      reblog_of_id: reblog_of_id && reblog_of_id != '\\N' ? reblog_of_id : nil
     }
-    
-    # デバッグ用に50件で停止（画像付き投稿を見つけるため）
-    break if statuses.length >= 50
   end
 
-  puts "対象アカウントID #{target_account_id} の投稿: #{matched_count}件見つかりました"
-  
-  # メディアのstatus_idを直接検索
-  media_status_ids = ["110692777337193606", "111788140740104108", "110762120113002047"]
-  found_media_posts = statuses.select { |s| media_status_ids.include?(s[:id]) }
-  puts "メディア付き投稿の検索結果: #{found_media_posts.length}件"
-  
   statuses
 end
 
@@ -3041,26 +3055,18 @@ def parse_mastodon_statuses_sql(sql_file, target_account_id)
     account_id = fields[15]
     content = fields[2]
     created_at = fields[3]
+    in_reply_to_id = fields[5]
+    reblog_of_id = fields[6]
 
-    # デバッグ: 最初の10件の構造を確認
-    if debug_count < 10
-      puts "投稿行#{debug_count + 1}: #{fields.length}フィールド"
-      puts "  status_id=#{status_id}, account_id=#{account_id}, created_at=#{created_at}"
-      puts "  content=#{content[0..50] if content}..."
-      debug_count += 1
-    end
-
-    # 対象アカウントの投稿のみ（メディアのみの投稿も含める）
     next unless account_id == target_account_id
 
     statuses << {
       id: status_id,
       content: content && content != '\\N' ? content.gsub('\\n', "\n").gsub('\\t', "\t") : '',
-      created_at: created_at
+      created_at: created_at,
+      in_reply_to_id: in_reply_to_id && in_reply_to_id != '\\N' ? in_reply_to_id : nil,
+      reblog_of_id: reblog_of_id && reblog_of_id != '\\N' ? reblog_of_id : nil
     }
-    
-    # デバッグ用に50件で停止（画像付き投稿を見つけるため）
-    break if statuses.length >= 50
   end
 
   statuses
@@ -3071,21 +3077,21 @@ def try_upload_media(r2_url, media_info, actor)
   require 'net/http'
   require 'openssl'
   require 'tempfile'
-  
+
   begin
     uri = URI.parse(r2_url)
-    
+
     # HTTPSでダウンロード
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == 'https')
     http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     http.read_timeout = 30
-    
+
     request = Net::HTTP::Get.new(uri.request_uri)
-    request['User-Agent'] = 'Letter/1.0 (Mastodon Import)'
-    
+    request['User-Agent'] = 'letter/0.1 (Mastodon Import)'
+
     response = http.request(request)
-    
+
     # リダイレクト対応
     if response.code.to_i >= 300 && response.code.to_i < 400 && response['location']
       redirect_uri = URI.parse(response['location'])
@@ -3093,14 +3099,14 @@ def try_upload_media(r2_url, media_info, actor)
       http.use_ssl = (redirect_uri.scheme == 'https')
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       request = Net::HTTP::Get.new(redirect_uri.request_uri)
-      request['User-Agent'] = 'Letter/1.0 (Mastodon Import)'
+      request['User-Agent'] = 'letter/0.1 (Mastodon Import)'
       response = http.request(request)
     end
-    
+
     if response.code == '200'
       # content-typeから拡張子を推定
       content_type = response.content_type || media_info[:content_type] || 'image/jpeg'
-      
+
       ext = case content_type
             when /jpeg|jpg/i then '.jpg'
             when /png/i then '.png'
@@ -3111,31 +3117,29 @@ def try_upload_media(r2_url, media_info, actor)
             when /audio/i then '.mp3'
             else '.jpg'
             end
-      
+
       # URLから拡張子を取得する試み
-      if r2_url.match(/\.(jpg|jpeg|png|gif|webp|avif|mp4|mp3)$/i)
-        ext = ".#{$1.downcase}"
-      end
-      
+      ext = ".#{Regexp.last_match(1).downcase}" if r2_url =~ /\.(jpg|jpeg|png|gif|webp|avif|mp4|mp3)$/i
+
       # 一時ファイルの作成
       temp_file = Tempfile.new(['media', ext])
       temp_file.binmode
       temp_file.write(response.body)
       temp_file.rewind
-      
+
       file_name = if media_info[:shortcode] && media_info[:shortcode] != '\\N'
                     "#{media_info[:shortcode]}#{ext}"
                   else
                     "media_#{SecureRandom.hex(8)}#{ext}"
                   end
-      
+
       # メディアタイプを判定
       media_type = case content_type
                    when /video/i then 'video'
                    when /audio/i then 'audio'
                    else 'image'
                    end
-      
+
       # メディアAttachmentデータを返す（実際の作成は後で）
       media_attachment_data = {
         media_type: media_type,
@@ -3145,12 +3149,12 @@ def try_upload_media(r2_url, media_info, actor)
         description: media_info[:description] || '',
         temp_file: temp_file
       }
-      
+
       { success: true, media_attachment: media_attachment_data }
     else
       { success: false, error: "HTTP #{response.code}" }
     end
-  rescue => e
+  rescue StandardError => e
     { success: false, error: e.message }
   end
 end
@@ -3159,140 +3163,228 @@ def extract_image_post_ids(dump_path, account_id)
   # gzip展開
   actual_dump_path = dump_path
   temp_uncompressed = nil
-  
+
   if dump_path.end_with?('.gz')
     temp_uncompressed = "/tmp/mastodon_media_#{Time.now.to_i}.dump"
     system('zcat', dump_path, out: temp_uncompressed, err: File::NULL)
-    return [] unless $?.success?
+    return [] unless $CHILD_STATUS.success?
+
     actual_dump_path = temp_uncompressed
   end
-  
+
   # media_attachments抽出
   media_file = "/tmp/mastodon_media_#{Time.now.to_i}.sql"
   system('pg_restore', '--data-only', '--table=media_attachments', '--no-owner',
          '--no-privileges', "--file=#{media_file}", actual_dump_path,
          out: File::NULL, err: File::NULL)
-  
+
   # statuses抽出
   statuses_file = "/tmp/mastodon_statuses_#{Time.now.to_i}.sql"
   system('pg_restore', '--data-only', '--table=statuses', '--no-owner',
          '--no-privileges', "--file=#{statuses_file}", actual_dump_path,
          out: File::NULL, err: File::NULL)
-  
+
   File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
-  
-  # メディア情報から画像付き投稿を特定
-  image_posts = []
-  
-  # メディアファイルを解析
+
+  # メディアアタッチメント情報を収集（media_attachment_id => file_info）
+  media_attachments = {}
+  in_copy_data = false
+
   File.readlines(media_file).each do |line|
-    next unless line.include?("\t")
-    next if line.include?('COPY public.media_attachments')
-    break if line.strip == '\\.'
-    
+    if line.include?('COPY public.media_attachments')
+      in_copy_data = true
+      next
+    end
+
+    break if in_copy_data && line.strip == '\\.'
+    next unless in_copy_data && line.include?("\t")
+
     fields = line.chomp.split("\t")
     next if fields.length < 13
-    
+
     media_account_id = fields[11]
     next unless media_account_id == account_id
-    
+
     file_name = fields[1]
     next unless file_name && file_name != '\\N' && !file_name.empty?
-    
-    status_id = fields[12]
+
+    media_attachment_id = fields[0] # media_attachmentのID
     description = fields[13]
     created_at = fields[6]
-    
-    image_posts << {
-      status_id: status_id,
+
+    media_attachments[media_attachment_id] = {
+      file_name: file_name,
+      description: description,
+      created_at: created_at
+    }
+  end
+
+  # media_attachmentsのstatus_idを使って直接画像付き投稿を特定
+  image_posts = []
+  status_ids_with_media = {}
+
+  # media_attachmentsからstatus_idと画像情報を収集
+  media_attachments.each do |media_id, media_info|
+    # media_attachmentsテーブルからstatus_idを取得する必要がある
+    # これは既に収集済みのmedia_attachmentsに含まれていないので、再度抽出が必要
+  end
+
+  # media_attachmentsを再読み込みしてフィールド構造を確認
+  media_file_reload = "/tmp/mastodon_media_reload_#{Time.now.to_i}.sql"
+  system('pg_restore', '--data-only', '--table=media_attachments', '--no-owner',
+         '--no-privileges', "--file=#{media_file_reload}", actual_dump_path,
+         out: File::NULL, err: File::NULL)
+
+  in_copy_data = false
+  media_debug_count = 0
+
+  File.readlines(media_file_reload).each do |line|
+    if line.include?('COPY public.media_attachments')
+      in_copy_data = true
+      next
+    end
+
+    break if in_copy_data && line.strip == '\\.'
+    next unless in_copy_data && line.include?("\t")
+
+    fields = line.chomp.split("\t")
+
+    # 最初の3件のmedia_attachmentの全フィールドを表示
+    if media_debug_count < 3
+      media_debug_count += 1
+      (0...fields.length).each do |i|
+        field_value = fields[i] || 'nil'
+        display_value = field_value.length > 50 ? "#{field_value[0..50]}..." : field_value
+      end
+    end
+
+    next if fields.length < 13
+
+    media_account_id = fields[11]
+    next unless media_account_id == account_id
+
+    file_name = fields[1]
+    next unless file_name && file_name != '\\N' && !file_name.empty?
+
+    attachment_status_id = fields[0]  # COPY文によると[0]がstatus_id
+    media_attachment_id = fields[12]  # COPY文によると[12]がmedia_attachmentのid
+    description = fields[13]
+    created_at = fields[6]
+
+    # status_idが有効な場合のみ
+    next unless attachment_status_id && attachment_status_id != '\\N' && !attachment_status_id.empty?
+
+    status_ids_with_media[attachment_status_id] = {
       file_name: file_name,
       description: description,
       created_at: created_at,
-      content: nil
+      media_id: media_attachment_id
     }
   end
-  
-  # 対応する投稿内容を取得
+
+  File.delete(media_file_reload)
+
+  # statusesテーブルから対応する投稿内容を取得
+  in_copy_data = false
+  posts_checked = 0
+  account_posts_found = 0
+
   File.readlines(statuses_file).each do |line|
-    next unless line.include?("\t")
-    next if line.include?('COPY public.statuses')
-    break if line.strip == '\\.'
-    
+    if line.include?('COPY public.statuses')
+      in_copy_data = true
+      next
+    end
+
+    break if in_copy_data && line.strip == '\\.'
+    next unless in_copy_data && line.include?("\t")
+
     fields = line.chomp.split("\t")
-    next if fields.length < 20
-    
+    next if fields.length < 23
+
     status_id = fields[0]
     content = fields[2]
-    
-    image_posts.each do |post|
-      if post[:status_id] == status_id
-        post[:content] = content && content != '\\N' ? content.gsub('\\n', "\n").gsub('\\t', "\t") : ''
-      end
+    status_account_id = fields[15]
+
+    posts_checked += 1
+
+    # 指定されたアカウントの投稿のみ
+    next unless status_account_id == account_id
+
+    account_posts_found += 1
+
+    # 画像付き投稿のみ
+    next unless status_ids_with_media[status_id]
+
+    media_info = status_ids_with_media[status_id]
+    processed_content = content && content != '\\N' ? content.gsub('\\n', "\n").gsub('\\t', "\t") : ''
+
+    image_posts << {
+      status_id: status_id,
+      file_name: media_info[:file_name],
+      description: media_info[:description],
+      created_at: media_info[:created_at],
+      content: processed_content,
+      media_id: media_info[:media_id]
+    }
+
+    if image_posts.length <= 5
     end
   end
-  
-  File.delete(media_file) if File.exist?(media_file)
-  File.delete(statuses_file) if File.exist?(statuses_file)
-  
-  puts "  #{image_posts.length}件の画像付き投稿を特定"
-  
-  # 最初の1件をデバッグ出力
-  if image_posts.any?
-    first_post = image_posts.first
-    puts "  最初の投稿: status_id=#{first_post[:status_id]}, file_name=#{first_post[:file_name]}"
-  end
-  
-  image_posts.first(3) # テスト用に3件のみ
+
+  FileUtils.rm_f(media_file)
+  FileUtils.rm_f(statuses_file)
+
+  image_posts
 end
 
 def extract_mastodon_media_attachments(dump_path, target_account_id)
-  print "メディアデータを抽出中..."
-  
+  print 'メディアデータを抽出中...'
+
   # gzip展開
   actual_dump_path = dump_path
   temp_uncompressed = nil
-  
+
   if dump_path.end_with?('.gz')
     temp_uncompressed = "/tmp/mastodon_media_uncompressed_#{Time.now.to_i}.dump"
     system('zcat', dump_path, out: temp_uncompressed, err: File::NULL)
-    return nil unless $?.success?
+    return nil unless $CHILD_STATUS.success?
+
     actual_dump_path = temp_uncompressed
   end
-  
+
   # media_attachments抽出
   media_file = "/tmp/mastodon_media_#{Time.now.to_i}.sql"
   system('pg_restore', '--data-only', '--table=media_attachments', '--no-owner',
          '--no-privileges', "--file=#{media_file}", actual_dump_path,
          out: File::NULL, err: File::NULL)
-  
+
   File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
-  
-  unless $?.success?
-    puts " ❌"
-    File.delete(media_file) if File.exist?(media_file)
+
+  unless $CHILD_STATUS.success?
+    puts ' ❌'
+    FileUtils.rm_f(media_file)
     return {}
   end
-  
+
   # statusesも抽出
   statuses_file = "/tmp/mastodon_statuses_media_#{Time.now.to_i}.sql"
   system('pg_restore', '--data-only', '--table=statuses', '--no-owner',
          '--no-privileges', "--file=#{statuses_file}", actual_dump_path,
          out: File::NULL, err: File::NULL)
-  
-  unless $?.success?
-    puts " ❌"
-    File.delete(media_file) if File.exist?(media_file)
-    File.delete(statuses_file) if File.exist?(statuses_file)
+
+  unless $CHILD_STATUS.success?
+    puts ' ❌'
+    FileUtils.rm_f(media_file)
+    FileUtils.rm_f(statuses_file)
     return {}
   end
-  
+
   # status_idとmedia_attachmentの関連を解析
   media_attachments = parse_mastodon_media_sql(media_file, statuses_file, target_account_id)
-  
-  File.delete(media_file) if File.exist?(media_file)
-  File.delete(statuses_file) if File.exist?(statuses_file)
-  
-  puts " ✅ #{media_attachments.keys.length}件の投稿に#{media_attachments.values.flatten.length}個のメディア"
+
+  FileUtils.rm_f(media_file)
+  FileUtils.rm_f(statuses_file)
+
   media_attachments
 end
 
@@ -3302,56 +3394,43 @@ def parse_mastodon_media_sql(media_file, statuses_file, target_account_id)
   in_copy_data = false
   line_count = 0
   media_count = 0
-  
+
   File.readlines(media_file).each do |line|
     if line.include?('COPY public.media_attachments')
       in_copy_data = true
       next
     end
-    
+
     break if in_copy_data && line.strip == '\\.'
     next unless in_copy_data && line.include?("\t")
-    
+
     line_count += 1
     fields = line.chomp.split("\t")
-    
+
     next if fields.length < 10
-    
+
     # account_idで直接フィルタリング（フィールド[11]）
     media_account_id = fields[11]
     next unless media_account_id == target_account_id
-    
-    # デバッグ: フィルタリング後の構造を確認
-    if media_count < 3
-      puts "ローカルメディア行#{media_count + 1}: #{fields.length}フィールド"
-      puts "  account_id=#{fields[11]}, status_id=#{fields[12]}"
-      puts "  remote_url=#{fields[5]}"
-      puts "  file_name=#{fields[1]}"
-    end
-    
+
     status_id = fields[12]
-    
-    # デバッグ: マッチした場合の情報
-    if media_count < 3
-      puts "  マッチ#{media_count + 1}: account_id=#{media_account_id}, status_id=#{status_id}"
-    end
-    
-    
+
     # remote_urlを取得（フィールド[5]）
     remote_url = fields[5]
-    
+
     # ローカルファイルの場合はfile_file_nameを使用
     if remote_url.nil? || remote_url.empty? || remote_url == '\\N'
       file_name = fields[1]
-      if file_name && file_name != '\\N' && !file_name.empty?
-        remote_url = "local_file:#{file_name}"
-      else
-        next  # ファイル情報がない場合はスキップ
-      end
+      next unless file_name && file_name != '\\N' && !file_name.empty?
+
+      remote_url = "local_file:#{file_name}"
+
+      # ファイル情報がない場合はスキップ
+
     end
-    
+
     media_count += 1
-    
+
     media_info = {
       id: fields[0],
       remote_url: remote_url,
@@ -3363,45 +3442,41 @@ def parse_mastodon_media_sql(media_file, statuses_file, target_account_id)
       blurhash: fields[15],
       created_at: fields[6]
     }
-    
+
     media_attachments[status_id] ||= []
     media_attachments[status_id] << media_info
-    
-    # デバッグ用に10件で停止
-    break if media_count >= 10
   end
-  
-  puts "メディアファイル総行数: #{line_count}, マッチしたメディア: #{media_count}"
+
   media_attachments
 end
 
 def download_and_upload_media(media_url, filename, content_type)
   return nil if media_url.nil? || media_url.empty? || media_url == '\\N'
-  
+
   begin
     # メディアをダウンロード
     uri = URI.parse(media_url)
     response = Net::HTTP.get_response(uri)
     return nil unless response.code == '200'
-    
+
     # 一時ファイルに保存
     temp_file = Tempfile.new(['media', File.extname(filename)])
     temp_file.binmode
     temp_file.write(response.body)
     temp_file.rewind
-    
+
     # MediaAttachmentCreationServiceを使用してアップロード
     media_service = MediaAttachmentCreationService.new(user: nil)
     media_attachment = media_service.create_from_file(temp_file)
-    
+
     temp_file.close
     temp_file.unlink
-    
+
     media_attachment&.file&.url
-  rescue => e
+  rescue StandardError => e
     nil
   end
 end
 
 # スクリプト実行
-main_loop if __FILE__ == $0
+main_loop if __FILE__ == $PROGRAM_NAME
