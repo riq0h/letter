@@ -77,10 +77,6 @@ if [ ! -f ".env" ]; then
 ACTIVITYPUB_DOMAIN=$domain
 ACTIVITYPUB_PROTOCOL=$protocol
 
-# インスタンス設定
-INSTANCE_NAME=letter
-INSTANCE_DESCRIPTION=General letter Publication System based on ActivityPub
-
 # Cloudflare R2オブジェクトストレージ設定
 S3_ENABLED=false
 S3_ENDPOINT=

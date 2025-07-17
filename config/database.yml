@@ -26,6 +26,11 @@ development:
     <<: *default
     database: storage/queue_development.sqlite3
     application_name: letter
+  
+  cable:
+    <<: *default
+    database: storage/cable_development.sqlite3
+    application_name: letter
 
 test:
   primary:
@@ -43,6 +48,11 @@ test:
   queue:
     <<: *default
     database: storage/queue_test.sqlite3
+    application_name: letter
+  
+  cable:
+    <<: *default
+    database: storage/cable_test.sqlite3
     application_name: letter
 
 production:

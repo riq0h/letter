@@ -140,13 +140,14 @@ module Api
       end
 
       def load_instance_setting(key)
+        instance_config = YAML.load_file(Rails.root.join('config/instance_config.yml'))
         case key
         when 'instance_name'
-          ENV.fetch('INSTANCE_NAME', nil)
+          instance_config['instance_name']
         when 'instance_description'
-          ENV.fetch('INSTANCE_DESCRIPTION', nil)
+          instance_config['instance_description']
         when 'instance_contact_email', 'contact_email'
-          ENV.fetch('INSTANCE_CONTACT_EMAIL', nil)
+          instance_config['instance_contact_email']
         end
       end
     end

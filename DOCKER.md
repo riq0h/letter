@@ -36,7 +36,6 @@ docker-compose up -d --build
 |--------|------|-------------|------|
 | `ACTIVITYPUB_DOMAIN` | インスタンスのドメイン | localhost:3000 | ✅ |
 | `ACTIVITYPUB_PROTOCOL` | プロトコル (http/https) | http | ❌ |
-| `INSTANCE_NAME` | インスタンス名 | letter | ❌ |
 | `RAILS_ENV` | Rails環境 | development | ❌ |
 | `S3_ENABLED` | R2オブジェクトストレージ使用 | false | ❌ |
 | `S3_BUCKET` | R2バケット名 | - | S3_ENABLED=trueの場合必須 |
