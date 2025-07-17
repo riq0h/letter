@@ -72,11 +72,11 @@ module BulkEmojiActions
         { alert: "すべての絵文字のコピーに失敗しました: #{error_details}" }
       end
     else
-      # Admin::CustomEmojisController用のシンプルメッセージ
-      success_count = results.count { |result| result[:success] }
-      total_count = results.count
+      success_count = results[:success_count]
+      failure_count = results[:failed_count]
+      total_count = success_count + failure_count
 
-      if success_count == total_count
+      if failure_count == 0
         { notice: "#{success_count}個の絵文字をコピーしました" }
       elsif success_count.positive?
         { notice: "#{success_count}/#{total_count}個の絵文字をコピーしました（一部失敗）" }

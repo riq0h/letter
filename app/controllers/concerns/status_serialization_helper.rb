@@ -111,8 +111,13 @@ module StatusSerializationHelper
   end
 
   def pinned_by_current_user?(status)
+    # AccountsController#statusesの場合は、そのアカウントが固定した投稿かどうかを返す
+    if params[:controller] == 'api/v1/accounts' && params[:action] == 'statuses'
+      return status.actor.pinned_statuses.exists?(object: status)
+    end
+    
+    # その他の場合は現在のユーザが固定した投稿かどうかを返す
     return false unless current_user
-
     current_user.pinned_statuses.exists?(object: status)
   end
 

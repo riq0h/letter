@@ -10,7 +10,7 @@ class ActorImageProcessor
     @actor = actor
   end
 
-  def attach_avatar_with_folder(io:, filename:, _content_type:)
+  def attach_avatar_with_folder(io:, filename:, content_type:)
     processed_io = process_avatar_image(io)
 
     if ENV['S3_ENABLED'] == 'true'

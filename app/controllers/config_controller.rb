@@ -251,7 +251,7 @@ class ConfigController < ApplicationController
     processor.attach_avatar_with_folder(
       io: uploaded_file,
       filename: uploaded_file.original_filename,
-      _content_type: uploaded_file.content_type
+      content_type: uploaded_file.content_type
     )
   end
 

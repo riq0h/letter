@@ -442,10 +442,12 @@ def setup_new_installation
 end
 
 # b. サーバ起動・再起動
-def cleanup_and_start
+def cleanup_and_start(show_header = true)
   puts ''
-  print_header 'クリーンアップ＆再起動'
-  print_info "実行時刻: #{Time.zone.now}"
+  if show_header
+    print_header 'クリーンアップ＆再起動'
+    print_info "実行時刻: #{Time.zone.now}"
+  end
 
   # プロセス終了（SOLID_QUEUE_IN_PUMAを考慮）
   print_info '1. 関連プロセスの終了...'
@@ -783,39 +785,71 @@ def switch_domain
   print_info 'ステップ 3/4: データベース内のActor URLを更新中...'
 
   update_code = <<~RUBY
-    new_base_url = "#{new_protocol}://#{new_domain}"
-    local_actors = Actor.where(local: true)
+    begin
+      new_base_url = "#{new_protocol}://#{new_domain}"
+      local_actors = Actor.where(local: true)
 
-    if local_actors.any?
-      puts "\#{local_actors.count}個のローカルアクターのドメインを更新します: \#{new_base_url}"
-    #{'  '}
-      local_actors.each do |actor|
-        actor.update!(
-          ap_id: "\#{new_base_url}/users/\#{actor.username}",
-          inbox_url: "\#{new_base_url}/users/\#{actor.username}/inbox",
-          outbox_url: "\#{new_base_url}/users/\#{actor.username}/outbox",
-          followers_url: "\#{new_base_url}/users/\#{actor.username}/followers",
-          following_url: "\#{new_base_url}/users/\#{actor.username}/following"
-        )
-        puts "  ✓ \#{actor.username}を更新しました"
+      if local_actors.any?
+        puts "\#{local_actors.count}個のローカルアクターのドメインを更新します: \#{new_base_url}"
+      #{'  '}
+        local_actors.each do |actor|
+          begin
+            actor.update!(
+              ap_id: "\#{new_base_url}/users/\#{actor.username}",
+              inbox_url: "\#{new_base_url}/users/\#{actor.username}/inbox",
+              outbox_url: "\#{new_base_url}/users/\#{actor.username}/outbox",
+              followers_url: "\#{new_base_url}/users/\#{actor.username}/followers",
+              following_url: "\#{new_base_url}/users/\#{actor.username}/following"
+            )
+            puts "  ✓ \#{actor.username}を更新しました"
+          rescue => e
+            puts "  ✗ \#{actor.username}の更新に失敗: \#{e.message}"
+            raise e
+          end
+        end
+      #{'  '}
+        puts "すべてのローカルアクターの更新が完了しました!"
+      else
+        puts "ローカルアクターが見つかりません"
       end
-    #{'  '}
-      puts "すべてのローカルアクターの更新が完了しました!"
-    else
-      puts "ローカルアクターが見つかりません"
+    rescue => e
+      puts "データベース更新でエラーが発生しました: \#{e.message}"
+      puts e.backtrace.first(5).join("\\n")
+      exit 1
     end
   RUBY
 
   env_string = "ACTIVITYPUB_DOMAIN='#{new_domain}' ACTIVITYPUB_PROTOCOL='#{new_protocol}'"
   rails_env = ENV['RAILS_ENV'] || 'development'
-  result = `RAILS_ENV=#{rails_env} #{env_string} bin/rails runner "#{update_code}" 2>&1`
+  print_info 'データベース更新処理を実行中... (完了までしばらくお待ちください)'
+  
+  # データベース更新実行
+  update_command = "RAILS_ENV=#{rails_env} #{env_string} bin/rails runner \"#{update_code}\""
+  result = `#{update_command} 2>&1`
+  exit_code = $?.exitstatus
+  
+  # 結果の表示と検証
   puts result unless result.empty?
-
-  print_success 'データベースのURLを更新しました'
+  
+  if exit_code == 0
+    print_success 'データベースのURLを更新しました'
+  else
+    print_error "データベース更新に失敗しました (終了コード: #{exit_code})"
+    print_error 'エラー内容:'
+    puts result
+    print_error 'ドメイン切り替えを中断します'
+    return
+  end
 
   # サーバ再起動
   print_info 'ステップ 4/4: サーバを再起動中...'
-  cleanup_and_start
+  begin
+    cleanup_and_start(false)
+    print_success 'サーバの再起動が完了しました'
+  rescue StandardError => e
+    print_error "サーバ再起動でエラーが発生しました: #{e.message}"
+    print_warning '手動でサーバを再起動してください: ruby bin/letter_manager.rb'
+  end
 
   puts ''
   print_header 'ドメイン切り替え完了'
@@ -2504,12 +2538,26 @@ def get_mastodon_dump_path
   end
 
   # ファイルタイプを確認
-  file_type = `file "#{dump_path}"`.strip
-  unless file_type.include?('PostgreSQL')
-    print_warning 'PostgreSQLダンプファイルではない可能性があります'
-    puts "ファイルタイプ: #{file_type}"
+  file_type = `file "#{dump_path}" 2>/dev/null`.strip
+  if $?.success? && !file_type.empty?
+    # gzipファイル、PostgreSQLファイル、または一般的な拡張子の場合は警告をスキップ
+    is_likely_valid = file_type.include?('PostgreSQL') || 
+                     file_type.include?('gzip') || 
+                     file_type.include?('data') ||
+                     dump_path.end_with?('.dump', '.sql', '.gz')
+    
+    unless is_likely_valid
+      print_warning 'PostgreSQLダンプファイルではない可能性があります'
+      puts "ファイルタイプ: #{file_type}"
 
-    return nil unless safe_gets('続行しますか？ (y/N): ').downcase == 'y'
+      return nil unless safe_gets('続行しますか？ (y/N): ').downcase == 'y'
+    end
+  else
+    print_warning 'ファイルタイプを確認できませんでした'
+    unless dump_path.end_with?('.dump', '.sql', '.gz')
+      print_warning 'ファイル拡張子もPostgreSQLダンプファイルのものではありません'
+      return nil unless safe_gets('続行しますか？ (y/N): ').downcase == 'y'
+    end
   end
 
   print_success "ダンプファイルを確認しました: #{dump_path}"
@@ -3036,7 +3084,6 @@ end
 def parse_mastodon_statuses_sql_with_account_id(sql_file, target_account_id)
   statuses = []
   in_copy_data = false
-  debug_count = 0
   matched_count = 0
 
   File.readlines(sql_file).each do |line|
@@ -3079,7 +3126,6 @@ end
 def parse_mastodon_statuses_sql(sql_file, target_account_id)
   statuses = []
   in_copy_data = false
-  debug_count = 0
 
   File.readlines(sql_file).each do |line|
     if line.include?('COPY public.statuses')
@@ -3227,8 +3273,6 @@ def extract_image_post_ids(dump_path, account_id)
          '--no-privileges', "--file=#{statuses_file}", actual_dump_path,
          out: File::NULL, err: File::NULL)
 
-  File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
-
   # メディアアタッチメント情報を収集（media_attachment_id => file_info）
   media_attachments = {}
   in_copy_data = false
@@ -3274,12 +3318,19 @@ def extract_image_post_ids(dump_path, account_id)
 
   # media_attachmentsを再読み込みしてフィールド構造を確認
   media_file_reload = "/tmp/mastodon_media_reload_#{Time.now.to_i}.sql"
-  system('pg_restore', '--data-only', '--table=media_attachments', '--no-owner',
-         '--no-privileges', "--file=#{media_file_reload}", actual_dump_path,
-         out: File::NULL, err: File::NULL)
+  
+  restore_result = system('pg_restore', '--data-only', '--table=media_attachments', '--no-owner',
+         '--no-privileges', "--file=#{media_file_reload}", actual_dump_path)
+
+  # pg_restoreが失敗した場合はファイルが存在しない
+  if !restore_result || !File.exist?(media_file_reload)
+    puts ' ❌'
+    puts "メディア情報の抽出に失敗しました"
+    File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
+    return []
+  end
 
   in_copy_data = false
-  media_debug_count = 0
 
   File.readlines(media_file_reload).each do |line|
     if line.include?('COPY public.media_attachments')
@@ -3291,16 +3342,6 @@ def extract_image_post_ids(dump_path, account_id)
     next unless in_copy_data && line.include?("\t")
 
     fields = line.chomp.split("\t")
-
-    # 最初の3件のmedia_attachmentの全フィールドを表示
-    if media_debug_count < 3
-      media_debug_count += 1
-      (0...fields.length).each do |i|
-        field_value = fields[i] || 'nil'
-        display_value = field_value.length > 50 ? "#{field_value[0..50]}..." : field_value
-      end
-    end
-
     next if fields.length < 13
 
     media_account_id = fields[11]
@@ -3488,6 +3529,12 @@ def parse_mastodon_media_sql(media_file, statuses_file, target_account_id)
 
     media_attachments[status_id] ||= []
     media_attachments[status_id] << media_info
+  end
+
+  # 一時ファイルをクリーンアップ
+  File.delete(temp_uncompressed) if temp_uncompressed && File.exist?(temp_uncompressed)
+  [media_file, media_file_reload, statuses_file].each do |file|
+    File.delete(file) if file && File.exist?(file)
   end
 
   media_attachments

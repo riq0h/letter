@@ -13,11 +13,8 @@ services:
       - letter_storage:/app/storage
       - letter_logs:/app/log
       - letter_uploads:/app/public/uploads
-    environment:
-      - RAILS_ENV=development
-      - ACTIVITYPUB_DOMAIN=localhost:3000
-      - ACTIVITYPUB_PROTOCOL=http
-      - SOLID_QUEUE_IN_PUMA=false
+    env_file:
+      - .env
     stdin_open: true
     tty: true
     healthcheck:

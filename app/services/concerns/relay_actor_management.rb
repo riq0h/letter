@@ -25,9 +25,9 @@ module RelayActorManagement
       target_inbox: inbox_url,
       signing_actor: @local_actor
     )
-    result[:success]
+    result
   rescue StandardError => e
     Rails.logger.error "Failed to deliver activity: #{e.message}"
-    false
+    { success: false, error: e.message }
   end
 end

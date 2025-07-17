@@ -13,7 +13,13 @@ class RelayFollowService
     begin
       # リレーアクターの情報を取得
       relay_actor_data = fetch_activitypub_object(@relay.actor_uri)
-      return false unless relay_actor_data
+      
+      unless relay_actor_data
+        error_msg = "リレーアクター情報の取得に失敗しました: #{@relay.actor_uri}"
+        Rails.logger.error error_msg
+        @relay.update!(last_error: error_msg)
+        return false
+      end
 
       # Follow アクティビティを作成
       follow_activity = create_follow_activity(relay_actor_data)

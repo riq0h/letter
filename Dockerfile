@@ -22,6 +22,11 @@ RUN apt-get update -qq && \
     nodejs \
     npm \
     pkg-config \
+    imagemagick \
+    libmagickwand-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libwebp-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 作業ディレクトリを設定
@@ -55,8 +60,20 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
     procps \
     nodejs \
-    npm && \
-    rm -rf /var/lib/apt/lists/*
+    npm \
+    file \
+    postgresql-client \
+    curl \
+    sqlite3 \
+    gzip \
+    openssl \
+    ncurses-bin \
+    inotify-tools \
+    imagemagick \
+    libpng16-16 \
+    libjpeg62-turbo \
+    libwebp7 \
+    && rm -rf /var/lib/apt/lists/*
 
 # 作業ディレクトリを設定
 WORKDIR /app
