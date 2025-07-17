@@ -129,7 +129,7 @@ module TextLinkingHelper
   def fix_split_url_links(html_text)
     # ActivityPub実装（Mastodon等）が送信する分割されたURLリンクを修正
     # 例: <a href="URL"><span class="invisible">https://www.</span><span class="ellipsis">example.com/path</span><span class="invisible">...</span></a>
-    # これを完全なURLで表示するように変換
+    # invisibleスパンを削除し、ellipsisスパンの内容を表示テキストとして使用
 
     html_text.gsub(/<a\s+([^>]*href=["']([^"']+)["'][^>]*)>(.+?)<\/a>/m) do |match|
       attributes = ::Regexp.last_match(1)
@@ -138,8 +138,15 @@ module TextLinkingHelper
 
       # span.invisibleやspan.ellipsisを含むリンクの場合
       if link_content.include?('class="invisible"') || link_content.include?('class="ellipsis"')
-        # hrefのURLを表示テキストとして使用（プロトコルは削除しない）
-        "<a #{attributes}>#{href_url}</a>"
+        # invisibleスパンを削除し、ellipsisスパンの内容を抽出
+        cleaned_content = link_content.gsub(/<span class="invisible">[^<]*<\/span>/, '')
+                                      .gsub(/<span class="ellipsis">([^<]*)<\/span>/, '\1')
+                                      .strip
+
+        # 空になった場合は元のhref URLを使用し、プロトコルをマスク
+        display_text = cleaned_content.empty? ? mask_protocol(href_url) : cleaned_content
+
+        "<a #{attributes}>#{display_text}</a>"
       else
         # それ以外は元のまま
         match
