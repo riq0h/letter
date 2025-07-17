@@ -61,7 +61,7 @@ RUN apt-get update -qq && \
 # 作業ディレクトリを設定
 WORKDIR /app
 
-# セキュリティのため非rootユーザーを作成
+# セキュリティのため非rootユーザを作成
 RUN groupadd --system --gid 1000 letter && \
     useradd letter --uid 1000 --gid 1000 --create-home --shell /bin/bash
 
@@ -87,7 +87,7 @@ RUN mkdir -p \
 COPY --chown=letter:letter docker/entrypoint.sh /usr/bin/entrypoint.sh
 RUN chmod +x /usr/bin/entrypoint.sh
 
-# 非rootユーザーに切り替え
+# 非rootユーザに切り替え
 USER letter
 
 # ポートを公開

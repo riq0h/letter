@@ -49,6 +49,21 @@ def print_info(message)
   puts "ℹ️ #{message}"
 end
 
+def docker_environment?
+  File.exist?('/.dockerenv')
+end
+
+def show_docker_file_help(context = 'ファイル')
+  return unless docker_environment?
+  
+  puts ''
+  print_info "🐳 Docker環境: #{context}アクセスのヒント"
+  puts '📁 ホストファイルにアクセスするには:'
+  puts '   • ボリュームマウント: -v /host/path:/app/mount'
+  puts '   • ファイルコピー: docker cp /host/file container:/app/'
+  puts '   • コンテナ内パス: /app/mount/filename'
+end
+
 def show_logo
   puts ''
   puts ' ██╗      ███████╗ ████████╗ ████████╗ ███████╗ ██████╗'
@@ -2431,7 +2446,10 @@ def import_mastodon_backup
 
   # 5. メディアドメインを入力
   puts ''
-  media_domain = safe_gets('移行元メディアドメイン:')
+  print_info '移行元メディアドメインを入力してください（空欄可）'
+  print_info '移行元のMastodonインスタンスがCloudflare R2を使っていた場合は、そのドメインを指定することでメディアも移行できる可能性があります'
+  puts ''
+  media_domain = safe_gets('移行元メディアドメイン: ')
   return unless media_domain
   
   media_domain = media_domain.strip
@@ -2448,6 +2466,27 @@ end
 def get_mastodon_dump_path
   puts ''
   print_info 'Mastodonのデータベースダンプファイル（PostgreSQL形式）を指定してください'
+  
+  # Docker環境を検出してガイダンス表示
+  if docker_environment?
+    puts ''
+    print_info '🐳 Docker環境を検出しました'
+    puts '📁 ホストファイルにアクセスするには、以下の方法でコンテナを起動してください:'
+    puts ''
+    puts '   方法1: 特定ディレクトリをマウント'
+    puts '   sudo docker-compose run --rm -v /path/to/files:/app/import web rails runner bin/letter_manager.rb'
+    puts '   → /app/import/your_file.dump を指定'
+    puts ''
+    puts '   方法2: ホームディレクトリ全体をマウント'  
+    puts '   sudo docker-compose run --rm -v $HOME:/host web rails runner bin/letter_manager.rb'
+    puts '   → /host/path/to/your_file.dump を指定'
+    puts ''
+    puts '   方法3: ファイルをコンテナにコピー'
+    puts '   sudo docker cp /path/to/file.dump $(sudo docker-compose ps -q web):/app/'
+    puts '   → /app/file.dump を指定'
+    puts ''
+  end
+  
   puts ''
 
   dump_path = safe_gets('ダンプファイルのパス: ')
@@ -2457,6 +2496,10 @@ def get_mastodon_dump_path
 
   unless File.exist?(dump_path)
     print_error "ファイルが見つかりません: #{dump_path}"
+    if docker_environment?
+      puts ''
+      print_warning '💡 Docker環境では、上記の方法でホストファイルをマウントしてください'
+    end
     return nil
   end
 
@@ -2744,7 +2787,7 @@ def find_mastodon_account_id(accounts_file, username)
     # ローカルアカウントのみを対象（domainがNULL）
     next unless account_domain == '\\N' || account_domain.nil? || account_domain.empty?
 
-    # ユーザー名の有効性チェック
+    # ユーザ名の有効性チェック
     next if account_username.nil? || account_username.empty? || account_username == '\\N'
 
     # ドメイン名やメールアドレス形式を除外
@@ -2758,11 +2801,11 @@ def find_mastodon_account_id(accounts_file, username)
       id: account_id
     }
 
-    # 指定されたユーザー名と完全一致
+    # 指定されたユーザ名と完全一致
     return account_id if account_username == username
   end
 
-  puts "❌ 指定されたユーザー名 '#{username}' のローカルアカウントが見つかりませんでした"
+  puts "❌ 指定されたユーザ名 '#{username}' のローカルアカウントが見つかりませんでした"
   nil
 end
 
