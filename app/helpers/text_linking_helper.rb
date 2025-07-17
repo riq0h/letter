@@ -45,6 +45,9 @@ module TextLinkingHelper
   end
 
   def apply_url_links_to_html(html_text)
+    # ActivityPub実装による分割URLリンクを完全なURLに変換
+    html_text = fix_split_url_links(html_text)
+
     # 完全にHTMLリンク化済みコンテンツ（すべてのURLがリンク済み）の場合はスキップ
     # ただし、プレーンテキストURLがある場合は処理を続行
     urls_in_text = html_text.scan(/(https?:\/\/[^\s<>"']+)/)
@@ -121,6 +124,27 @@ module TextLinkingHelper
     return url unless url.start_with?('https://')
 
     url.delete_prefix('https://')
+  end
+
+  def fix_split_url_links(html_text)
+    # ActivityPub実装（Mastodon等）が送信する分割されたURLリンクを修正
+    # 例: <a href="URL"><span class="invisible">https://www.</span><span class="ellipsis">example.com/path</span><span class="invisible">...</span></a>
+    # これを完全なURLで表示するように変換
+
+    html_text.gsub(/<a\s+([^>]*href=["']([^"']+)["'][^>]*)>(.+?)<\/a>/m) do |match|
+      attributes = ::Regexp.last_match(1)
+      href_url = ::Regexp.last_match(2)
+      link_content = ::Regexp.last_match(3)
+
+      # span.invisibleやspan.ellipsisを含むリンクの場合
+      if link_content.include?('class="invisible"') || link_content.include?('class="ellipsis"')
+        # hrefのURLを表示テキストとして使用（プロトコルは削除しない）
+        "<a #{attributes}>#{href_url}</a>"
+      else
+        # それ以外は元のまま
+        match
+      end
+    end
   end
 
   def extract_urls_from_content(content)
