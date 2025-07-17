@@ -4,30 +4,34 @@
 %>
 
 <header class="mb-2">
-  <div class="flex items-center justify-between mb-2">
-    <!-- 左側：ユーザアバター -->
-    <%= render 'shared/post_card_avatar', actor: actor %>
-    
-    <!-- 右側：ユーザ名と日時表示 -->
-    <div class="text-right">
-      <!-- ユーザ名 -->
-      <div class="post-card-username">
-        <%= render 'shared/post_card_username_link', actor: actor %>
-        <span class="post-card-handle">
-          @<%= actor.username %><%= actor.domain.present? ? "@#{actor.domain}" : "" %>
-        </span>
-      </div>
+  <div class="flex items-start justify-between mb-2">
+    <!-- 左側：ユーザアバターとユーザ情報 -->
+    <div class="flex items-start space-x-3">
+      <%= render 'shared/post_card_avatar', actor: actor %>
       
-      <!-- 日時表示 -->
-      <div class="post-card-timestamp">
-        <% if pinned %>
-          <span class="mr-2">固定投稿</span>
-        <% end %>
-        <% if reblog %>
-          <span class="mr-2">再投稿</span>
-        <% end %>
-        <%= render 'shared/post_card_time_link', actor: actor, post: post, published_at: published_at %>
+      <!-- ユーザ名とユーザID -->
+      <div>
+        <!-- ユーザ名 -->
+        <div class="post-card-username">
+          <%= render 'shared/post_card_username_link', actor: actor %>
+        </div>
+        
+        <!-- ユーザID -->
+        <div class="post-card-handle">
+          @<%= actor.username %><%= actor.domain.present? ? "@#{actor.domain}" : "" %>
+        </div>
       </div>
+    </div>
+    
+    <!-- 右側：投稿日時 -->
+    <div class="post-card-timestamp text-right">
+      <% if pinned %>
+        <span class="mr-2">固定投稿</span>
+      <% end %>
+      <% if reblog %>
+        <span class="mr-2">再投稿</span>
+      <% end %>
+      <%= render 'shared/post_card_time_link', actor: actor, post: post, published_at: published_at %>
     </div>
   </div>
 </header>

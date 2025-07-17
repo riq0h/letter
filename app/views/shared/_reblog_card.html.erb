@@ -2,64 +2,69 @@
 <article class="mb-8 p-6" style="border: 3px double #d1d5db;">
   <!-- 元投稿のヘッダー -->
   <header class="mb-2">
-    <div class="flex items-center justify-between mb-2">
-      <!-- 左側：ユーザアバター -->
-      <div class="h-10 w-10 bg-gray-500 flex items-center justify-center overflow-hidden">
-        <% if reblog.object.actor.avatar_url.present? %>
-          <img src="<%= reblog.object.actor.avatar_url %>" 
-               alt="<%= reblog.object.actor.display_name.presence || reblog.object.actor.username %>" 
-               class="w-full h-full object-cover"
-               loading="lazy">
-        <% else %>
-          <span class="text-white font-medium text-sm">
-            <%= reblog.object.actor.display_name&.first&.upcase || reblog.object.actor.username.first.upcase %>
-          </span>
-        <% end %>
-      </div>
-      
-      <!-- 右側：ユーザ名と日時表示 -->
-      <div class="text-right">
-        <!-- ユーザ名 -->
-        <div class="text-base text-gray-900" style="font-weight: 300;">
-          <% if reblog.object.actor.local? %>
-            <%= link_to profile_path(reblog.object.actor.username), 
-                        class: "hover:text-gray-600 transition-colors",
-                        data: { turbo_frame: "_top" } do %>
-              <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
-            <% end %>
+    <div class="flex items-start justify-between mb-2">
+      <!-- 左側：ユーザアバターとユーザ情報 -->
+      <div class="flex items-start space-x-3">
+        <!-- ユーザアバター -->
+        <div class="h-10 w-10 bg-gray-500 flex items-center justify-center overflow-hidden">
+          <% if reblog.object.actor.avatar_url.present? %>
+            <img src="<%= reblog.object.actor.avatar_url %>" 
+                 alt="<%= reblog.object.actor.display_name.presence || reblog.object.actor.username %>" 
+                 class="w-full h-full object-cover"
+                 loading="lazy">
           <% else %>
-            <%= link_to reblog.object.actor.ap_id, 
-                        class: "hover:text-gray-600 transition-colors",
-                        data: { turbo_frame: "_top" } do %>
-              <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
-            <% end %>
+            <span class="text-white font-medium text-sm">
+              <%= reblog.object.actor.display_name&.first&.upcase || reblog.object.actor.username.first.upcase %>
+            </span>
           <% end %>
-          <span class="text-gray-500 text-sm ml-2" style="font-weight: 300;">
-            @<%= reblog.object.actor.username %><%= reblog.object.actor.domain.present? ? "@#{reblog.object.actor.domain}" : "" %>
-          </span>
         </div>
         
-        <!-- 日時表示 -->
-        <div class="text-sm text-gray-500 mt-1 text-right" style="font-weight: 300;">
-          <span class="mr-2">再投稿</span>
-          <% if reblog.object.actor.local? %>
-            <%= link_to post_html_path(reblog.object.actor.username, reblog.object.id), 
-                        class: "hover:text-gray-700 transition-colors",
-                        data: { turbo_frame: "_top" } do %>
-              <time datetime="<%= reblog.object.published_at.iso8601 %>" title="<%= l(reblog.object.published_at, format: :long) %>">
-                <%= l(reblog.object.published_at, format: :long) %>
-              </time>
+        <!-- ユーザ名とユーザID -->
+        <div>
+          <!-- ユーザ名 -->
+          <div class="text-base text-gray-900" style="font-weight: 300;">
+            <% if reblog.object.actor.local? %>
+              <%= link_to profile_path(reblog.object.actor.username), 
+                          class: "hover:text-gray-600 transition-colors",
+                          data: { turbo_frame: "_top" } do %>
+                <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
+              <% end %>
+            <% else %>
+              <%= link_to reblog.object.actor.ap_id, 
+                          class: "hover:text-gray-600 transition-colors",
+                          data: { turbo_frame: "_top" } do %>
+                <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
+              <% end %>
             <% end %>
-          <% else %>
-            <%= link_to reblog.object.ap_id, 
-                        class: "hover:text-gray-700 transition-colors",
-                        data: { turbo_frame: "_top" } do %>
-              <time datetime="<%= reblog.object.published_at.iso8601 %>" title="<%= l(reblog.object.published_at, format: :long) %>">
-                <%= l(reblog.object.published_at, format: :long) %>
-              </time>
-            <% end %>
-          <% end %>
+          </div>
+          
+          <!-- ユーザID -->
+          <div class="post-card-handle">
+            @<%= reblog.object.actor.username %><%= reblog.object.actor.domain.present? ? "@#{reblog.object.actor.domain}" : "" %>
+          </div>
         </div>
+      </div>
+      
+      <!-- 右側：投稿日時 -->
+      <div class="text-sm text-gray-500 text-right" style="font-weight: 300;">
+        <span class="mr-2">再投稿</span>
+        <% if reblog.object.actor.local? %>
+          <%= link_to post_html_path(reblog.object.actor.username, reblog.object.id), 
+                      class: "hover:text-gray-700 transition-colors",
+                      data: { turbo_frame: "_top" } do %>
+            <time datetime="<%= reblog.object.published_at.iso8601 %>" title="<%= l(reblog.object.published_at, format: :long) %>">
+              <%= l(reblog.object.published_at, format: :long) %>
+            </time>
+          <% end %>
+        <% else %>
+          <%= link_to reblog.object.ap_id, 
+                      class: "hover:text-gray-700 transition-colors",
+                      data: { turbo_frame: "_top" } do %>
+            <time datetime="<%= reblog.object.published_at.iso8601 %>" title="<%= l(reblog.object.published_at, format: :long) %>">
+              <%= l(reblog.object.published_at, format: :long) %>
+            </time>
+          <% end %>
+        <% end %>
       </div>
     </div>
   </header>

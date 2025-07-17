@@ -3,48 +3,53 @@
 <article class="mb-8 p-6 <%= pinned ? 'border-2 border-gray-400' : 'border border-gray-300' %>">
   <!-- 記事ヘッダー（ブログ記事のタイトル部分に相当） -->
   <header class="mb-2">
-    <div class="flex items-center justify-between mb-2">
-      <!-- 左側：ユーザアバター -->
-      <div class="h-10 w-10 bg-gray-500 flex items-center justify-center overflow-hidden">
-        <% if post.actor.avatar_url.present? %>
-          <img src="<%= post.actor.avatar_url %>" 
-               alt="<%= post.actor.display_name.presence || post.actor.username %>" 
-               class="w-full h-full object-cover"
-               loading="lazy">
-        <% else %>
-          <span class="text-white font-medium text-sm">
-            <%= post.actor.display_name&.first&.upcase || post.actor.username.first.upcase %>
-          </span>
-        <% end %>
-      </div>
-      
-      <!-- 右側：ユーザ名と日時表示 -->
-      <div class="text-right">
-        <!-- ユーザ名 -->
-        <div class="text-base text-gray-900" style="font-weight: 300;">
-          <%= link_to profile_path(post.actor.username), 
-                      class: "hover:text-gray-600 transition-colors",
-                      data: { turbo_frame: "_top" } do %>
-            <%= parse_content_for_frontend(post.actor.display_name.presence || post.actor.username).html_safe %>
+    <div class="flex items-start justify-between mb-2">
+      <!-- 左側：ユーザアバターとユーザ情報 -->
+      <div class="flex items-start space-x-3">
+        <!-- ユーザアバター -->
+        <div class="h-10 w-10 bg-gray-500 flex items-center justify-center overflow-hidden">
+          <% if post.actor.avatar_url.present? %>
+            <img src="<%= post.actor.avatar_url %>" 
+                 alt="<%= post.actor.display_name.presence || post.actor.username %>" 
+                 class="w-full h-full object-cover"
+                 loading="lazy">
+          <% else %>
+            <span class="text-white font-medium text-sm">
+              <%= post.actor.display_name&.first&.upcase || post.actor.username.first.upcase %>
+            </span>
           <% end %>
-          <span class="text-gray-500 text-sm ml-2" style="font-weight: 300;">
-            @<%= post.actor.username %><%= post.actor.domain.present? ? "@#{post.actor.domain}" : "" %>
-          </span>
         </div>
         
-        <!-- 日時表示 -->
-        <div class="text-sm text-gray-500 mt-1" style="font-weight: 300;">
-          <% if pinned %>
-            <span class="mr-2">固定投稿</span>
-          <% end %>
-          <%= link_to post_html_path(post.actor.username, post.id), 
-                      class: "hover:text-gray-700 transition-colors",
-                      data: { turbo_frame: "_top" } do %>
-            <time datetime="<%= post.published_at.iso8601 %>" title="<%= l(post.published_at, format: :long) %>">
-              <%= l(post.published_at, format: :long) %>
-            </time>
-          <% end %>
+        <!-- ユーザ名とユーザID -->
+        <div>
+          <!-- ユーザ名 -->
+          <div class="text-base text-gray-900" style="font-weight: 300;">
+            <%= link_to profile_path(post.actor.username), 
+                        class: "hover:text-gray-600 transition-colors",
+                        data: { turbo_frame: "_top" } do %>
+              <%= parse_content_for_frontend(post.actor.display_name.presence || post.actor.username).html_safe %>
+            <% end %>
+          </div>
+          
+          <!-- ユーザID -->
+          <div class="post-card-handle">
+            @<%= post.actor.username %><%= post.actor.domain.present? ? "@#{post.actor.domain}" : "" %>
+          </div>
         </div>
+      </div>
+      
+      <!-- 右側：投稿日時 -->
+      <div class="text-sm text-gray-500 text-right" style="font-weight: 300;">
+        <% if pinned %>
+          <span class="mr-2">固定投稿</span>
+        <% end %>
+        <%= link_to post_html_path(post.actor.username, post.id), 
+                    class: "hover:text-gray-700 transition-colors",
+                    data: { turbo_frame: "_top" } do %>
+          <time datetime="<%= post.published_at.iso8601 %>" title="<%= l(post.published_at, format: :long) %>">
+            <%= l(post.published_at, format: :long) %>
+          </time>
+        <% end %>
       </div>
     </div>
   </header>

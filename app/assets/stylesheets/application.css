@@ -195,11 +195,17 @@ select:focus {
   color: #4b5563 !important;
 }
 
-.post-card-handle {
+div.post-card-handle {
   color: #6b7280 !important;
   font-size: 0.875rem !important;
-  margin-left: 0.5rem !important;
   font-weight: 300 !important;
+  margin-top: 0.25rem !important;
+  display: block !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 0 !important;
+  line-height: 1.4 !important;
 }
 
 .post-card-timestamp {

@@ -7,36 +7,41 @@
 <article class="mb-8 p-6 border-2 border-gray-400">
   <!-- 記事ヘッダー -->
   <header class="mb-4">
-    <div class="flex items-center space-x-4 mb-4">
-      <!-- ユーザアバター -->
-      <div class="h-12 w-12 bg-gray-500 flex items-center justify-center overflow-hidden">
-        <% if @actor.avatar_url.present? %>
-          <img src="<%= @actor.avatar_url %>" 
-               alt="<%= @actor.display_name.presence || @actor.username %>" 
-               class="w-full h-full object-cover"
-               loading="lazy">
-        <% else %>
-          <span class="text-white font-medium">
-            <%= @actor.display_name&.first&.upcase || @actor.username.first.upcase %>
-          </span>
-        <% end %>
+    <div class="flex items-start justify-between mb-4">
+      <!-- 左側：ユーザアバターとユーザ情報 -->
+      <div class="flex items-start space-x-4">
+        <!-- ユーザアバター -->
+        <div class="h-12 w-12 bg-gray-500 flex items-center justify-center overflow-hidden">
+          <% if @actor.avatar_url.present? %>
+            <img src="<%= @actor.avatar_url %>" 
+                 alt="<%= @actor.display_name.presence || @actor.username %>" 
+                 class="w-full h-full object-cover"
+                 loading="lazy">
+          <% else %>
+            <span class="text-white font-medium">
+              <%= @actor.display_name&.first&.upcase || @actor.username.first.upcase %>
+            </span>
+          <% end %>
+        </div>
+        
+        <!-- ユーザ名とユーザID -->
+        <div>
+          <div class="text-base text-gray-900" style="font-weight: 300;">
+            <%= link_to profile_path(@actor.username), class: "hover:text-gray-600 transition-colors" do %>
+              <%= parse_content_for_frontend(@actor.display_name.presence || @actor.username).html_safe %>
+            <% end %>
+          </div>
+          <div class="post-card-handle">
+            @<%= @actor.username %><%= @actor.domain.present? ? "@#{@actor.domain}" : "" %>
+          </div>
+        </div>
       </div>
       
-      <!-- ユーザ名と日時 -->
-      <div>
-        <div class="text-base text-gray-900" style="font-weight: 300;">
-          <%= link_to profile_path(@actor.username), class: "hover:text-gray-600 transition-colors" do %>
-            <%= parse_content_for_frontend(@actor.display_name.presence || @actor.username).html_safe %>
-          <% end %>
-          <span class="text-gray-500 text-sm ml-2" style="font-weight: 300;">
-            @<%= @actor.username %><%= @actor.domain.present? ? "@#{@actor.domain}" : "" %>
-          </span>
-        </div>
-        <div class="text-sm text-gray-500 mt-1" style="font-weight: 300;">
-          <time datetime="<%= @post.published_at.iso8601 %>">
-            <%= l(@post.published_at, format: :long) %>
-          </time>
-        </div>
+      <!-- 右側：投稿日時 -->
+      <div class="text-sm text-gray-500 text-right" style="font-weight: 300;">
+        <time datetime="<%= @post.published_at.iso8601 %>">
+          <%= l(@post.published_at, format: :long) %>
+        </time>
       </div>
     </div>
   </header>
@@ -99,45 +104,50 @@
       <% replies.each do |reply| %>
         <article class="mb-6 p-6 border border-gray-300">
           <header class="mb-2">
-            <div class="flex items-center justify-between mb-2">
-              <!-- 左側：ユーザアバター -->
-              <div class="h-10 w-10 bg-gray-500 flex items-center justify-center overflow-hidden">
-                <% if reply.actor.avatar_url.present? %>
-                  <img src="<%= reply.actor.avatar_url %>" 
-                       alt="<%= reply.actor.display_name.presence || reply.actor.username %>" 
-                       class="w-full h-full object-cover"
-                       loading="lazy">
-                <% else %>
-                  <span class="text-white font-medium text-sm">
-                    <%= reply.actor.display_name&.first&.upcase || reply.actor.username.first.upcase %>
-                  </span>
-                <% end %>
-              </div>
-              
-              <!-- 右側：ユーザ名と日時表示 -->
-              <div class="text-right">
-                <!-- ユーザ名 -->
-                <div class="text-base text-gray-900" style="font-weight: 300;">
-                  <%= link_to reply.actor.ap_id, 
-                              class: "hover:text-gray-600 transition-colors",
-                              data: { turbo_frame: "_top" } do %>
-                    <%= parse_content_for_frontend(reply.actor.display_name.presence || reply.actor.username).html_safe %>
+            <div class="flex items-start justify-between mb-2">
+              <!-- 左側：ユーザアバターとユーザ情報 -->
+              <div class="flex items-start space-x-3">
+                <!-- ユーザアバター -->
+                <div class="h-10 w-10 bg-gray-500 flex items-center justify-center overflow-hidden">
+                  <% if reply.actor.avatar_url.present? %>
+                    <img src="<%= reply.actor.avatar_url %>" 
+                         alt="<%= reply.actor.display_name.presence || reply.actor.username %>" 
+                         class="w-full h-full object-cover"
+                         loading="lazy">
+                  <% else %>
+                    <span class="text-white font-medium text-sm">
+                      <%= reply.actor.display_name&.first&.upcase || reply.actor.username.first.upcase %>
+                    </span>
                   <% end %>
-                  <span class="text-gray-500 text-sm ml-2" style="font-weight: 300;">
-                    @<%= reply.actor.username %><%= reply.actor.domain.present? ? "@#{reply.actor.domain}" : "" %>
-                  </span>
                 </div>
                 
-                <!-- 日時表示 -->
-                <div class="text-sm text-gray-500 mt-1 text-right" style="font-weight: 300;">
-                  <%= link_to reply.ap_id, 
-                              class: "hover:text-gray-700 transition-colors",
-                              data: { turbo_frame: "_top" } do %>
-                    <time datetime="<%= reply.published_at.iso8601 %>" title="<%= l(reply.published_at, format: :long) %>">
-                      <%= l(reply.published_at, format: :long) %>
-                    </time>
-                  <% end %>
+                <!-- ユーザ名とユーザID -->
+                <div>
+                  <!-- ユーザ名 -->
+                  <div class="text-base text-gray-900" style="font-weight: 300;">
+                    <%= link_to reply.actor.ap_id, 
+                                class: "hover:text-gray-600 transition-colors",
+                                data: { turbo_frame: "_top" } do %>
+                      <%= parse_content_for_frontend(reply.actor.display_name.presence || reply.actor.username).html_safe %>
+                    <% end %>
+                  </div>
+                  
+                  <!-- ユーザID -->
+                  <div class="post-card-handle">
+                    @<%= reply.actor.username %><%= reply.actor.domain.present? ? "@#{reply.actor.domain}" : "" %>
+                  </div>
                 </div>
+              </div>
+              
+              <!-- 右側：投稿日時 -->
+              <div class="text-sm text-gray-500 text-right" style="font-weight: 300;">
+                <%= link_to reply.ap_id, 
+                            class: "hover:text-gray-700 transition-colors",
+                            data: { turbo_frame: "_top" } do %>
+                  <time datetime="<%= reply.published_at.iso8601 %>" title="<%= l(reply.published_at, format: :long) %>">
+                    <%= l(reply.published_at, format: :long) %>
+                  </time>
+                <% end %>
               </div>
             </div>
           </header>
