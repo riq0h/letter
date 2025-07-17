@@ -2480,8 +2480,8 @@ def import_mastodon_backup
 
   # 5. メディアドメインを入力
   puts ''
-  print_info '移行元メディアドメインを入力してください（空欄可）'
   print_info '移行元のMastodonインスタンスがCloudflare R2を使っていた場合は、そのドメインを指定することでメディアも移行できる可能性があります'
+  print_info '移行元メディアドメインを入力してください。空欄の場合はメディアの移行がスキップされます'
   puts ''
   media_domain = safe_gets('移行元メディアドメイン: ')
   return unless media_domain

@@ -41,15 +41,14 @@ module Api
       def statuses
         service_params = params.permit(:pinned, :exclude_replies, :only_media, :max_id, :since_id, :min_id)
 
+        query = AccountStatusesQuery.new(@account)
         if service_params[:pinned] == 'true'
           # 固定投稿のみを取得
-          query = AccountStatusesQuery.new(@account)
           pinned_statuses = query.pinned_only.limit(limit_param)
           statuses = pinned_statuses.map(&:object)
         else
           # 通常の投稿を取得
-          query = AccountStatusesQuery.new(@account)
-          
+
           # パラメータに応じてクエリを調整
           query = query.exclude_replies if service_params[:exclude_replies] == 'true'
           query = query.only_media if service_params[:only_media] == 'true'
@@ -58,7 +57,7 @@ module Api
             since_id: service_params[:since_id],
             min_id: service_params[:min_id]
           )
-          
+
           statuses = query.with_includes.ordered.limit(limit_param).call
         end
 

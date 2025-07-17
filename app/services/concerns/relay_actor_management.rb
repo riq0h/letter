@@ -20,12 +20,11 @@ module RelayActorManagement
 
   def deliver_activity(activity, inbox_url)
     activity_sender = ActivitySender.new
-    result = activity_sender.send_activity(
+    activity_sender.send_activity(
       activity: activity,
       target_inbox: inbox_url,
       signing_actor: @local_actor
     )
-    result
   rescue StandardError => e
     Rails.logger.error "Failed to deliver activity: #{e.message}"
     { success: false, error: e.message }

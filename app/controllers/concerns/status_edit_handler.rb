@@ -5,7 +5,7 @@ module StatusEditHandler
   include MediaSerializer
 
   # 編集履歴用の一時オブジェクト構造体
-  TempEditStatus = Struct.new(:content, :summary, :mentions, :tags)
+  TempEditStatus = Struct.new(:content, :summary, :mentions, :tags, :id)
   TempActor = Struct.new(:id, :username, :local?)
   TempMention = Struct.new(:actor, :acct)
   TempTag = Struct.new(:name)
@@ -23,14 +23,12 @@ module StatusEditHandler
     # contentパラメータをstatusからマッピング
     edit_params[:content] = edit_params.delete(:status) if edit_params.key?(:status)
 
-    # メディアIDの処理
-    if edit_params.key?(:media_ids)
-      edit_params[:media_ids] = if edit_params[:media_ids].is_a?(Array)
-                                  edit_params[:media_ids].compact.compact_blank
-                                else
-                                  []
-                                end
-    end
+    # メディアIDの処理（パラメータが存在しない場合は空配列として扱う）
+    edit_params[:media_ids] = if edit_params.key?(:media_ids) && edit_params[:media_ids].is_a?(Array)
+                                edit_params[:media_ids].compact.compact_blank
+                              else
+                                []
+                              end
 
     # 投票パラメータの処理
     edit_params[:poll_options] = if edit_params[:poll].present? && edit_params[:poll][:options].present?
@@ -172,7 +170,8 @@ module StatusEditHandler
       edit.content,
       edit.summary,
       mentions_objs,
-      tags_objs
+      tags_objs,
+      edit.id
     )
   end
 

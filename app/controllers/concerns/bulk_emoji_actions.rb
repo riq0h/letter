@@ -76,7 +76,7 @@ module BulkEmojiActions
       failure_count = results[:failed_count]
       total_count = success_count + failure_count
 
-      if failure_count == 0
+      if failure_count.zero?
         { notice: "#{success_count}個の絵文字をコピーしました" }
       elsif success_count.positive?
         { notice: "#{success_count}/#{total_count}個の絵文字をコピーしました（一部失敗）" }

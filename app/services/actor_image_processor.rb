@@ -18,13 +18,13 @@ class ActorImageProcessor
       blob = ActiveStorage::Blob.create_and_upload!(
         io: processed_io,
         filename: filename,
-        content_type: 'image/png',
+        content_type: content_type,
         service_name: :cloudflare_r2,
         key: custom_key
       )
       actor.avatar.attach(blob)
     else
-      actor.avatar.attach(io: processed_io, filename: filename, content_type: 'image/png')
+      actor.avatar.attach(io: processed_io, filename: filename, content_type: content_type)
     end
 
     # アバター更新をActivityPubで配信

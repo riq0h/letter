@@ -11,43 +11,53 @@ class RelayFollowService
     return false unless @local_actor && @relay&.idle?
 
     begin
-      # リレーアクターの情報を取得
-      relay_actor_data = fetch_activitypub_object(@relay.actor_uri)
-      
-      unless relay_actor_data
-        error_msg = "リレーアクター情報の取得に失敗しました: #{@relay.actor_uri}"
-        Rails.logger.error error_msg
-        @relay.update!(last_error: error_msg)
-        return false
-      end
+      relay_actor_data = fetch_relay_actor_data
+      return false unless relay_actor_data
 
-      # Follow アクティビティを作成
       follow_activity = create_follow_activity(relay_actor_data)
-
-      # Follow アクティビティを送信
-      result = deliver_activity(follow_activity, @relay.inbox_url)
-
-      if result && result[:success]
-        @relay.update!(
-          state: 'pending',
-          follow_activity_id: follow_activity['id'],
-          followed_at: Time.current,
-          last_error: nil
-        )
-        true
-      else
-        error_msg = result ? result[:error] : 'Follow アクティビティの送信に失敗しました'
-        @relay.update!(last_error: error_msg)
-        false
-      end
+      handle_follow_result(follow_activity)
     rescue StandardError => e
-      Rails.logger.error "Relay follow error: #{e.message}"
-      @relay.update!(last_error: e.message)
-      false
+      handle_error(e)
     end
   end
 
   private
+
+  def fetch_relay_actor_data
+    relay_actor_data = fetch_activitypub_object(@relay.actor_uri)
+
+    unless relay_actor_data
+      error_msg = "リレーアクター情報の取得に失敗しました: #{@relay.actor_uri}"
+      Rails.logger.error error_msg
+      @relay.update!(last_error: error_msg)
+    end
+
+    relay_actor_data
+  end
+
+  def handle_follow_result(follow_activity)
+    result = deliver_activity(follow_activity, @relay.inbox_url)
+
+    if result && result[:success]
+      @relay.update!(
+        state: 'pending',
+        follow_activity_id: follow_activity['id'],
+        followed_at: Time.current,
+        last_error: nil
+      )
+      true
+    else
+      error_msg = result ? result[:error] : 'Follow アクティビティの送信に失敗しました'
+      @relay.update!(last_error: error_msg)
+      false
+    end
+  end
+
+  def handle_error(error)
+    Rails.logger.error "Relay follow error: #{error.message}"
+    @relay.update!(last_error: error.message)
+    false
+  end
 
   def create_follow_activity(_relay_actor_data)
     activity_id = "#{@local_actor.ap_id}#follows/relay/#{SecureRandom.hex(16)}"
