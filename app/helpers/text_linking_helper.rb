@@ -144,7 +144,12 @@ module TextLinkingHelper
                                       .strip
 
         # 空になった場合は元のhref URLを使用し、プロトコルをマスク
-        display_text = cleaned_content.empty? ? mask_protocol(href_url) : cleaned_content
+        display_text = if cleaned_content.empty?
+                         mask_protocol(href_url)
+                       else
+                         # ellipsisスパンがあった場合は省略されていることを示すため...を付ける
+                         link_content.include?('class="ellipsis"') ? "#{cleaned_content}..." : cleaned_content
+                       end
 
         "<a #{attributes}>#{display_text}</a>"
       else
