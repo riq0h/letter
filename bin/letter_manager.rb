@@ -169,7 +169,7 @@ end
 def setup_new_installation
   puts ''
   print_header 'セットアップスクリプト'
-  print_info "実行時刻: #{Time.zone.now}"
+  print_info "実行時刻: #{Time.now}"
   puts ''
 
   # 環境ファイルの設定
@@ -446,7 +446,7 @@ def cleanup_and_start(show_header = true)
   puts ''
   if show_header
     print_header 'クリーンアップ＆再起動'
-    print_info "実行時刻: #{Time.zone.now}"
+    print_info "実行時刻: #{Time.now}"
   end
 
   # プロセス終了（SOLID_QUEUE_IN_PUMAを考慮）
