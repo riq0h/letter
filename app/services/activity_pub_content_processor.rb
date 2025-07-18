@@ -67,8 +67,22 @@ class ActivityPubContentProcessor
   end
 
   def process_links
-    # リンク処理ロジック
-    # URLの自動リンク化など
+    urls = extract_urls_from_content(object.content)
+    return if urls.empty?
+
+    urls.each do |url|
+      existing_preview = LinkPreview.find_by(url: url)
+      next if existing_preview
+
+      FetchLinkPreviewJob.perform_later(url, object.id)
+    end
+  end
+
+  def extract_urls_from_content(content)
+    return [] if content.blank?
+
+    doc = Nokogiri::HTML.fragment(content)
+    doc.css('a[href]').pluck('href').grep(/\Ahttps?:\/\//).uniq
   end
 
   def create_mention(username, domain)
