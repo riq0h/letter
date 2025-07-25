@@ -16,6 +16,45 @@ module TextLinkingHelper
     mention_linked_text.html_safe
   end
 
+  def extract_urls_from_content(content)
+    return [] if content.blank?
+
+    # <a href="URL">形式のURLを抽出（これが最も正確）
+    urls = content.scan(/<a[^>]+href=["']([^"']+)["'][^>]*>/i).flatten
+
+    # プレーンテキストのURLも追加抽出（aタグに含まれていないもの）
+    content.scan(/(https?:\/\/[^\s<>"']+)/i) do |url|
+      url_text = url[0]
+      # すでにaタグのhref属性に含まれていない場合のみ追加
+      urls << url_text unless urls.any? { |existing_url| existing_url.include?(url_text) || url_text.include?(existing_url) }
+    end
+
+    urls.uniq.select { |url| valid_preview_url?(url) }
+  end
+
+  def valid_preview_url?(url)
+    return false if url.blank?
+
+    begin
+      uri = URI.parse(url)
+      return false unless %w[http https].include?(uri.scheme)
+      return false if uri.host.blank?
+
+      # ActivityPubのユーザリンク（メンション）は除外
+      # /users/username や /@username 形式のパスを除外
+      return false if /^\/(users\/|@)/.match?(uri.path)
+
+      # 画像・動画・音声ファイルは除外
+      path = uri.path.downcase
+      media_extensions = %w[.jpg .jpeg .png .gif .webp .mp4 .mp3 .wav .avi .mov .pdf]
+      return false if media_extensions.any? { |ext| path.end_with?(ext) }
+
+      true
+    rescue URI::InvalidURIError
+      false
+    end
+  end
+
   private
 
   def escape_and_format_text(text)
@@ -156,48 +195,6 @@ module TextLinkingHelper
         # それ以外は元のまま
         match
       end
-    end
-  end
-
-  def extract_urls_from_content(content)
-    return [] if content.blank?
-
-    # HTMLタグ内のURLとプレーンテキストのURLを抽出
-    urls = []
-
-    # <a href="URL">形式のURLを抽出
-    content.scan(/<a[^>]+href=["']([^"']+)["'][^>]*>/i) do |url|
-      urls << url[0]
-    end
-
-    # プレーンテキストのURLを抽出
-    content.scan(/(https?:\/\/[^\s<>]+)/i) do |url|
-      urls << url[0]
-    end
-
-    urls.uniq.select { |url| valid_preview_url?(url) }
-  end
-
-  def valid_preview_url?(url)
-    return false if url.blank?
-
-    begin
-      uri = URI.parse(url)
-      return false unless %w[http https].include?(uri.scheme)
-      return false if uri.host.blank?
-
-      # ActivityPubのユーザリンク（メンション）は除外
-      # /users/username や /@username 形式のパスを除外
-      return false if /^\/(users\/|@)/.match?(uri.path)
-
-      # 画像・動画・音声ファイルは除外
-      path = uri.path.downcase
-      media_extensions = %w[.jpg .jpeg .png .gif .webp .mp4 .mp3 .wav .avi .mov .pdf]
-      return false if media_extensions.any? { |ext| path.end_with?(ext) }
-
-      true
-    rescue URI::InvalidURIError
-      false
     end
   end
 end
