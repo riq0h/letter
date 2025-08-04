@@ -537,25 +537,30 @@ EOF")
   end
 
   # 6. 既存プロセスの確認と停止
-  print_info "6. 既存プロセスの確認..."
-  rails_running = system("pgrep -f 'rails server' > /dev/null 2>&1")
-  
-  # SOLID_QUEUE_IN_PUMAを考慮したプロセス確認
-  if ENV['SOLID_QUEUE_IN_PUMA'] == 'true'
-    queue_running = false  # Puma内で動作するため独立プロセスなし
+  if ENV['SKIP_PROCESS_MANAGEMENT'] == 'true'
+    print_info "6. 既存プロセスの確認... (スキップ)"
+    print_success "プロセス管理をスキップしました"
   else
-    queue_running = system("pgrep -f 'solid.*queue' > /dev/null 2>&1")
-  end
-
-  if rails_running || queue_running
-    print_warning "既存のプロセスが動作中です。停止します..."
-    unless ENV['SOLID_QUEUE_IN_PUMA'] == 'true'
-      system("pkill -f 'solid.*queue' 2>/dev/null || true")
+    print_info "6. 既存プロセスの確認..."
+    rails_running = system("pgrep -f 'rails server' > /dev/null 2>&1")
+    
+    # SOLID_QUEUE_IN_PUMAを考慮したプロセス確認
+    if ENV['SOLID_QUEUE_IN_PUMA'] == 'true'
+      queue_running = false  # Puma内で動作するため独立プロセスなし
+    else
+      queue_running = system("pgrep -f 'solid.*queue' > /dev/null 2>&1")
     end
-    system("pkill -f 'rails server' 2>/dev/null || true")
-    system("pkill -f 'puma.*pit1' 2>/dev/null || true")
-    sleep 3
-    print_success "既存プロセスを停止しました"
+
+    if rails_running || queue_running
+      print_warning "既存のプロセスが動作中です。停止します..."
+      unless ENV['SOLID_QUEUE_IN_PUMA'] == 'true'
+        system("pkill -f 'solid.*queue' 2>/dev/null || true")
+      end
+      system("pkill -f 'rails server' 2>/dev/null || true")
+      system("pkill -f 'puma.*pit1' 2>/dev/null || true")
+      sleep 3
+      print_success "既存プロセスを停止しました"
+    end
   end
 
   # PIDファイルのクリーンアップ
