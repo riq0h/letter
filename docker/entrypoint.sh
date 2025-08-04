@@ -199,11 +199,10 @@ main() {
     # 環境変数設定
     RAILS_ENV=${RAILS_ENV:-development}
     secret_key=${SECRET_KEY_BASE:-$(bundle exec rails secret)}
-    env_cmd="RAILS_ENV=${RAILS_ENV} SECRET_KEY_BASE=\"${secret_key}\""
     
     # bin/setupを環境変数付きで実行
     echo "bin/setupを実行中..."
-    ${env_cmd} bundle exec ruby bin/setup
+    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" bundle exec ruby bin/setup
     start_solid_queue
     
     echo "=== アプリケーション準備完了 ==="
