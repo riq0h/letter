@@ -8,6 +8,8 @@ services:
     build:
       target: runner
     image: letter:prod
+    ports:
+      - "127.0.0.1:3001:3000"
     environment:
       # 本番環境設定
       RAILS_ENV: production
@@ -61,25 +63,6 @@ services:
         max-size: "50m"
         max-file: "5"
 
-  # 本番環境用Nginx（オプション）
-  nginx:
-    image: nginx:alpine
-    container_name: letter_nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/ssl:/etc/nginx/ssl:ro
-      - letter_uploads:/var/www/uploads:ro
-    depends_on:
-      - web
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
 
 volumes:
   letter_storage:
