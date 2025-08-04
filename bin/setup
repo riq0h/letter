@@ -140,9 +140,14 @@ FileUtils.chdir APP_ROOT do
   end
 
   # 2. 依存関係のインストール
-  print_info "2. 依存関係のインストール..."
-  system("bundle check") || system!("bundle install")
-  print_success "依存関係をインストールしました"
+  if ENV['SKIP_BUNDLE_INSTALL'] == 'true'
+    print_info "2. 依存関係のインストール... (スキップ)"
+    print_success "依存関係のインストールをスキップしました"
+  else
+    print_info "2. 依存関係のインストール..."
+    system("bundle check") || system!("bundle install")
+    print_success "依存関係をインストールしました"
+  end
 
   # 3. データベースの確認と準備
   print_info "3. データベースの確認と準備..."

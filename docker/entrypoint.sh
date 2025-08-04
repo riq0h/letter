@@ -192,21 +192,11 @@ main() {
     # 作業ディレクトリを設定
     cd /app
     
-    # ファイル権限を修正
+    # ファイル権限を修正（bin/setupが作成するファイルのみ）
     chmod 755 . 2>/dev/null || true
-    mkdir -p config 2>/dev/null || true
-    
-    # 既存ファイルがある場合は権限を修正、ない場合は作成
-    if [ -f "Gemfile.lock" ]; then
-        chmod 666 Gemfile.lock 2>/dev/null || true
-    else
-        touch Gemfile.lock 2>/dev/null || true
-        chmod 666 Gemfile.lock 2>/dev/null || true
-    fi
-    
-    # その他のファイル
+    mkdir -p config storage tmp/pids log 2>/dev/null || true
     touch .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
-    chmod 666 .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
+    chmod 644 .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
     
     # bundlerの環境を設定
     export BUNDLE_GEMFILE=/app/Gemfile
@@ -216,9 +206,14 @@ main() {
     RAILS_ENV=${RAILS_ENV:-development}
     secret_key=${SECRET_KEY_BASE:-$(bundle exec rails secret)}
     
-    # bin/setupを環境変数付きで実行
+    # 事前にbundle installを実行
+    echo "依存関係のインストール中..."
+    bundle install
+    echo "OK: 依存関係をインストールしました"
+    
+    # bin/setupを環境変数付きで実行（bundle installはスキップ）
     echo "bin/setupを実行中..."
-    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" bundle exec ruby bin/setup
+    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true bundle exec ruby bin/setup
     start_solid_queue
     
     echo "=== アプリケーション準備完了 ==="
