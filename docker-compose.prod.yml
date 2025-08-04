@@ -38,6 +38,7 @@ services:
       - letter_assets:/app/app/assets/builds
       - letter_public_assets:/app/public/assets
       - letter_db:/app/db
+      - letter_tmp:/app/tmp
       
     # 本番環境用リソース制限
     deploy:
@@ -82,4 +83,6 @@ volumes:
   letter_public_assets:
     driver: local
   letter_db:
+    driver: local
+  letter_tmp:
     driver: local

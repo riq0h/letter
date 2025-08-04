@@ -110,6 +110,9 @@ prepare_assets() {
 cleanup_processes() {
     echo "プロセスをクリーンアップ中..."
     
+    # PIDディレクトリを作成
+    mkdir -p tmp/pids
+    
     # PIDファイルを削除
     rm -f tmp/pids/server.pid
     rm -f tmp/pids/solid_queue.pid
