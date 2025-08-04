@@ -35,6 +35,7 @@ services:
       - letter_storage:/app/storage
       - letter_logs:/app/log
       - letter_uploads:/app/public/uploads
+      - letter_assets:/app/app/assets/builds
       
     # 本番環境用リソース制限
     deploy:
@@ -73,4 +74,6 @@ volumes:
   letter_logs:
     driver: local  
   letter_uploads:
+    driver: local
+  letter_assets:
     driver: local

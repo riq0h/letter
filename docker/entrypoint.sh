@@ -73,9 +73,8 @@ prepare_assets() {
     export BUNDLE_GEMFILE=/app/Gemfile
     export BUNDLE_PATH=/usr/local/bundle
     
-    # アセットビルドディレクトリの権限を修正
+    # アセットビルドディレクトリを作成
     mkdir -p app/assets/builds
-    chmod 755 app/assets/builds
     
     # 本番環境またはアセットが存在しない場合のみプリコンパイル
     if [ "$RAILS_ENV" = "production" ] || [ ! -d "public/assets" ]; then
