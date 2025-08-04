@@ -122,7 +122,7 @@ echo ""
 
 # ユーザに何をするか尋ねる
 echo "何をしますか？"
-echo "1) ビルドしてアプリを開始（フォアグラウンド）"
+echo "1) ビルドしてアプリを開始（バックグラウンド）"
 echo "2) アプリをバックグラウンドで開始"
 echo "3) ビルドのみ（開始しない）"
 echo "4) ログを表示"
@@ -141,8 +141,18 @@ fi
 
 case $choice in
     1)
-        echo "INFO: letterをビルドして開始中..."
-        $DOCKER_COMPOSE $COMPOSE_FILES up --build
+        echo "INFO: letterをバックグラウンドでビルドして開始中..."
+        $DOCKER_COMPOSE $COMPOSE_FILES up -d --build
+        echo ""
+        echo "OK: letterがバックグラウンドで実行中です"
+        echo "アクセス: ${protocol:-http}://${domain:-localhost:3000}"
+        echo "ヘルスチェック: ${protocol:-http}://${domain:-localhost:3000}/up"
+        echo ""
+        echo "便利なコマンド:"
+        echo "  ログ表示: $DOCKER_COMPOSE $COMPOSE_FILES logs -f"
+        echo "  停止: $DOCKER_COMPOSE $COMPOSE_FILES down"
+        echo "  再起動: $DOCKER_COMPOSE $COMPOSE_FILES restart"
+        echo "  管理ツール: $DOCKER_COMPOSE $COMPOSE_FILES exec web rails runner bin/letter_manager.rb"
         ;;
     2)
         echo "INFO: letterをバックグラウンドでビルドして開始中..."
@@ -153,10 +163,10 @@ case $choice in
         echo "ヘルスチェック: ${protocol:-http}://${domain:-localhost:3000}/up"
         echo ""
         echo "便利なコマンド:"
-        echo "  ログ表示: $DOCKER_COMPOSE logs -f"
-        echo "  停止: $DOCKER_COMPOSE down"
-        echo "  再起動: $DOCKER_COMPOSE restart"
-        echo "  管理ツール: $DOCKER_COMPOSE exec web rails runner bin/letter_manager.rb"
+        echo "  ログ表示: $DOCKER_COMPOSE $COMPOSE_FILES logs -f"
+        echo "  停止: $DOCKER_COMPOSE $COMPOSE_FILES down"
+        echo "  再起動: $DOCKER_COMPOSE $COMPOSE_FILES restart"
+        echo "  管理ツール: $DOCKER_COMPOSE $COMPOSE_FILES exec web rails runner bin/letter_manager.rb"
         ;;
     3)
         echo "INFO: letterをビルド中..."
