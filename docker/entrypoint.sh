@@ -140,12 +140,7 @@ start_solid_queue() {
     
     # Pumaで実行していない場合のみ開始（SOLID_QUEUE_IN_PUMAをチェック）
     if [ "$SOLID_QUEUE_IN_PUMA" != "true" ]; then
-        # Solid Queueをバックグラウンドプロセスとして開始
-        bundle exec bin/jobs &
-        SOLID_QUEUE_PID=$!
-        echo $SOLID_QUEUE_PID > tmp/pids/solid_queue.pid
-        
-        echo "OK: Solid Queue開始 (PID: $SOLID_QUEUE_PID)"
+        echo "INFO: Solid Queueは独立プロセスとしてDockerfileのCMD後に起動されます"
     else
         echo "OK: Solid QueueはPumaプロセス内で実行されます"
     fi
