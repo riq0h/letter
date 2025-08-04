@@ -33,9 +33,34 @@ validate_environment() {
         export ACTIVITYPUB_PROTOCOL=https
     fi
     
+    # 本番環境の場合はSECRET_KEY_BASEをチェック・生成
+    if [ "$RAILS_ENV" = "production" ] && [ -z "$SECRET_KEY_BASE" ]; then
+        echo "本番環境用のSECRET_KEY_BASEを生成中..."
+        export SECRET_KEY_BASE=$(bundle exec rails secret)
+        echo "OK: SECRET_KEY_BASEを生成しました"
+    fi
+    
+    # 本番環境での追加チェック
+    if [ "$RAILS_ENV" = "production" ]; then
+        echo "本番環境設定を確認中..."
+        
+        if [ "$ACTIVITYPUB_DOMAIN" = "localhost" ] || echo "$ACTIVITYPUB_DOMAIN" | grep -q "localhost"; then
+            echo "WARNING: 本番環境でlocalhostドメインが設定されています"
+        fi
+        
+        if [ "$ACTIVITYPUB_PROTOCOL" != "https" ]; then
+            echo "WARNING: ActivityPubはHTTPS必須です。本番環境ではhttpsを使用してください"
+        fi
+        
+        if [ -z "$VAPID_PUBLIC_KEY" ] || [ -z "$VAPID_PRIVATE_KEY" ]; then
+            echo "WARNING: VAPIDキーが設定されていません。WebPush機能は無効です"
+        fi
+    fi
+    
     echo "OK: 環境変数検証完了"
     echo "  ドメイン: $ACTIVITYPUB_DOMAIN"
     echo "  プロトコル: $ACTIVITYPUB_PROTOCOL"
+    echo "  環境: ${RAILS_ENV:-development}"
 }
 
 # データベースセットアップ
@@ -48,19 +73,51 @@ setup_database() {
     export BUNDLE_GEMFILE=/app/Gemfile
     export BUNDLE_PATH=/usr/local/bundle
     
-    # データベースが存在するかチェック  
+    # storageディレクトリの確保
+    mkdir -p storage
+    
     RAILS_ENV=${RAILS_ENV:-development}
+    
+    # メインデータベースのセットアップ
     DB_FILE="storage/${RAILS_ENV}.sqlite3"
     if [ ! -f "$DB_FILE" ]; then
-        echo "データベースを作成中..."
+        echo "メインデータベースを作成中..."
         bundle exec rails db:create
         bundle exec rails db:migrate
-        echo "OK: データベース作成とマイグレーション完了"
+        echo "OK: メインデータベース作成とマイグレーション完了"
     else
-        echo "データベースが存在します、マイグレーションを実行中..."
-        bundle exec rails db:migrate
-        echo "OK: データベースマイグレーション完了"
+        echo "メインデータベースが存在します、マイグレーション確認中..."
+        # マイグレーション状態をチェック
+        migration_check=$(bundle exec rails db:migrate:status 2>&1)
+        if echo "$migration_check" | grep -q "down"; then
+            echo "未実行のマイグレーションがあります。実行中..."
+            bundle exec rails db:migrate
+            echo "OK: マイグレーション完了"
+        else
+            echo "OK: すべてのマイグレーションが完了しています"
+        fi
     fi
+    
+    # Solid関連データベースファイルの作成
+    echo "Solid関連データベースファイルを確認中..."
+    
+    CACHE_DB_FILE="storage/cache_${RAILS_ENV}.sqlite3"
+    QUEUE_DB_FILE="storage/queue_${RAILS_ENV}.sqlite3"
+    CABLE_DB_FILE="storage/cable_${RAILS_ENV}.sqlite3"
+    
+    # データベースファイルが存在しない場合は作成
+    for db_info in "Cache:$CACHE_DB_FILE" "Queue:$QUEUE_DB_FILE" "Cable:$CABLE_DB_FILE"; do
+        db_name=$(echo "$db_info" | cut -d: -f1)
+        db_file=$(echo "$db_info" | cut -d: -f2)
+        
+        if [ ! -f "$db_file" ]; then
+            echo "${db_name}データベースファイルを作成中..."
+            # 空のSQLiteファイルを作成
+            sqlite3 "$db_file" "SELECT 1;" 2>/dev/null || echo "⚠️  ${db_name}データベース作成に失敗しました"
+        fi
+    done
+    
+    echo "OK: Solid関連データベースファイル確認完了"
 }
 
 # 必要に応じてアセットをプリコンパイル
@@ -80,20 +137,96 @@ prepare_assets() {
     if [ "$RAILS_ENV" = "production" ] || [ ! -d "public/assets" ]; then
         echo "アセットをプリコンパイル中..."
         
-        # Solid Components インストール
+        # Solid Components セットアップ
         if [ "$RAILS_ENV" = "production" ]; then
-            echo "💾 Solid Cacheテーブルを作成中..."
-            echo "y" | bundle exec rails solid_cache:install 2>/dev/null || echo "⚠️  Solid Cacheのインストールをスキップしました"
+            echo "💾 Solid Cacheをセットアップ中..."
+            if [ ! -f "config/cache.yml" ]; then
+                echo "y" | bundle exec rails solid_cache:install 2>/dev/null || echo "⚠️  Solid Cacheのインストールをスキップしました"
+            fi
             
-            echo "📡 Solid Cableテーブルを作成中..."
-            echo "y" | bundle exec rails solid_cable:install 2>/dev/null || echo "⚠️  Solid Cableのインストールをスキップしました"
+            echo "📡 Solid Cableをセットアップ中..."
+            if [ ! -f "config/cable.yml" ]; then
+                echo "y" | bundle exec rails solid_cable:install 2>/dev/null || echo "⚠️  Solid Cableのインストールをスキップしました"
+            fi
             
-            echo "🚀 Solid Queueテーブルを作成中..."
-            echo "y" | bundle exec rails solid_queue:install 2>/dev/null || echo "⚠️  Solid Queueのインストールをスキップしました"
+            echo "🚀 Solid Queueをセットアップ中..."
+            if [ ! -f "config/queue.yml" ]; then
+                echo "y" | bundle exec rails solid_queue:install 2>/dev/null || echo "⚠️  Solid Queueのインストールをスキップしました"
+            fi
             
-            # Solidコンポーネントのマイグレーションを実行
-            echo "🔧 Solidコンポーネントのマイグレーションを実行中..."
-            bundle exec rails db:migrate || echo "⚠️  マイグレーションでエラーが発生しました"
+            # Solid関連データベースのスキーマ読み込み
+            echo "🔧 Solid関連スキーマを読み込み中..."
+            
+            # Solid Queueスキーマ
+            if [ -f "db/queue_schema.rb" ]; then
+                bundle exec rails runner "
+                  begin
+                    original_connection = ActiveRecord::Base.connection_db_config.name
+                    ActiveRecord::Base.establish_connection(:queue)
+                    
+                    schema_content = File.read(Rails.root.join('db/queue_schema.rb'))
+                    eval(schema_content)
+                    
+                    puts 'SUCCESS: Solid Queue schema loaded'
+                  rescue => e
+                    puts 'ERROR: Solid Queue schema - ' + e.message
+                  ensure
+                    ActiveRecord::Base.establish_connection(original_connection.to_sym) if original_connection
+                  end
+                " || echo "⚠️  Solid Queueスキーマ読み込みに失敗しました"
+            fi
+            
+            # Solid Cacheスキーマ（手動作成）
+            bundle exec rails runner "
+              begin
+                original_connection = ActiveRecord::Base.connection_db_config.name
+                ActiveRecord::Base.establish_connection(:cache)
+                
+                unless ActiveRecord::Base.connection.table_exists?('solid_cache_entries')
+                  ActiveRecord::Base.connection.execute('
+                    CREATE TABLE solid_cache_entries (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                      key BLOB NOT NULL,
+                      value BLOB NOT NULL,
+                      created_at DATETIME NOT NULL,
+                      key_hash INTEGER NOT NULL,
+                      byte_size INTEGER NOT NULL
+                    )
+                  ')
+                  ActiveRecord::Base.connection.execute('CREATE UNIQUE INDEX index_solid_cache_entries_on_key_hash ON solid_cache_entries (key_hash)')
+                  ActiveRecord::Base.connection.execute('CREATE INDEX index_solid_cache_entries_on_byte_size ON solid_cache_entries (byte_size)')
+                  puts 'SUCCESS: Solid Cache schema created'
+                else
+                  puts 'SUCCESS: Solid Cache schema exists'
+                end
+              rescue => e
+                puts 'ERROR: Solid Cache schema - ' + e.message
+              ensure
+                ActiveRecord::Base.establish_connection(original_connection.to_sym) if original_connection
+              end
+            " || echo "⚠️  Solid Cacheスキーマ作成に失敗しました"
+            
+            # Solid Cableスキーマ
+            if [ -f "db/cable_schema.rb" ]; then
+                bundle exec rails runner "
+                  begin
+                    original_connection = ActiveRecord::Base.connection_db_config.name
+                    ActiveRecord::Base.establish_connection(:cable)
+                    
+                    schema_content = File.read(Rails.root.join('db/cable_schema.rb'))
+                    eval(schema_content)
+                    
+                    puts 'SUCCESS: Solid Cable schema loaded'
+                  rescue => e
+                    puts 'ERROR: Solid Cable schema - ' + e.message
+                  ensure
+                    ActiveRecord::Base.establish_connection(original_connection.to_sym) if original_connection
+                  end
+                " || echo "⚠️  Solid Cableスキーマ読み込みに失敗しました"
+            elif [ -f "db/cable_structure.sql" ]; then
+                echo "Solid Cable構造ファイルを読み込み中..."
+                sqlite3 "storage/cable_${RAILS_ENV}.sqlite3" < db/cable_structure.sql 2>/dev/null || echo "⚠️  Solid Cable構造読み込みに失敗しました"
+            fi
         fi
         
         bundle exec rails assets:precompile
@@ -118,17 +251,31 @@ prepare_assets() {
 
 # 古いプロセスをクリーンアップ
 cleanup_processes() {
-    echo "プロセスをクリーンアップ中..."
+    echo "プロセスとファイルをクリーンアップ中..."
     
-    # PIDディレクトリを作成
-    mkdir -p tmp/pids
+    # 必要なディレクトリを作成
+    mkdir -p tmp/pids tmp/cache log
     
     # PIDファイルを削除
     rm -f tmp/pids/server.pid
     rm -f tmp/pids/solid_queue.pid
     rm -f tmp/pids/tailwind.pid
     
-    echo "OK: プロセスクリーンアップ完了"
+    # ログファイルのクリーンアップ（サイズが大きい場合）
+    if [ -f "log/${RAILS_ENV:-development}.log" ]; then
+        log_size=$(wc -c < "log/${RAILS_ENV:-development}.log" 2>/dev/null || echo "0")
+        if [ "$log_size" -gt 10485760 ]; then  # 10MB以上の場合
+            echo "大きなログファイルをクリアしています..."
+            > "log/${RAILS_ENV:-development}.log"
+        fi
+    fi
+    
+    # テンポラリファイルのクリーンアップ
+    if [ -d "tmp/cache" ]; then
+        find tmp/cache -type f -mtime +1 -delete 2>/dev/null || true
+    fi
+    
+    echo "OK: プロセスとファイルのクリーンアップ完了"
 }
 
 # Solid Queueをバックグラウンドで開始
@@ -206,6 +353,40 @@ main() {
     start_solid_queue
     
     echo "=== アプリケーション準備完了 ==="
+    
+    # 本番環境での最終確認
+    if [ "$RAILS_ENV" = "production" ]; then
+        echo "本番環境最終確認中..."
+        
+        # データベース接続確認
+        if bundle exec rails runner "ActiveRecord::Base.connection.execute('SELECT 1')" 2>/dev/null; then
+            echo "✓ メインデータベース接続OK"
+        else
+            echo "✗ メインデータベース接続エラー"
+        fi
+        
+        # Solid関連データベース確認
+        for db_type in cache queue cable; do
+            if bundle exec rails runner "
+              begin
+                ActiveRecord::Base.establish_connection(:${db_type})
+                ActiveRecord::Base.connection.execute('SELECT 1')
+                puts 'OK'
+              rescue
+                puts 'ERROR'
+              ensure
+                ActiveRecord::Base.establish_connection(:primary)
+              end
+            " 2>/dev/null | grep -q "OK"; then
+                echo "✓ ${db_type}データベース接続OK"
+            else
+                echo "⚠️  ${db_type}データベース接続に問題があります"
+            fi
+        done
+        
+        echo "本番環境確認完了"
+    fi
+    
     echo "Railsサーバを開始中..."
     echo "アクセス可能: $ACTIVITYPUB_PROTOCOL://$ACTIVITYPUB_DOMAIN"
     echo ""
