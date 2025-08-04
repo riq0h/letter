@@ -153,13 +153,17 @@ case $choice in
         $DOCKER_COMPOSE $COMPOSE_FILES up -d --build
         echo ""
         echo "OK: letterがバックグラウンドで実行中です"
-        # ポート情報を取得
+        # ポート情報を取得（.envファイルから環境変数を読み込む）
+        if [ -f ".env" ]; then
+            source .env
+        fi
+        
         if [ "$rails_env" == "production" ]; then
-            access_url="${protocol:-https}://${domain}"
-            healthcheck_url="${protocol:-https}://${domain}/up"
+            access_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}"
+            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}/up"
         else
-            access_url="${protocol:-http}://${domain:-localhost:3002}"
-            healthcheck_url="${protocol:-http}://${domain:-localhost:3002}/up"
+            access_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}"
+            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}/up"
         fi
         echo "アクセス: $access_url"
         echo "ヘルスチェック: $healthcheck_url"
@@ -175,13 +179,17 @@ case $choice in
         $DOCKER_COMPOSE $COMPOSE_FILES up -d
         echo ""
         echo "OK: letterがバックグラウンドで実行中です"
-        # ポート情報を取得
+        # ポート情報を取得（.envファイルから環境変数を読み込む）
+        if [ -f ".env" ]; then
+            source .env
+        fi
+        
         if [ "$rails_env" == "production" ]; then
-            access_url="${protocol:-https}://${domain}"
-            healthcheck_url="${protocol:-https}://${domain}/up"
+            access_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}"
+            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}/up"
         else
-            access_url="${protocol:-http}://${domain:-localhost:3002}"
-            healthcheck_url="${protocol:-http}://${domain:-localhost:3002}/up"
+            access_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}"
+            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}/up"
         fi
         echo "アクセス: $access_url"
         echo "ヘルスチェック: $healthcheck_url"
