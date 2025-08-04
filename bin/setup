@@ -527,9 +527,14 @@ EOF")
   print_success "クリーンアップが完了しました"
 
   # 5. アセットのプリコンパイル
-  print_info "5. アセットのプリコンパイル..."
-  system! "#{env_cmd} bin/rails assets:precompile"
-  print_success "アセットのプリコンパイルが完了しました"
+  if ENV['SKIP_ASSET_PRECOMPILE'] == 'true'
+    print_info "5. アセットのプリコンパイル... (スキップ)"
+    print_success "アセットのプリコンパイルをスキップしました"
+  else
+    print_info "5. アセットのプリコンパイル..."
+    system! "#{env_cmd} bin/rails assets:precompile"
+    print_success "アセットのプリコンパイルが完了しました"
+  end
 
   # 6. 既存プロセスの確認と停止
   print_info "6. 既存プロセスの確認..."

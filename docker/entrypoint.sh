@@ -196,10 +196,9 @@ main() {
     
     # ファイル権限を修正（bin/setupが作成するファイルのみ）
     chmod 755 . 2>/dev/null || true
-    mkdir -p config storage tmp/pids log app/assets/builds public/assets 2>/dev/null || true
+    mkdir -p config storage tmp/pids log 2>/dev/null || true
     touch .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
     chmod 644 .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
-    chmod 755 app/assets/builds public/assets 2>/dev/null || true
     
     # bundlerの環境を設定
     export BUNDLE_GEMFILE=/app/Gemfile
@@ -219,7 +218,7 @@ main() {
     
     # bin/setupを環境変数付きで実行（bundle installとサーバ起動をスキップ）
     echo "bin/setupを実行中..."
-    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true bundle exec ruby bin/setup --skip-server
+    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true SKIP_ASSET_PRECOMPILE=true bundle exec ruby bin/setup --skip-server
     start_solid_queue
     
     echo "=== アプリケーション準備完了 ==="
