@@ -192,6 +192,12 @@ main() {
     # 作業ディレクトリを設定
     cd /app
     
+    # ファイル権限を修正
+    chmod 755 . 2>/dev/null || true
+    touch .env 2>/dev/null || true
+    touch .env.template 2>/dev/null || true
+    chmod 644 .env .env.template 2>/dev/null || true
+    
     # bundlerの環境を設定
     export BUNDLE_GEMFILE=/app/Gemfile
     export BUNDLE_PATH=/usr/local/bundle
