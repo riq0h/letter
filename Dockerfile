@@ -114,4 +114,4 @@ EXPOSE 3000
 ENTRYPOINT ["entrypoint.sh"]
 
 # デフォルトコマンド
-CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0"]
+CMD ["sh", "-c", "if [ \"$SOLID_QUEUE_IN_PUMA\" = \"true\" ]; then bundle exec rails server -b 0.0.0.0; else bundle exec rails server -b 0.0.0.0 & bundle exec bin/jobs & wait; fi"]
