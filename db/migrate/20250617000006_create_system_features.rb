@@ -11,11 +11,13 @@ class CreateSystemFeatures < ActiveRecord::Migration[8.0]
       t.integer :limit_value, null: false
       t.integer :current_usage, default: 0
       t.datetime :reset_at
+      t.boolean :enabled, default: true, null: false
       
       t.timestamps
     end
 
     add_index :user_limits, [:actor_id, :limit_type], unique: true
+    add_index :user_limits, :enabled
 
     # Content filters
     create_table :filters, id: :integer do |t|

@@ -172,5 +172,11 @@ class CreateCoreActivitypubTables < ActiveRecord::Migration[8.0]
       
       t.timestamps
     end
+
+    # パフォーマンス最適化のための複合インデックス
+    add_index :objects, [:object_type, :visibility, :published_at], 
+              name: 'index_objects_on_object_type_visibility_published_at'
+    add_index :activities, [:activity_type, :processed, :created_at], 
+              name: 'index_activities_on_activity_type_processed_created_at'
   end
 end
