@@ -195,13 +195,18 @@ main() {
     # ファイル権限を修正
     chmod 755 . 2>/dev/null || true
     mkdir -p config 2>/dev/null || true
-    touch .env 2>/dev/null || true
-    touch .env.template 2>/dev/null || true
-    touch Gemfile.lock 2>/dev/null || true
-    touch config/cache.yml 2>/dev/null || true
-    touch config/queue.yml 2>/dev/null || true
-    touch config/cable.yml 2>/dev/null || true
-    chmod 644 .env .env.template Gemfile.lock config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
+    
+    # 既存ファイルがある場合は権限を修正、ない場合は作成
+    if [ -f "Gemfile.lock" ]; then
+        chmod 666 Gemfile.lock 2>/dev/null || true
+    else
+        touch Gemfile.lock 2>/dev/null || true
+        chmod 666 Gemfile.lock 2>/dev/null || true
+    fi
+    
+    # その他のファイル
+    touch .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
+    chmod 666 .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
     
     # bundlerの環境を設定
     export BUNDLE_GEMFILE=/app/Gemfile
