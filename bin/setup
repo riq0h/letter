@@ -436,6 +436,24 @@ EOF")
       end
     else
       print_success "Solid Queueテーブルが存在します"
+      # 既存テーブルでもマイグレーションを確認・実行
+      print_info "Solid Queueマイグレーション状態確認中..."
+      migration_result = system("#{env_cmd} bin/rails runner \"
+        begin
+          ActiveRecord::Base.establish_connection(:queue)
+          pending_migrations = ActiveRecord::Base.connection.migration_context.needs_migration?
+          puts pending_migrations ? 'PENDING' : 'UP_TO_DATE'
+        rescue => e
+          puts 'ERROR: ' + e.message
+        ensure
+          ActiveRecord::Base.establish_connection(:primary)
+        end
+      \"")
+      
+      if migration_result
+        print_info "Queueデータベースのマイグレーション実行中..."
+        system("#{env_cmd} bin/rails db:migrate")
+      end
     end
   end
 
