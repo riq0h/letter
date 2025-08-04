@@ -206,10 +206,13 @@ main() {
     RAILS_ENV=${RAILS_ENV:-development}
     secret_key=${SECRET_KEY_BASE:-$(bundle exec rails secret)}
     
-    # 事前にbundle installを実行
-    echo "依存関係のインストール中..."
-    bundle install
-    echo "OK: 依存関係をインストールしました"
+    # 依存関係の確認（インストールはDockerfileで完了済み）
+    echo "依存関係の確認中..."
+    if bundle check > /dev/null 2>&1; then
+        echo "OK: 依存関係が正常です"
+    else
+        echo "WARNING: 依存関係に問題がありますが続行します"
+    fi
     
     # bin/setupを環境変数付きで実行（bundle installはスキップ）
     echo "bin/setupを実行中..."
