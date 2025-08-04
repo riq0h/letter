@@ -68,8 +68,10 @@ if [ ! -f ".env" ]; then
             echo "WARN: opensslがインストールされていません。SECRET_KEY_BASEを手動で設定してください。"
             secret_key_base=""
         fi
+        port="3001"
     else
         secret_key_base=""
+        port="3000"
     fi
     
     cat > .env << EOF
@@ -90,7 +92,7 @@ RAILS_ENV=$rails_env
 SECRET_KEY_BASE=$secret_key_base
 
 # ポート設定
-PORT=3000
+PORT=$port
 EOF
     
     echo "OK: 環境ファイルが作成されました: .env"

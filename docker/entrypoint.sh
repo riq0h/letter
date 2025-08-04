@@ -73,9 +73,18 @@ prepare_assets() {
     export BUNDLE_GEMFILE=/app/Gemfile
     export BUNDLE_PATH=/usr/local/bundle
     
+    # アセットビルドディレクトリの権限を修正
+    mkdir -p app/assets/builds
+    chmod 755 app/assets/builds
+    
     # 本番環境またはアセットが存在しない場合のみプリコンパイル
     if [ "$RAILS_ENV" = "production" ] || [ ! -d "public/assets" ]; then
         echo "アセットをプリコンパイル中..."
+        
+        # Solid Cableインストール
+        echo "📡 Solid Cableテーブルを作成中..."
+        bundle exec rails solid_cable:install || echo "⚠️  Solid Cableは既にインストール済みまたは利用できません"
+        
         bundle exec rails assets:precompile
         echo "OK: アセットプリコンパイル完了"
     else
