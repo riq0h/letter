@@ -590,7 +590,8 @@ EOF")
     
     # Railsサーバを起動（デーモンモード）
     print_info "Railsサーバを起動中..."
-    system!("RAILS_ENV=#{rails_env} rails server -b 0.0.0.0 -p 3000 -d")
+    port = ENV['PORT'] || '3000'
+    system!("RAILS_ENV=#{rails_env} rails server -b 0.0.0.0 -p #{port} -d")
     print_success "Railsサーバを起動しました"
 
     # Solid Queue起動（SOLID_QUEUE_IN_PUMAを考慮）

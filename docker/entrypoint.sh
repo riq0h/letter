@@ -214,9 +214,9 @@ main() {
         echo "WARNING: 依存関係に問題がありますが続行します"
     fi
     
-    # bin/setupを環境変数付きで実行（bundle installはスキップ）
+    # bin/setupを環境変数付きで実行（bundle installとサーバ起動をスキップ）
     echo "bin/setupを実行中..."
-    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true bundle exec ruby bin/setup
+    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true bundle exec ruby bin/setup --skip-server
     start_solid_queue
     
     echo "=== アプリケーション準備完了 ==="
