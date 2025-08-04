@@ -102,7 +102,9 @@ cleanup_processes() {
     echo "プロセスとファイルをクリーンアップ中..."
     
     # 必要なディレクトリを作成
-    mkdir -p tmp/pids tmp/cache log
+    mkdir -p tmp/pids tmp/cache log 2>/dev/null || true
+    # ディレクトリが既に存在する場合は権限を修正
+    chmod 755 tmp tmp/pids tmp/cache log 2>/dev/null || true
     
     # PIDファイルを削除
     rm -f tmp/pids/server.pid
