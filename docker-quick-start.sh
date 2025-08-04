@@ -83,20 +83,53 @@ if [ ! -f ".env" ]; then
     fi
     
     cat > .env << EOF
-# ActivityPub設定
+# ========================================
+# 重要設定
+# ========================================
+
+# ActivityPub上で使用するドメインを設定します。一度使ったものは再利用できません
+$(if [ "$rails_env" == "production" ]; then echo "# 本番環境では実際のドメインを設定してください"; else echo "# ローカル開発環境の場合は localhost のまま使用できます"; fi)
 ACTIVITYPUB_DOMAIN=$domain
+
+# WebPushを有効化するために必要なVAPID
+$(if [ "$rails_env" == "production" ]; then echo "# 本番環境では必ず rails webpush:generate_vapid_key で生成してください"; else echo "# 開発環境では空欄のまま使用できます（WebPush機能は使用できません）"; fi)
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+
+# ActivityPubではHTTPSでなければ通信できません$(if [ "$rails_env" == "production" ]; then echo ""; else echo "（ローカル開発時は空欄可）"; fi)
 ACTIVITYPUB_PROTOCOL=$protocol
 
-# Cloudflare R2オブジェクトストレージ設定
+# Rails環境設定
+# development: 開発環境
+# production: 本番環境
+RAILS_ENV=$rails_env
+
+# ========================================
+# 開発環境設定
+# ========================================
+
+# Solid QueueワーカーをPuma内で起動するか
+# true: Puma内でワーカー起動（単一プロセス、開発環境向け）
+# false: 独立プロセスでワーカー起動（本格運用向け、production環境推奨）
+$(if [ "$rails_env" == "production" ]; then echo "SOLID_QUEUE_IN_PUMA=false"; else echo "SOLID_QUEUE_IN_PUMA=true"; fi)
+
+# ========================================
+# オブジェクトストレージ設定（オプション）
+# ========================================
+
+# 画像などのファイルをS3互換ストレージに保存する場合は true に設定
 S3_ENABLED=false
-S3_ENDPOINT=
-S3_BUCKET=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-S3_ALIAS_HOST=
+# S3_ENDPOINT=
+# S3_BUCKET=
+# R2_ACCESS_KEY_ID=
+# R2_SECRET_ACCESS_KEY=
+# S3_ALIAS_HOST=
+
+# ========================================
+# Docker設定
+# ========================================
 
 # Rails設定
-RAILS_ENV=$rails_env
 SECRET_KEY_BASE=$secret_key_base
 
 # ポート設定

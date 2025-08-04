@@ -174,34 +174,52 @@ def setup_new_installation
 
   # 環境ファイルの設定
   print_info '1. 環境ファイルの確認...'
+  
+  # 実行時のRAILS_ENVを確認
+  current_rails_env = ENV['RAILS_ENV'] || 'development'
+  is_production = current_rails_env == 'production'
+  
+  # 環境に応じた設定値を決定
+  domain = is_production ? 'your-domain.example.com' : 'localhost'
+  protocol = is_production ? 'https' : ''
+  queue_in_puma = is_production ? 'false' : 'true'
+  
   env_template = <<~ENV
     # ========================================
     # 重要設定
     # ========================================
 
     # ActivityPub上で使用するドメインを設定します。一度使ったものは再利用できません
-    ACTIVITYPUB_DOMAIN=your-domain.example.com
+    #{is_production ? '# 本番環境では実際のドメインを設定してください' : '# ローカル開発環境の場合は localhost のまま使用できます'}
+    ACTIVITYPUB_DOMAIN=#{domain}
 
     # WebPushを有効化するために必要なVAPID
-    VAPID_PUBLIC_KEY=your_vapid_public_key
-    VAPID_PRIVATE_KEY=your_vapid_private_key
+    #{is_production ? '# 本番環境では必ず rails webpush:generate_vapid_key で生成してください' : '# 開発環境では空欄のまま使用できます（WebPush機能は使用できません）'}
+    VAPID_PUBLIC_KEY=
+    VAPID_PRIVATE_KEY=
 
-    # ActivityPubではHTTPSでなければ通信できません（ローカル開発時は空欄可）
-    ACTIVITYPUB_PROTOCOL=
+    # ActivityPubではHTTPSでなければ通信できません#{is_production ? '' : '（ローカル開発時は空欄可）'}
+    ACTIVITYPUB_PROTOCOL=#{protocol}
+
+    # Rails環境設定
+    # development: 開発環境
+    # production: 本番環境
+    RAILS_ENV=#{current_rails_env}
 
     # ========================================
     # 開発環境設定
     # ========================================
 
     # Solid QueueワーカーをPuma内で起動するか
-    # development: true推奨（単一プロセス、開発が簡単）
-    # production: false推奨（独立プロセス、スケーラブル）
-    SOLID_QUEUE_IN_PUMA=true
+    # true: Puma内でワーカー起動（単一プロセス、開発環境向け）
+    # false: 独立プロセスでワーカー起動（本格運用向け、production環境推奨）
+    SOLID_QUEUE_IN_PUMA=#{queue_in_puma}
 
     # ========================================
-    # オブジェクトストレージ設定
+    # オブジェクトストレージ設定（オプション）
     # ========================================
 
+    # 画像などのファイルをS3互換ストレージに保存する場合は true に設定
     S3_ENABLED=false
     # S3_ENDPOINT=
     # S3_BUCKET=
