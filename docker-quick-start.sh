@@ -153,20 +153,6 @@ case $choice in
         $DOCKER_COMPOSE $COMPOSE_FILES up -d --build
         echo ""
         echo "OK: letterがバックグラウンドで実行中です"
-        # ポート情報を取得（.envファイルから環境変数を読み込む）
-        if [ -f ".env" ]; then
-            source .env
-        fi
-        
-        if [ "$rails_env" == "production" ]; then
-            access_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}"
-            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}/up"
-        else
-            access_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}"
-            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}/up"
-        fi
-        echo "アクセス: $access_url"
-        echo "ヘルスチェック: $healthcheck_url"
         echo ""
         echo "便利なコマンド:"
         echo "  ログ表示: $DOCKER_COMPOSE $COMPOSE_FILES logs -f"
@@ -179,20 +165,6 @@ case $choice in
         $DOCKER_COMPOSE $COMPOSE_FILES up -d
         echo ""
         echo "OK: letterがバックグラウンドで実行中です"
-        # ポート情報を取得（.envファイルから環境変数を読み込む）
-        if [ -f ".env" ]; then
-            source .env
-        fi
-        
-        if [ "$rails_env" == "production" ]; then
-            access_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}"
-            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-https}://${ACTIVITYPUB_DOMAIN}/up"
-        else
-            access_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}"
-            healthcheck_url="${ACTIVITYPUB_PROTOCOL:-http}://${ACTIVITYPUB_DOMAIN:-localhost:3002}/up"
-        fi
-        echo "アクセス: $access_url"
-        echo "ヘルスチェック: $healthcheck_url"
         echo ""
         echo "便利なコマンド:"
         echo "  ログ表示: $DOCKER_COMPOSE $COMPOSE_FILES logs -f"
