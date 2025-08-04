@@ -83,13 +83,13 @@ prepare_assets() {
         # Solid Components インストール
         if [ "$RAILS_ENV" = "production" ]; then
             echo "💾 Solid Cacheテーブルを作成中..."
-            bundle exec rails solid_cache:install 2>/dev/null || echo "⚠️  Solid Cacheのインストールをスキップしました"
+            echo "y" | bundle exec rails solid_cache:install 2>/dev/null || echo "⚠️  Solid Cacheのインストールをスキップしました"
             
             echo "📡 Solid Cableテーブルを作成中..."
-            bundle exec rails solid_cable:install 2>/dev/null || echo "⚠️  Solid Cableのインストールをスキップしました"
+            echo "y" | bundle exec rails solid_cable:install 2>/dev/null || echo "⚠️  Solid Cableのインストールをスキップしました"
             
             echo "🚀 Solid Queueテーブルを作成中..."
-            bundle exec rails solid_queue:install 2>/dev/null || echo "⚠️  Solid Queueのインストールをスキップしました"
+            echo "y" | bundle exec rails solid_queue:install 2>/dev/null || echo "⚠️  Solid Queueのインストールをスキップしました"
         fi
         
         bundle exec rails assets:precompile
