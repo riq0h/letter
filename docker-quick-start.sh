@@ -82,6 +82,18 @@ if [ ! -f ".env" ]; then
         port="3002"
     fi
     
+    # VAPIDキーを生成
+    if command -v openssl &> /dev/null; then
+        echo "VAPIDキーを生成中..."
+        vapid_private_key=$(openssl ecparam -name prime256v1 -genkey -noout | openssl base64 -A)
+        vapid_public_key=$(echo "$vapid_private_key" | openssl base64 -d | openssl ec -pubout 2>/dev/null | openssl base64 -A)
+        echo "VAPIDキーを生成しました"
+    else
+        echo "WARN: opensslがインストールされていません。VAPIDキーは空欄にします。"
+        vapid_private_key=""
+        vapid_public_key=""
+    fi
+    
     cat > .env << EOF
 # ========================================
 # 重要設定
@@ -92,9 +104,8 @@ $(if [ "$rails_env" == "production" ]; then echo "# 本番環境では実際の�
 ACTIVITYPUB_DOMAIN=$domain
 
 # WebPushを有効化するために必要なVAPID
-$(if [ "$rails_env" == "production" ]; then echo "# 本番環境では必ず rails webpush:generate_vapid_key で生成してください"; else echo "# 開発環境では空欄のまま使用できます（WebPush機能は使用できません）"; fi)
-VAPID_PUBLIC_KEY=
-VAPID_PRIVATE_KEY=
+VAPID_PUBLIC_KEY=$vapid_public_key
+VAPID_PRIVATE_KEY=$vapid_private_key
 
 # ActivityPubではHTTPSでなければ通信できません$(if [ "$rails_env" == "production" ]; then echo ""; else echo "（ローカル開発時は空欄可）"; fi)
 ACTIVITYPUB_PROTOCOL=$protocol
