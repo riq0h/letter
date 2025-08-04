@@ -196,9 +196,10 @@ main() {
     
     # ファイル権限を修正（bin/setupが作成するファイルのみ）
     chmod 755 . 2>/dev/null || true
-    mkdir -p config storage tmp/pids log 2>/dev/null || true
+    mkdir -p config storage tmp/pids log app/assets/builds public/assets 2>/dev/null || true
     touch .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
     chmod 644 .env .env.template config/cache.yml config/queue.yml config/cable.yml 2>/dev/null || true
+    chmod 755 app/assets/builds public/assets 2>/dev/null || true
     
     # bundlerの環境を設定
     export BUNDLE_GEMFILE=/app/Gemfile
