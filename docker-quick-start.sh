@@ -50,8 +50,16 @@ if [ ! -f ".env" ]; then
     fi
     
     # ドメインを入力
-    read -p "ドメインを入力してください (localhost:3000の場合はEnterを押してください): " domain
-    domain=${domain:-localhost:3000}
+    if [ "$rails_env" == "production" ]; then
+        read -p "ドメインを入力してください: " domain
+        if [ -z "$domain" ]; then
+            echo "ERROR: 本番環境ではドメインの入力が必須です"
+            exit 1
+        fi
+    else
+        read -p "ドメインを入力してください (localhost:3002の場合はEnterを押してください): " domain
+        domain=${domain:-localhost:3002}
+    fi
     
     # プロトコルを自動判定
     if [[ $domain == *"localhost"* ]]; then
@@ -71,7 +79,7 @@ if [ ! -f ".env" ]; then
         port="3001"
     else
         secret_key_base=""
-        port="3000"
+        port="3002"
     fi
     
     cat > .env << EOF
@@ -123,7 +131,7 @@ echo ""
 # ユーザに何をするか尋ねる
 echo "何をしますか？"
 echo "1) ビルドしてアプリを開始（バックグラウンド）"
-echo "2) アプリをバックグラウンドで開始"
+echo "2) アプリを開始（ビルドなし・バックグラウンド）"
 echo "3) ビルドのみ（開始しない）"
 echo "4) ログを表示"
 echo "5) アプリを停止"
@@ -145,8 +153,16 @@ case $choice in
         $DOCKER_COMPOSE $COMPOSE_FILES up -d --build
         echo ""
         echo "OK: letterがバックグラウンドで実行中です"
-        echo "アクセス: ${protocol:-http}://${domain:-localhost:3000}"
-        echo "ヘルスチェック: ${protocol:-http}://${domain:-localhost:3000}/up"
+        # ポート情報を取得
+        if [ "$rails_env" == "production" ]; then
+            access_url="${protocol:-https}://${domain}"
+            healthcheck_url="${protocol:-https}://${domain}/up"
+        else
+            access_url="${protocol:-http}://${domain:-localhost:3002}"
+            healthcheck_url="${protocol:-http}://${domain:-localhost:3002}/up"
+        fi
+        echo "アクセス: $access_url"
+        echo "ヘルスチェック: $healthcheck_url"
         echo ""
         echo "便利なコマンド:"
         echo "  ログ表示: $DOCKER_COMPOSE $COMPOSE_FILES logs -f"
@@ -155,12 +171,20 @@ case $choice in
         echo "  管理ツール: $DOCKER_COMPOSE $COMPOSE_FILES exec web rails runner bin/letter_manager.rb"
         ;;
     2)
-        echo "INFO: letterをバックグラウンドでビルドして開始中..."
-        $DOCKER_COMPOSE $COMPOSE_FILES up -d --build
+        echo "INFO: letterをバックグラウンドで開始中..."
+        $DOCKER_COMPOSE $COMPOSE_FILES up -d
         echo ""
         echo "OK: letterがバックグラウンドで実行中です"
-        echo "アクセス: ${protocol:-http}://${domain:-localhost:3000}"
-        echo "ヘルスチェック: ${protocol:-http}://${domain:-localhost:3000}/up"
+        # ポート情報を取得
+        if [ "$rails_env" == "production" ]; then
+            access_url="${protocol:-https}://${domain}"
+            healthcheck_url="${protocol:-https}://${domain}/up"
+        else
+            access_url="${protocol:-http}://${domain:-localhost:3002}"
+            healthcheck_url="${protocol:-http}://${domain:-localhost:3002}/up"
+        fi
+        echo "アクセス: $access_url"
+        echo "ヘルスチェック: $healthcheck_url"
         echo ""
         echo "便利なコマンド:"
         echo "  ログ表示: $DOCKER_COMPOSE $COMPOSE_FILES logs -f"
