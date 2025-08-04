@@ -9,7 +9,7 @@ services:
       target: runner
     image: letter:prod
     ports:
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:3001:3001"
     environment:
       # 本番環境設定
       RAILS_ENV: production
@@ -26,6 +26,9 @@ services:
       # パフォーマンス設定
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
       RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-10}
+      
+      # ポート設定
+      PORT: 3001
       
     # 本番環境では名前付きボリュームのみ使用
     volumes:
@@ -48,9 +51,9 @@ services:
         max_attempts: 3
         window: 60s
     
-    # 本番環境用ヘルスチェック（より頻繁）
+    # 本番環境用ヘルスチェック
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/up"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/up"]
       interval: 20s
       timeout: 5s
       retries: 5
