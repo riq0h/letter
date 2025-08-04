@@ -240,14 +240,14 @@ EOF
         
         if [ ! -f "config/queue.yml" ]; then
             echo "queue.ymlが存在しないため、Solid Queueをインストールします..."
-            eval "${env_cmd} bundle exec rails solid_queue:install 2>/dev/null"
+            ${env_cmd} bundle exec rails solid_queue:install 2>/dev/null
         else
             echo "queue.ymlが既に存在します"
         fi
         
         if [ ! -f "config/cable.yml" ]; then
             echo "cable.ymlが存在しないため、Solid Cableをインストールします..."
-            eval "${env_cmd} bundle exec rails solid_cable:install 2>/dev/null"
+            ${env_cmd} bundle exec rails solid_cable:install 2>/dev/null
             
             # development/test環境でもsolid_cableを使用するように修正
             echo "Rails 8対応のためにSolid Cable設定を修正中..."
@@ -285,7 +285,7 @@ EOF
             
             if [ "$has_app_tables" -gt 0 ] && ! echo "$cache_tables" | grep -q "solid_cache_entries"; then
                 echo "Cacheデータベースにアプリケーションマイグレーションを適用中..."
-                eval "${env_cmd} bundle exec rails db:migrate"
+                ${env_cmd} bundle exec rails db:migrate
                 echo "Cacheデータベースのマイグレーション完了"
             elif ! echo "$cache_tables" | grep -q "solid_cache_entries"; then
                 echo "Solid Cacheテーブルを作成中..."
@@ -310,11 +310,11 @@ INSERT OR IGNORE INTO schema_migrations (version) VALUES ('"'"'20240101000001'"'
                 echo "Solid Cacheテーブルが存在します"
                 
                 if [ "$has_schema_migrations" -gt 0 ]; then
-                    applied_migrations=$(sqlite3 "$cache_db_file" "SELECT version FROM schema_migrations;" 2>/dev/null | grep -v "20240101000001" | wc -l)
+                    app_migrations=$(sqlite3 "$cache_db_file" "SELECT version FROM schema_migrations WHERE version > '20240101000001';" 2>/dev/null | wc -l)
                     
-                    if [ "$applied_migrations" -eq 0 ]; then
+                    if [ "$app_migrations" -eq 0 ]; then
                         echo "Cacheデータベースにアプリケーションマイグレーションを適用中..."
-                        eval "${env_cmd} bundle exec rails db:migrate"
+                        ${env_cmd} bundle exec rails db:migrate
                         echo "Cacheデータベースのマイグレーション完了"
                     fi
                 fi
@@ -328,7 +328,7 @@ INSERT OR IGNORE INTO schema_migrations (version) VALUES ('"'"'20240101000001'"'
             if ! echo "$queue_tables" | grep -q "solid_queue_jobs"; then
                 echo "Solid Queueテーブルを作成中..."
                 if [ -f "db/queue_schema.rb" ]; then
-                    eval "${env_cmd} bundle exec rails runner \"
+                    timeout 30 ${env_cmd} bundle exec rails runner "
                       begin
                         original_connection = ActiveRecord::Base.connection_db_config.name
                         ActiveRecord::Base.establish_connection(:queue)
@@ -343,7 +343,7 @@ INSERT OR IGNORE INTO schema_migrations (version) VALUES ('"'"'20240101000001'"'
                       ensure
                         ActiveRecord::Base.establish_connection(original_connection.to_sym) if original_connection
                       end
-                    \"" && echo "Solid Queueスキーマを読み込みました" || echo "Solid Queueスキーマ読み込みに失敗しました"
+                    " && echo "Solid Queueスキーマを読み込みました" || echo "Solid Queueスキーマ読み込みに失敗しました"
                 else
                     echo "Solid Queueスキーマファイルが見つかりません"
                 fi
@@ -359,7 +359,7 @@ INSERT OR IGNORE INTO schema_migrations (version) VALUES ('"'"'20240101000001'"'
             if ! echo "$cable_tables" | grep -q "solid_cable_messages"; then
                 echo "Solid Cableテーブルを作成中..."
                 if [ -f "db/cable_schema.rb" ]; then
-                    eval "${env_cmd} bundle exec rails runner \"
+                    timeout 30 ${env_cmd} bundle exec rails runner "
                       begin
                         original_connection = ActiveRecord::Base.connection_db_config.name
                         ActiveRecord::Base.establish_connection(:cable)
@@ -374,11 +374,11 @@ INSERT OR IGNORE INTO schema_migrations (version) VALUES ('"'"'20240101000001'"'
                       ensure
                         ActiveRecord::Base.establish_connection(original_connection.to_sym) if original_connection
                       end
-                    \"" && echo "Solid Cableスキーマを読み込みました" || echo "Solid Cableスキーマ読み込みに失敗しました"
+                    " && echo "Solid Cableスキーマを読み込みました" || echo "Solid Cableスキーマ読み込みに失敗しました"
                 elif [ -f "db/cable_structure.sql" ]; then
                     sqlite3 "$cable_db_file" < db/cable_structure.sql 2>/dev/null && echo "Solid Cable構造を読み込みました" || echo "Solid Cable構造読み込みに失敗しました"
                 else
-                    eval "${env_cmd} bundle exec rails runner \"
+                    timeout 30 ${env_cmd} bundle exec rails runner "
                       begin
                         ActiveRecord::Base.establish_connection(:cable)
                         ActiveRecord::Base.connection.execute('CREATE TABLE IF NOT EXISTS solid_cable_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, channel VARCHAR NOT NULL, payload TEXT NOT NULL, created_at DATETIME NOT NULL)')
@@ -389,7 +389,7 @@ INSERT OR IGNORE INTO schema_migrations (version) VALUES ('"'"'20240101000001'"'
                         puts 'ERROR: ' + e.message
                         exit 1
                       end
-                    \"" && echo "Solid Cableテーブルを手動作成しました" || echo "Solid Cableテーブル作成に失敗しました"
+                    " && echo "Solid Cableテーブルを手動作成しました" || echo "Solid Cableテーブル作成に失敗しました"
                 fi
             else
                 echo "Solid Cableテーブルが存在します"
@@ -408,7 +408,7 @@ INSERT OR IGNORE INTO schema_migrations (version) VALUES ('"'"'20240101000001'"'
             echo "一部のSolid関連データベースに問題があります (Cache:$cache_ok Queue:$queue_ok Cable:$cable_ok)"
         fi
         
-        eval "${env_cmd} bundle exec rails assets:precompile"
+        ${env_cmd} bundle exec rails assets:precompile
         echo "OK: アセットプリコンパイル完了"
     else
         echo "OK: アセット準備済み"
