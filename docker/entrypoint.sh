@@ -81,8 +81,10 @@ prepare_assets() {
         echo "アセットをプリコンパイル中..."
         
         # Solid Cableインストール
-        echo "📡 Solid Cableテーブルを作成中..."
-        bundle exec rails solid_cable:install || echo "⚠️  Solid Cableは既にインストール済みまたは利用できません"
+        if [ "$RAILS_ENV" = "production" ]; then
+            echo "📡 Solid Cableテーブルを作成中..."
+            bundle exec rails solid_cable:install 2>/dev/null || echo "⚠️  Solid Cableのインストールをスキップしました"
+        fi
         
         bundle exec rails assets:precompile
         echo "OK: アセットプリコンパイル完了"
