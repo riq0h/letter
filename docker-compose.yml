@@ -10,9 +10,9 @@ services:
       - .:/app
       - node_modules:/app/node_modules
       # Persistent storage
-      - letter_storage:/app/storage
-      - letter_logs:/app/log
-      - letter_uploads:/app/public/uploads
+      - storage:/app/storage
+      - logs:/app/log
+      - uploads:/app/public/uploads
     env_file:
       - .env
     stdin_open: true
@@ -26,6 +26,6 @@ services:
 
 volumes:
   node_modules:
-  letter_storage:
-  letter_logs:
-  letter_uploads:
+  storage:
+  logs:
+  uploads:

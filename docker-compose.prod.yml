@@ -32,13 +32,13 @@ services:
       
     # 本番環境では名前付きボリュームのみ使用
     volumes:
-      - letter_storage:/app/storage
-      - letter_logs:/app/log
-      - letter_uploads:/app/public/uploads
-      - letter_assets:/app/app/assets/builds
-      - letter_public_assets:/app/public/assets
-      - letter_db:/app/db
-      - letter_tmp:/app/tmp
+      - storage:/app/storage
+      - logs:/app/log
+      - uploads:/app/public/uploads
+      - assets:/app/app/assets/builds
+      - public_assets:/app/public/assets
+      - database:/app/db
+      - tmp:/app/tmp
       
     # 本番環境用リソース制限
     deploy:
@@ -72,17 +72,17 @@ services:
 
 
 volumes:
-  letter_storage:
+  storage:
     driver: local
-  letter_logs:
+  logs:
     driver: local  
-  letter_uploads:
+  uploads:
     driver: local
-  letter_assets:
+  assets:
     driver: local
-  letter_public_assets:
+  public_assets:
     driver: local
-  letter_db:
+  database:
     driver: local
-  letter_tmp:
+  tmp:
     driver: local
