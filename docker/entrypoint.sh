@@ -90,6 +90,10 @@ prepare_assets() {
             
             echo "🚀 Solid Queueテーブルを作成中..."
             echo "y" | bundle exec rails solid_queue:install 2>/dev/null || echo "⚠️  Solid Queueのインストールをスキップしました"
+            
+            # Solidコンポーネントのマイグレーションを実行
+            echo "🔧 Solidコンポーネントのマイグレーションを実行中..."
+            bundle exec rails db:migrate || echo "⚠️  マイグレーションでエラーが発生しました"
         fi
         
         bundle exec rails assets:precompile
