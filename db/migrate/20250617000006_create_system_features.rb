@@ -179,9 +179,9 @@ class CreateSystemFeatures < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :unavailable_servers, :domain, unique: true
-    add_index :unavailable_servers, :reason
-    add_index :unavailable_servers, :last_error_at
+    add_index :unavailable_servers, :domain, unique: true unless index_exists?(:unavailable_servers, :domain)
+    add_index :unavailable_servers, :reason unless index_exists?(:unavailable_servers, :reason)
+    add_index :unavailable_servers, :last_error_at unless index_exists?(:unavailable_servers, :last_error_at)
 
     # Instance configuration (database-backed settings)
     create_table :instance_configs, id: :integer do |t|
