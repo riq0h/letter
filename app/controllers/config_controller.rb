@@ -269,6 +269,14 @@ class ConfigController < ApplicationController
 
   def write_config_file(config_file, updated_config)
     File.write(config_file, updated_config.to_yaml)
+  rescue Errno::EACCES => e
+    Rails.logger.error "Permission denied writing to config file: #{e.message}"
+    Rails.logger.error "Config file path: #{config_file}"
+    Rails.logger.error "File permissions: #{File.stat(config_file).mode.to_s(8)} (#{File.stat(config_file).uid}:#{File.stat(config_file).gid})"
+    raise '設定ファイルへの書き込み権限がありません。'
+  rescue StandardError => e
+    Rails.logger.error "Failed to write config file: #{e.message}"
+    raise "設定ファイルの更新に失敗しました: #{e.message}"
   end
 
   def config_params

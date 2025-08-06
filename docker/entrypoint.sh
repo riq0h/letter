@@ -106,6 +106,14 @@ cleanup_processes() {
     # ディレクトリが既に存在する場合は権限を修正
     chmod 755 tmp tmp/pids tmp/cache log 2>/dev/null || true
     
+    # configディレクトリの書き込み権限を確保
+    if [ -f "config/instance_config.yml" ]; then
+        chmod 666 config/instance_config.yml 2>/dev/null || true
+        echo "✓ instance_config.ymlの書き込み権限を設定しました"
+    else
+        echo "⚠️  instance_config.ymlが見つかりません"
+    fi
+    
     # PIDファイルを削除
     rm -f tmp/pids/server.pid
     rm -f tmp/pids/solid_queue.pid
