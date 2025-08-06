@@ -256,27 +256,7 @@ class ConfigController < ApplicationController
   end
 
   def save_config(new_config)
-    config_file = Rails.root.join('config', 'instance_config.yml')
-    current_config = build_stored_config_hash
-
-    updated_config = merge_configs(current_config, new_config)
-    write_config_file(config_file, updated_config)
-  end
-
-  def merge_configs(current_config, new_config)
-    current_config.merge(new_config.compact)
-  end
-
-  def write_config_file(config_file, updated_config)
-    File.write(config_file, updated_config.to_yaml)
-  rescue Errno::EACCES => e
-    Rails.logger.error "Permission denied writing to config file: #{e.message}"
-    Rails.logger.error "Config file path: #{config_file}"
-    Rails.logger.error "File permissions: #{File.stat(config_file).mode.to_s(8)} (#{File.stat(config_file).uid}:#{File.stat(config_file).gid})"
-    raise '設定ファイルへの書き込み権限がありません。'
-  rescue StandardError => e
-    Rails.logger.error "Failed to write config file: #{e.message}"
-    raise "設定ファイルの更新に失敗しました: #{e.message}"
+    InstanceConfig.bulk_update(new_config.compact)
   end
 
   def config_params

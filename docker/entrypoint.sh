@@ -106,17 +106,6 @@ cleanup_processes() {
     # ディレクトリが既に存在する場合は権限を修正
     chmod 755 tmp tmp/pids tmp/cache log 2>/dev/null || true
     
-    # configディレクトリの書き込み権限を確保
-    if [ -f "config/instance_config.yml" ]; then
-        chown letter:letter config/instance_config.yml 2>/dev/null || true
-        chmod 666 config/instance_config.yml 2>/dev/null || true
-        echo "✓ instance_config.ymlの所有者と権限を設定しました"
-        
-        # 権限確認のログ出力
-        ls -la config/instance_config.yml
-    else
-        echo "⚠️  instance_config.ymlが見つかりません"
-    fi
     
     # PIDファイルを削除
     rm -f tmp/pids/server.pid
@@ -228,13 +217,6 @@ main() {
     RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true SKIP_ASSET_PRECOMPILE=true SKIP_PROCESS_MANAGEMENT=true bundle exec ruby bin/setup --skip-server
     start_solid_queue
     
-    # instance_config.ymlの権限を最終確認・設定
-    if [ -f "config/instance_config.yml" ]; then
-        echo "最終権限設定: instance_config.yml"
-        chown letter:letter config/instance_config.yml 2>/dev/null || true
-        chmod 666 config/instance_config.yml 2>/dev/null || true
-        ls -la config/instance_config.yml
-    fi
     
     echo "=== アプリケーション準備完了 ==="
     

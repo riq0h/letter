@@ -11,14 +11,9 @@ module ConfigBuilder
   end
 
   def build_stored_config_hash
-    config_file = Rails.root.join('config', 'instance_config.yml')
-    if File.exist?(config_file)
-      YAML.safe_load_file(config_file) || {}
-    else
-      {}
-    end
+    InstanceConfig.all_as_hash
   rescue StandardError => e
-    Rails.logger.error "Failed to load config: #{e.message}"
+    Rails.logger.error "Failed to load config from database: #{e.message}"
     {}
   end
 

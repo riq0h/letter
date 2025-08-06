@@ -48,10 +48,9 @@ Rails.application.configure do
   config.activitypub.require_http_signatures = Rails.env.production?
   config.activitypub.signature_algorithm = 'rsa-sha256'
 
-  # インスタンス情報
-  instance_config = YAML.load_file(Rails.root.join('config/instance_config.yml'))
-  config.instance_name = instance_config['instance_name']
-  config.instance_description = instance_config['instance_description']
+  # インスタンス情報（デフォルト値を設定）
+  config.instance_name = 'letter'
+  config.instance_description = 'General Letter Publication System based on ActivityPub'
   config.instance_contact_email = ENV.fetch('CONTACT_EMAIL', 'admin@localhost')
   config.instance_maintainer = ENV.fetch('MAINTAINER_NAME', 'letter Administrator')
 

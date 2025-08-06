@@ -181,5 +181,15 @@ class CreateSystemFeatures < ActiveRecord::Migration[8.0]
 
     add_index :unavailable_servers, :reason
     add_index :unavailable_servers, :last_error_at
+
+    # Instance configuration (database-backed settings)
+    create_table :instance_configs, id: :integer do |t|
+      t.string :key, null: false
+      t.text :value, null: false
+      
+      t.timestamps
+    end
+    
+    add_index :instance_configs, :key, unique: true
   end
 end
