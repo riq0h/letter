@@ -228,6 +228,14 @@ main() {
     RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true SKIP_ASSET_PRECOMPILE=true SKIP_PROCESS_MANAGEMENT=true bundle exec ruby bin/setup --skip-server
     start_solid_queue
     
+    # instance_config.ymlの権限を最終確認・設定
+    if [ -f "config/instance_config.yml" ]; then
+        echo "最終権限設定: instance_config.yml"
+        chown letter:letter config/instance_config.yml 2>/dev/null || true
+        chmod 666 config/instance_config.yml 2>/dev/null || true
+        ls -la config/instance_config.yml
+    fi
+    
     echo "=== アプリケーション準備完了 ==="
     
     echo "Railsサーバを開始中..."
