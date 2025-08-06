@@ -168,7 +168,7 @@ class CreateSystemFeatures < ActiveRecord::Migration[8.0]
 
     # Unavailable servers (410 Gone tracking)
     create_table :unavailable_servers, id: :integer do |t|
-      t.string :domain, null: false, index: { unique: true }
+      t.string :domain, null: false
       t.string :reason, default: 'gone', null: false # 'gone', 'timeout', 'error'
       t.datetime :first_error_at, null: false
       t.datetime :last_error_at, null: false
@@ -179,6 +179,7 @@ class CreateSystemFeatures < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
+    add_index :unavailable_servers, :domain, unique: true
     add_index :unavailable_servers, :reason
     add_index :unavailable_servers, :last_error_at
 

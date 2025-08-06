@@ -56,10 +56,18 @@ class InstanceConfig < ApplicationRecord
     end
 
     # キャッシュクリア
-    Rails.cache.delete_matched('instance_config:*')
+    clear_all_cache
     true
   rescue ActiveRecord::RecordInvalid
     false
+  end
+
+  # キャッシュクリア
+  def self.clear_all_cache
+    ALLOWED_KEYS.each do |key|
+      Rails.cache.delete("instance_config:#{key}")
+    end
+    Rails.cache.delete('instance_config:all')
   end
 
   # 外部データソースからの設定移行
