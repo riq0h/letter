@@ -108,8 +108,12 @@ cleanup_processes() {
     
     # configディレクトリの書き込み権限を確保
     if [ -f "config/instance_config.yml" ]; then
+        chown letter:letter config/instance_config.yml 2>/dev/null || true
         chmod 666 config/instance_config.yml 2>/dev/null || true
-        echo "✓ instance_config.ymlの書き込み権限を設定しました"
+        echo "✓ instance_config.ymlの所有者と権限を設定しました"
+        
+        # 権限確認のログ出力
+        ls -la config/instance_config.yml
     else
         echo "⚠️  instance_config.ymlが見つかりません"
     fi
