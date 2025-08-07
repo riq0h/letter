@@ -12,14 +12,14 @@ class InstanceConfig < ApplicationRecord
     background_color
   ].freeze
 
-  validates :key, presence: true, inclusion: { in: ALLOWED_KEYS }
+  validates :config_key, presence: true, inclusion: { in: ALLOWED_KEYS }
   validates :value, presence: true
-  validates :key, uniqueness: true
+  validates :config_key, uniqueness: true
 
   # 設定値を取得するクラスメソッド
   def self.get(key)
     Rails.cache.fetch("instance_config:#{key}", expires_in: 1.hour) do
-      find_by(key: key)&.value
+      find_by(config_key: key)&.value
     end
   end
 
@@ -27,7 +27,7 @@ class InstanceConfig < ApplicationRecord
   def self.set(key, value)
     return false unless ALLOWED_KEYS.include?(key.to_s)
 
-    config = find_or_initialize_by(key: key.to_s)
+    config = find_or_initialize_by(config_key: key.to_s)
     config.value = value.to_s
 
     if config.save
@@ -41,7 +41,7 @@ class InstanceConfig < ApplicationRecord
   # 全設定をハッシュで取得
   def self.all_as_hash
     Rails.cache.fetch('instance_config:all', expires_in: 1.hour) do
-      pluck(:key, :value).to_h
+      pluck(:config_key, :value).to_h
     end
   end
 
