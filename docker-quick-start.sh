@@ -235,9 +235,27 @@ case $choice in
         $DOCKER_COMPOSE exec web rails runner bin/letter_manager.rb
         ;;
     7)
-        echo "INFO: クリーンアップ中..."
-        $DOCKER_COMPOSE down --rmi all --volumes --remove-orphans
-        echo "OK: クリーンアップが完了しました"
+        echo "INFO: 完全クリーンアップ中..."
+        echo "  1. コンテナを停止・削除中..."
+        $DOCKER_COMPOSE down --remove-orphans
+        
+        echo "  2. letter専用ボリュームを削除中..."
+        $DOCKER_COMPOSE down --volumes
+        
+        echo "  3. letter専用イメージを削除中..."
+        docker images | grep -E "(letter|$(basename $(pwd)))" | awk '{print $3}' | xargs -r docker rmi -f
+        
+        echo "  4. ローカルデータベースファイルを削除中..."
+        if [ -d "storage" ]; then
+            rm -rf storage/*.sqlite3 storage/*.sqlite3-* 2>/dev/null || true
+            echo "     データベースファイルを削除しました"
+        fi
+        
+        echo "  5. 未使用データのクリーンアップ中..."
+        docker system prune -f --volumes
+        
+        echo "OK: 完全クリーンアップが完了しました"
+        echo "次回起動時は完全に新しい環境で開始されます"
         ;;
     *)
         echo "ERROR: 無効な選択です。スクリプトを再実行してください。"
