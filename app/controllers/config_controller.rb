@@ -232,15 +232,13 @@ class ConfigController < ApplicationController
       actor_params.delete(:avatar)
     end
 
-    # ヘッダー画像の処理（通常のアップロード）
-    header_file = actor_params.delete(:header) if actor_params[:header].present?
+    # ヘッダー画像の処理
+    if actor_params[:header].present?
+      process_header_upload(actor_params[:header])
+      actor_params.delete(:header)
+    end
 
-    result = current_user.update(actor_params)
-
-    # ヘッダー画像を通常通りアップロード
-    current_user.header.attach(header_file) if header_file.present?
-
-    result
+    current_user.update(actor_params)
   rescue StandardError => e
     Rails.logger.error "User profile update failed: #{e.message}"
     false
@@ -249,6 +247,15 @@ class ConfigController < ApplicationController
   def process_avatar_upload(uploaded_file)
     processor = ActorImageProcessor.new(current_user)
     processor.attach_avatar_with_folder(
+      io: uploaded_file,
+      filename: uploaded_file.original_filename,
+      content_type: uploaded_file.content_type
+    )
+  end
+
+  def process_header_upload(uploaded_file)
+    processor = ActorImageProcessor.new(current_user)
+    processor.attach_header_with_folder(
       io: uploaded_file,
       filename: uploaded_file.original_filename,
       content_type: uploaded_file.content_type
