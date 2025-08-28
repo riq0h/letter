@@ -97,6 +97,7 @@ def show_menu
   puts ''
   puts 'データ管理:'
   puts '  l) Mastodonのバックアップからインポート'
+  puts '  m) CSVファイルからフォロー処理'
   puts ''
   puts '  x) 終了'
   puts ''
@@ -2450,6 +2451,8 @@ def main_loop
         manage_remote_image_cache
       when 'l'
         import_mastodon_backup
+      when 'm'
+        process_follow_csv
       when 'x'
         puts ''
         print_success 'letter統合管理ツールを終了します'
@@ -3582,6 +3585,177 @@ def download_and_upload_media(media_url, filename, content_type)
     media_attachment&.file&.url
   rescue StandardError => e
     nil
+  end
+end
+
+def process_follow_csv
+  print_header 'CSVファイルからフォロー処理'
+  
+  csv_path_input = safe_gets('CSVファイルパス: ')
+  
+  if csv_path_input.nil? || csv_path_input.strip.empty?
+    print_info 'フォロー処理をキャンセルしました'
+    return
+  end
+  
+  csv_path = File.expand_path(csv_path_input.strip)
+  
+  unless File.exist?(csv_path)
+    print_error "CSVファイルが見つかりません: #{csv_path}"
+    return
+  end
+  
+  print_info "CSVファイルを読み込み中: #{csv_path}"
+  
+  # ローカルユーザを選択
+  actor = select_local_actor
+  return unless actor
+  
+  # CSVファイルを解析してフォロー処理
+  process_follow_list(csv_path, actor)
+end
+
+def process_follow_list(csv_path, actor)
+  require 'csv'
+  
+  accounts_to_follow = []
+  
+  # CSVファイルを読み込み
+  CSV.foreach(csv_path, headers: true) do |row|
+    account_address = row['Account address']&.strip
+    next if account_address.nil? || account_address.empty?
+    next if account_address == actor.username + '@' + ENV.fetch('ACTIVITYPUB_DOMAIN', 'localhost')
+    
+    accounts_to_follow << account_address
+  end
+  
+  print_info "CSVから #{accounts_to_follow.length}件のアカウントを読み込みました"
+  
+  if accounts_to_follow.empty?
+    print_warning 'フォロー対象のアカウントが見つかりません'
+    return
+  end
+  
+  # 既存のフォロー関係をチェック
+  print_info '既存のフォロー関係をチェック中...'
+  
+  check_code = <<~RUBY
+    actor = Actor.find(#{actor.id})
+    accounts_to_check = #{accounts_to_follow.inspect}
+    results = {}
+    
+    accounts_to_check.each do |account_address|
+      # アカウント形式を解析
+      if account_address.include?('@')
+        username, domain = account_address.split('@')
+        target_actor = Actor.find_by(username: username, domain: domain)
+        
+        if target_actor
+          already_following = Follow.exists?(actor: actor, target_actor: target_actor)
+          results[account_address] = already_following ? 'following' : 'not_following'
+        else
+          results[account_address] = 'not_found'
+        end
+      else
+        results[account_address] = 'invalid_format'
+      end
+    end
+    
+    results.each { |addr, status| puts "#{addr}|#{status}" }
+  RUBY
+  
+  result = run_rails_command(check_code)
+  follow_status = {}
+  
+  result.strip.lines.each do |line|
+    next if line.strip.start_with?('ActivityPub configured') || line.strip.empty?
+    
+    parts = line.strip.split('|')
+    next unless parts.length == 2
+    
+    follow_status[parts[0]] = parts[1]
+  end
+  
+  # フィルタリング: まだフォローしていないアカウントのみ
+  new_follows = accounts_to_follow.select { |addr| follow_status[addr] == 'not_following' || follow_status[addr] == 'not_found' }
+  already_following = accounts_to_follow.select { |addr| follow_status[addr] == 'following' }
+  
+  puts ''
+  print_info "既にフォロー済み: #{already_following.length}件"
+  print_info "新規フォロー対象: #{new_follows.length}件"
+  
+  if already_following.any?
+    puts ''
+    puts '既にフォロー済みのアカウント:'
+    already_following.each { |addr| puts "  • #{addr}" }
+  end
+  
+  if new_follows.empty?
+    print_success '全てのアカウントを既にフォロー済みです'
+    return
+  end
+  
+  puts ''
+  puts '新規フォロー対象のアカウント:'
+  new_follows.each_with_index do |account, index|
+    puts "  #{index + 1}. #{account}"
+  end
+  puts ''
+  
+  answer = safe_gets("#{new_follows.length}件の新しいアカウントをフォローしますか? (y/N): ")
+  return unless answer&.downcase == 'y'
+  
+  print_info 'フォロー処理を開始します...'
+  
+  success_count = 0
+  error_count = 0
+  
+  new_follows.each_with_index do |account_address, index|
+    print "  (#{index + 1}/#{new_follows.length}) #{account_address}をフォロー中..."
+    
+    follow_code = <<~RUBY
+      begin
+        actor = Actor.find(#{actor.id})
+        result = FollowInteractor.follow(actor, '#{account_address}')
+        
+        if result.success?
+          puts 'SUCCESS'
+        else
+          puts "ERROR:\#{result.error}"
+        end
+      rescue => e
+        puts "EXCEPTION:\#{e.message}"
+      end
+    RUBY
+    
+    result = run_rails_command(follow_code)
+    filtered_result = result.strip.lines.reject do |line|
+      line.strip.start_with?('ActivityPub configured') || line.strip.empty?
+    end.first&.strip
+    
+    case filtered_result
+    when 'SUCCESS'
+      puts ' ✓'
+      success_count += 1
+    when /^ERROR:(.*)/
+      puts " ✗ (#{$1})"
+      error_count += 1
+    when /^EXCEPTION:(.*)/
+      puts " ✗ (例外: #{$1})"
+      error_count += 1
+    else
+      puts ' ✗ (不明なエラー)'
+      error_count += 1
+    end
+    
+    # フォロー間隔を空ける
+    sleep(0.5) if index < new_follows.length - 1
+  end
+  
+  puts ''
+  print_success "フォロー処理完了: 成功 #{success_count}件, 失敗 #{error_count}件"
+  if already_following.any?
+    print_info "既にフォロー済み: #{already_following.length}件をスキップしました"
   end
 end
 
