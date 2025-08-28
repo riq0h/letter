@@ -42,7 +42,7 @@ gem 'solid_queue'
 gem 'web-push'
 
 # ユーティリティ
-gem 'active_model_serializers'
+# gem 'active_model_serializers' # Removed - using custom serializer concerns instead
 gem 'aws-sdk-s3', require: false
 gem 'blurhash'
 gem 'foreman'
