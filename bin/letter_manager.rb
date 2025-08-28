@@ -3608,7 +3608,7 @@ def process_follow_csv
   print_info "CSVファイルを読み込み中: #{csv_path}"
   
   # ローカルユーザを選択
-  actor = select_local_actor
+  actor = select_local_actor_for_import
   return unless actor
   
   # CSVファイルを解析してフォロー処理
