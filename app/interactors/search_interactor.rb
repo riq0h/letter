@@ -123,13 +123,13 @@ class SearchInteractor
     # @username単体での完全一致検索
     if local_username_query?
       username = search_query.gsub(/^@/, '')
-      exact_matches = Actor.unscoped.where(username: username)
+      exact_matches = Actor.where(username: username)
       results.concat(exact_matches)
     end
 
     # ローカルアカウントの部分一致検索
     sanitized_query = ActiveRecord::Base.sanitize_sql_like(clean_search_query)
-    partial_matches = Actor.unscoped.where(local: true)
+    partial_matches = Actor.where(local: true)
                            .where('username LIKE ? OR display_name LIKE ?',
                                   "%#{sanitized_query}%", "%#{sanitized_query}%")
                            .limit(account_limit)

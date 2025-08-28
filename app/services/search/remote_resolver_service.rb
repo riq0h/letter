@@ -35,7 +35,7 @@ module Search
       accounts = []
 
       # 既存のローカルデータベースから検索
-      existing_accounts = Actor.unscoped.where(domain: domain)
+      existing_accounts = Actor.where(domain: domain)
                                .where(local: false)
                                .order(updated_at: :desc)
                                .limit(10)
@@ -110,7 +110,8 @@ module Search
     private
 
     def create_actor_from_data(data)
-      return nil unless data['type'] == 'Person'
+      allowed_types = %w[Person Service]
+      return nil unless allowed_types.include?(data['type'])
 
       existing_actor = Actor.find_by(ap_id: data['id'])
       return existing_actor if existing_actor
