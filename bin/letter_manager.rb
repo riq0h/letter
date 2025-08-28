@@ -3661,7 +3661,7 @@ def process_follow_list(csv_path, actor)
       end
     end
     
-    results.each { |addr, status| puts "#{addr}|#{status}" }
+    results.each { |addr, status| puts "\#{addr}|\#{status}" }
   RUBY
   
   result = run_rails_command(check_code)
@@ -3716,15 +3716,15 @@ def process_follow_list(csv_path, actor)
     follow_code = <<~RUBY
       begin
         actor = Actor.find(#{actor.id})
-        result = FollowInteractor.follow(actor, '#{account_address}')
+        result = FollowInteractor.follow(actor, '#{account_address.gsub("'", "\\'")}')
         
         if result.success?
           puts 'SUCCESS'
         else
-          puts "ERROR:\#{result.error}"
+          puts "ERROR:\\\#{result.error}"
         end
       rescue => e
-        puts "EXCEPTION:\#{e.message}"
+        puts "EXCEPTION:\\\#{e.message}"
       end
     RUBY
     
