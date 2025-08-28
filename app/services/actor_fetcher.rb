@@ -123,6 +123,7 @@ class ActorFetcher
       fields: extract_fields_from_attachments(actor_data).to_json,
       local: false,
       discoverable: actor_data['discoverable'] != false,
+      bot: actor_data['bot'] == true,
       manually_approves_followers: actor_data['manuallyApprovesFollowers'] == true
     }
   end
