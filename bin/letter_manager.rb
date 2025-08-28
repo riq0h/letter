@@ -3314,7 +3314,7 @@ def extract_image_post_ids(dump_path, account_id)
     next unless file_name && file_name != '\\N' && !file_name.empty?
 
     media_attachment_id = fields[0] # media_attachmentのID
-    description = fields[13]
+    description = fields[13] && fields[13] != '\N' ? fields[13] : ''
     created_at = fields[6]
 
     media_attachments[media_attachment_id] = {
@@ -3370,7 +3370,7 @@ def extract_image_post_ids(dump_path, account_id)
 
     attachment_status_id = fields[0]  # COPY文によると[0]がstatus_id
     media_attachment_id = fields[12]  # COPY文によると[12]がmedia_attachmentのid
-    description = fields[13]
+    description = fields[13] && fields[13] != '\N' ? fields[13] : ''
     created_at = fields[6]
 
     # status_idが有効な場合のみ
@@ -3536,12 +3536,11 @@ def parse_mastodon_media_sql(media_file, statuses_file, target_account_id)
     media_info = {
       id: fields[0],
       remote_url: remote_url,
-      shortcode: fields[1],
       content_type: fields[2],
       file_size: fields[3],
-      meta: fields[10],
+      metadata: fields[10] && fields[10] != '\\N' ? fields[10] : nil,
       description: fields[13],
-      blurhash: fields[15],
+      blurhash: fields[15] && fields[15] != '\\N' ? fields[15] : nil,
       created_at: fields[6]
     }
 
