@@ -46,11 +46,27 @@ class ConfigController < ApplicationController
 
   # POST /config/custom_emojis
   def create_custom_emoji
-    @custom_emoji = CustomEmoji.new(custom_emoji_params)
+    emoji_params = custom_emoji_params
+    image_file = emoji_params.delete(:image)
 
-    if @custom_emoji.save
-      redirect_to config_custom_emojis_path, notice: t('custom_emojis.created')
+    @custom_emoji = CustomEmoji.new(emoji_params)
+
+    if @custom_emoji.valid? && image_file.present?
+      begin
+        @custom_emoji.save!
+        @custom_emoji.attach_image_with_folder(
+          io: image_file,
+          filename: image_file.original_filename,
+          content_type: image_file.content_type
+        )
+        redirect_to config_custom_emojis_path, notice: t('custom_emojis.created')
+      rescue StandardError => e
+        Rails.logger.error "Failed to create custom emoji: #{e.message}"
+        @custom_emoji.errors.add(:image, 'アップロードに失敗しました')
+        render :new_custom_emoji, status: :unprocessable_entity
+      end
     else
+      @custom_emoji.errors.add(:image, '画像を選択してください') if image_file.blank?
       render :new_custom_emoji, status: :unprocessable_entity
     end
   end

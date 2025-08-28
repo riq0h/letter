@@ -173,7 +173,7 @@ class RemoteEmojiCopyService
   end
 
   def attach_image_file(emoji, image_data, filename, content_type)
-    emoji.image.attach(
+    emoji.attach_image_with_folder(
       io: StringIO.new(image_data),
       filename: filename,
       content_type: content_type
