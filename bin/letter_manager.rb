@@ -3716,13 +3716,8 @@ def process_follow_list(csv_path, actor)
     follow_code = <<~RUBY
       begin
         actor = Actor.find(#{actor.id})
-        result = FollowInteractor.follow(actor, '#{account_address.gsub("'", "\\'")}')
-        
-        if result.success?
-          puts 'SUCCESS'
-        else
-          puts "ERROR:\\\#{result.error}"
-        end
+        follow_result = actor.follow!('#{account_address.gsub("'", "\\'")}')
+        puts follow_result ? 'SUCCESS' : 'ERROR:Follow failed'
       rescue => e
         puts "EXCEPTION:\\\#{e.message}"
       end
