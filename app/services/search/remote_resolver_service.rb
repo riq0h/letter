@@ -35,7 +35,7 @@ module Search
       accounts = []
 
       # 既存のローカルデータベースから検索
-      existing_accounts = Actor.where(domain: domain)
+      existing_accounts = Actor.unscoped.where(domain: domain)
                                .where(local: false)
                                .order(updated_at: :desc)
                                .limit(10)
