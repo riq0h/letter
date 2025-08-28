@@ -84,7 +84,7 @@ class Actor < ApplicationRecord
   has_many :reverse_follows, class_name: 'Follow', foreign_key: 'target_actor_id', dependent: :destroy, inverse_of: :target_actor
 
   # バリデーション
-  validates :username, presence: true, format: { with: /\A[a-zA-Z0-9_]+\z/ }
+  validates :username, presence: true, format: { with: /\A[a-zA-Z0-9_.]+\z/ }
   validates :ap_id, presence: true, uniqueness: true, if: -> { !local? || !new_record? }
   validates :inbox_url, presence: true, if: -> { !local? || !new_record? }
   validates :outbox_url, presence: true, if: -> { !local? || !new_record? }
