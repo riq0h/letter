@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'net/http'
+
 class ActivityPubHttpClient
   include HTTParty
 
@@ -13,7 +15,7 @@ class ActivityPubHttpClient
 
   def fetch_object(uri, timeout: DEFAULT_TIMEOUT, signing_actor: nil)
     # HTTP署名が必要な場合は署名付きで送信
-    return fetch_signed_object(uri, signing_actor || default_signing_actor, timeout) if signing_actor || requires_signature?(uri)
+    return fetch_with_signature(uri, signing_actor, timeout) if signing_actor
 
     response = HTTParty.get(
       uri,
