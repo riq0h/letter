@@ -55,7 +55,7 @@ module Api
 
           # リブログ情報を追加
           {
-            id: item.object.id.to_s,
+            id: item.id.to_s,
             created_at: item.created_at.iso8601,
             account: simple_account_data(item.actor),
             reblog: reblogged_status
