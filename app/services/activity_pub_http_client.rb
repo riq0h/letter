@@ -16,7 +16,8 @@ class ActivityPubHttpClient
       uri,
       headers: {
         'Accept' => ACCEPT_HEADERS,
-        'User-Agent' => USER_AGENT
+        'User-Agent' => USER_AGENT,
+        'Date' => Time.now.httpdate
       },
       timeout: timeout,
       follow_redirects: true
