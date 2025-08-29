@@ -238,7 +238,8 @@ class CreateActivityOrganizer
     existing_jobs = SolidQueue::Job.where(class_name: 'UpdatePinPostsJob')
                                    .where('created_at > ?', 1.hour.ago)
                                    .select do |job|
-      job.arguments.is_a?(Array) && job.arguments.first == actor.id
+      job_args = job.arguments.is_a?(Hash) ? job.arguments['arguments'] : job.arguments
+      job_args.is_a?(Array) && job_args.first == actor.id
     end
 
     return if existing_jobs.any?
