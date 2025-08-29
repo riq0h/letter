@@ -52,23 +52,19 @@ class ActivityPubHttpClient
   private
 
   def fetch_with_signature(uri, signing_actor, timeout)
-    # ActivitySenderのHTTP署名機能を流用
-    activity_sender = ActivitySender.new
+    date = Time.now.httpdate
+    uri_obj = URI(uri)
 
-    # GETリクエスト用のダミーアクティビティを作成
-    {
-      'type' => 'Get',
-      'id' => "#{signing_actor.ap_id}#get-#{SecureRandom.uuid}",
-      'actor' => signing_actor.ap_id,
-      'object' => uri
+    headers = {
+      'Accept' => ACCEPT_HEADERS,
+      'User-Agent' => USER_AGENT,
+      'Date' => date,
+      'Host' => uri_obj.host
     }
 
-    # ActivitySenderのHTTP署名生成機能を使用
-    headers = activity_sender.send(:build_headers, uri, '', signing_actor)
-
-    # GETリクエスト用にメソッドを変更
-    headers.delete('Content-Type')
-    headers['Accept'] = ACCEPT_HEADERS
+    # GETリクエスト用のHTTP署名を生成（content-typeを除外）
+    signature = generate_get_signature(uri, date, signing_actor)
+    headers['Signature'] = signature if signature
 
     response = HTTParty.get(uri, headers: headers, timeout: timeout)
     return nil unless response.success?
@@ -76,6 +72,36 @@ class ActivityPubHttpClient
     JSON.parse(response.body)
   rescue StandardError => e
     Rails.logger.error "❌ Failed to fetch signed ActivityPub object #{uri}: #{e.message}"
+    nil
+  end
+
+  def generate_get_signature(url, date, actor)
+    uri = URI(url)
+
+    # GETリクエスト用の署名対象文字列（content-typeを除外）
+    signing_string = [
+      "(request-target): get #{uri.path}",
+      "host: #{uri.host}",
+      "date: #{date}",
+      "accept: #{ACCEPT_HEADERS}"
+    ].join("\n")
+
+    private_key = actor.private_key_object
+    return nil unless private_key
+
+    signature = private_key.sign(OpenSSL::Digest.new('SHA256'), signing_string)
+    encoded_signature = Base64.strict_encode64(signature)
+
+    signature_params = [
+      "keyId=\"#{actor.ap_id}#main-key\"",
+      'algorithm="rsa-sha256"',
+      'headers="(request-target) host date accept"',
+      "signature=\"#{encoded_signature}\""
+    ]
+
+    signature_params.join(',')
+  rescue StandardError => e
+    Rails.logger.error "❌ Failed to generate GET signature: #{e.message}"
     nil
   end
 end
