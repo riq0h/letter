@@ -52,9 +52,6 @@ class FollowInteractor
     follow = create_follow_relationship(target_actor, options)
     return failure('Failed to create follow relationship') unless follow
 
-    # 対象がリモートの場合ActivityPubフォローアクティビティを送信
-    send_follow_activity(follow) if target_actor.domain.present?
-
     success(follow)
   rescue StandardError => e
     Rails.logger.error "Follow operation failed: #{e.message}"
@@ -177,9 +174,5 @@ class FollowInteractor
 
   def generate_follow_ap_id(_target_actor, follow_id)
     "#{@actor.ap_id}#follows/#{follow_id}"
-  end
-
-  def send_follow_activity(follow)
-    SendFollowJob.perform_later(follow)
   end
 end
