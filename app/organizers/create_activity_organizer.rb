@@ -230,9 +230,19 @@ class CreateActivityOrganizer
   def update_pin_posts_if_needed(actor)
     return unless actor && !actor.local? && actor.featured_url.present?
 
+    # Solid Cache ベースの重複防止（競合状態対策）
+    cache_key = "pin_posts_job:#{actor.id}"
+    return if Rails.cache.read(cache_key)
+
     # 最後にpin投稿を更新してから24時間経過している場合のみ更新
     last_pin_update = actor.pinned_statuses.maximum(:updated_at)
-    return if last_pin_update && last_pin_update > 24.hours.ago
+    if last_pin_update.nil?
+      # Pin投稿が一度も更新されていない場合は最後のオブジェクト作成から6時間制限
+      last_activity = actor.objects.maximum(:created_at)
+      return if last_activity && last_activity < 6.hours.ago
+    elsif last_pin_update > 24.hours.ago
+      return
+    end
 
     # 既に実行待ちのジョブがある場合は重複を避ける
     existing_jobs = SolidQueue::Job.where(class_name: 'UpdatePinPostsJob')
@@ -243,6 +253,9 @@ class CreateActivityOrganizer
     end
 
     return if existing_jobs.any?
+
+    # キャッシュに記録（1時間）
+    Rails.cache.write(cache_key, true, expires_in: 1.hour)
 
     Rails.logger.info "🔄 Updating pin posts for #{actor.username}@#{actor.domain} (activity-based)"
     UpdatePinPostsJob.perform_later(actor.id)
