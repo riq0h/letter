@@ -234,10 +234,16 @@ class CreateActivityOrganizer
     last_pin_update = actor.pinned_statuses.maximum(:updated_at)
     return if last_pin_update && last_pin_update > 24.hours.ago
 
-    Rails.logger.info "🔄 Updating pin posts for #{actor.username}@#{actor.domain} (activity-based)"
+    # 既に実行待ちのジョブがある場合は重複を避ける
+    existing_jobs = SolidQueue::Job.where(class_name: 'UpdatePinPostsJob')
+                                   .where('created_at > ?', 1.hour.ago)
+                                   .select do |job|
+      job.arguments.is_a?(Array) && job.arguments.first == actor.id
+    end
 
-    # バックグラウンドで実行して応答時間に影響しないようにする
-    # ジョブ内で削除と再取得を同一トランザクションで処理
+    return if existing_jobs.any?
+
+    Rails.logger.info "🔄 Updating pin posts for #{actor.username}@#{actor.domain} (activity-based)"
     UpdatePinPostsJob.perform_later(actor.id)
   rescue StandardError => e
     Rails.logger.error "❌ Failed to trigger pin posts update for #{actor.username}@#{actor.domain}: #{e.message}"
