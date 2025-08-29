@@ -27,16 +27,19 @@ class ActivitySender
   private
 
   def build_headers(target_inbox, body, signing_actor)
+    date = Time.now.httpdate
+    digest = generate_digest(body)
     {
       'Content-Type' => 'application/activity+json',
       'User-Agent' => 'letter/0.1 (ActivityPub)',
-      'Date' => Time.now.httpdate,
+      'Date' => date,
       'Host' => URI(target_inbox).host,
-      'Digest' => generate_digest(body),
+      'Digest' => digest,
       'Signature' => generate_http_signature(
         method: 'POST',
         url: target_inbox,
-        body: body,
+        date: date,
+        digest: digest,
         actor: signing_actor
       )
     }
@@ -65,10 +68,8 @@ class ActivitySender
   end
 
   # HTTP Signature生成
-  def generate_http_signature(method:, url:, body:, actor:)
+  def generate_http_signature(method:, url:, date:, digest:, actor:)
     uri = URI(url)
-    date = Time.now.httpdate
-    digest = generate_digest(body)
 
     # 署名対象文字列構築
     signing_string = [
@@ -79,8 +80,10 @@ class ActivitySender
       'content-type: application/activity+json'
     ].join("\n")
 
-    # 秘密鍵で署名
-    private_key = OpenSSL::PKey::RSA.new(actor.private_key)
+    # 秘密鍵で署名（ActorKeyManagerを使用）
+    private_key = actor.private_key_object
+    return nil unless private_key
+
     signature = private_key.sign(OpenSSL::Digest.new('SHA256'), signing_string)
     encoded_signature = Base64.strict_encode64(signature)
 
