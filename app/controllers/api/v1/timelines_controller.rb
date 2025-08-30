@@ -56,6 +56,8 @@ module Api
           # リブログ情報を追加
           {
             id: item.id.to_s,
+            uri: item.ap_id || "local://reblog/#{item.id}",
+            url: nil,
             created_at: item.created_at.iso8601,
             account: simple_account_data(item.actor),
             reblog: reblogged_status
