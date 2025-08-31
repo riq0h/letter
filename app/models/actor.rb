@@ -312,6 +312,24 @@ class Actor < ApplicationRecord
     end
   end
 
+  # Shared inbox URLを取得（ActivityPub federation用）
+  def shared_inbox_url
+    return nil if raw_data.blank?
+
+    begin
+      actor_data = parse_actor_data
+      return nil unless actor_data
+
+      actor_data.dig('endpoints', 'sharedInbox')
+    rescue JSON::ParserError => e
+      Rails.logger.warn "Failed to parse raw_data for shared inbox: #{e.message}"
+      nil
+    rescue StandardError => e
+      Rails.logger.warn "Failed to extract shared inbox URL: #{e.message}"
+      nil
+    end
+  end
+
   private
 
   def parse_actor_data

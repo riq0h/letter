@@ -33,9 +33,15 @@ class SendFollowJob < ApplicationJob
 
   def send_follow_activity(activity, follow)
     sender = ActivitySender.new
+
+    # Shared inboxを優先的に使用（Mastodonでより確実）
+    target_inbox = follow.target_actor.shared_inbox_url.presence || follow.target_actor.inbox_url
+
+    Rails.logger.info "🔍 Using inbox: #{target_inbox} (shared: #{follow.target_actor.shared_inbox_url.present?})"
+
     sender.send_activity(
       activity: activity,
-      target_inbox: follow.target_actor.inbox_url,
+      target_inbox: target_inbox,
       signing_actor: follow.actor
     )
   end
