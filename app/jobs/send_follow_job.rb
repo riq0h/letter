@@ -3,6 +3,8 @@
 class SendFollowJob < ApplicationJob
   queue_as :default
 
+  retry_on StandardError, wait: 30.seconds, attempts: 3
+
   def perform(follow)
     follow_activity = build_follow_activity(follow)
     result = send_follow_activity(follow_activity, follow)
@@ -52,7 +54,8 @@ class SendFollowJob < ApplicationJob
         refresh_actor_data(follow.target_actor)
       end
 
-      retry_job(wait: 30.seconds)
+      # SolidQueue用に例外を投げて自動リトライを発生させる（30秒待機）
+      raise StandardError, 'Follow sending failed, retrying in 30 seconds'
     else
       Rails.logger.error "💥 Follow sending failed permanently for follow #{follow.id}"
       # 永続的に失敗した場合はフォロー関係を削除
@@ -67,7 +70,8 @@ class SendFollowJob < ApplicationJob
 
   def refresh_actor_data(actor)
     fetcher = ActorFetcher.new
-    fetcher.update_actor_from_remote(actor.ap_id)
+    updated_actor = fetcher.fetch_and_create(actor.ap_id)
+    Rails.logger.info "✅ Actor data refreshed for #{actor.ap_id}" if updated_actor && updated_actor != actor
   rescue StandardError => e
     Rails.logger.warn "Failed to refresh actor data: #{e.message}"
   end
