@@ -10,6 +10,10 @@ class ActivitySender
   def send_activity(activity:, target_inbox:, signing_actor:)
     body = activity.to_json
     headers = build_headers(target_inbox, body, signing_actor)
+
+    Rails.logger.info "🔍 Sending #{activity['type']} activity to #{target_inbox}"
+    Rails.logger.info "🔍 Request headers: #{headers.except('Signature')}"
+
     response = perform_request(target_inbox, body, headers)
 
     handle_response(response, activity['type'], target_inbox)
@@ -63,6 +67,8 @@ class ActivitySender
     else
       error_msg = "#{response.code} - #{response.body.to_s[0..200]}"
       Rails.logger.error "❌ #{activity_type} sending failed: #{error_msg}"
+      Rails.logger.error "🔍 Target inbox: #{target_inbox}"
+      Rails.logger.error "🔍 Response headers: #{response.headers}"
       { success: false, error: error_msg, code: response.code }
     end
   end

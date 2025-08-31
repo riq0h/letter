@@ -46,11 +46,29 @@ class SendFollowJob < ApplicationJob
     Rails.logger.error "❌ Failed to send Follow activity for follow #{follow.id}"
 
     if executions < 3
+      # 404エラーの場合はアクター情報を更新してからリトライ
+      if should_refresh_actor?(follow)
+        Rails.logger.info "🔄 Attempting to refresh actor data for #{follow.target_actor.ap_id}"
+        refresh_actor_data(follow.target_actor)
+      end
+
       retry_job(wait: 30.seconds)
     else
       Rails.logger.error "💥 Follow sending failed permanently for follow #{follow.id}"
       # 永続的に失敗した場合はフォロー関係を削除
       follow.destroy
     end
+  end
+
+  def should_refresh_actor?(_follow)
+    # 初回失敗時のみアクター情報を更新
+    executions == 1
+  end
+
+  def refresh_actor_data(actor)
+    fetcher = ActorFetcher.new
+    fetcher.update_actor_from_remote(actor.ap_id)
+  rescue StandardError => e
+    Rails.logger.warn "Failed to refresh actor data: #{e.message}"
   end
 end
