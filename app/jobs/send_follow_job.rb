@@ -3,15 +3,19 @@
 class SendFollowJob < ApplicationJob
   queue_as :default
 
-  retry_on StandardError, wait: 30.seconds, attempts: 3
+  # SolidQueueの重複制約エラーを回避するため、retry_onを使わない
 
-  def perform(follow)
+  def perform(follow, attempt = 1)
     follow_activity = build_follow_activity(follow)
     result = send_follow_activity(follow_activity, follow)
 
-    handle_response(result[:success], follow)
+    handle_response(result[:success], follow, attempt)
   rescue StandardError => e
-    handle_error(e, 'Follow job error')
+    Rails.logger.error "💥 Follow job error: #{e.message}"
+    Rails.logger.error e.backtrace.first(3).join("\n")
+
+    # 例外が発生した場合も失敗として扱う
+    handle_failure(follow, attempt)
   end
 
   private
@@ -36,36 +40,38 @@ class SendFollowJob < ApplicationJob
     )
   end
 
-  def handle_response(success, follow)
+  def handle_response(success, follow, attempt)
     if success
+      Rails.logger.info "✅ Follow activity sent successfully for follow #{follow.id}"
       # フォローリクエストは送信済みだが、承認待ち状態を維持
     else
-      handle_failure(follow)
+      handle_failure(follow, attempt)
     end
   end
 
-  def handle_failure(follow)
-    Rails.logger.error "❌ Failed to send Follow activity for follow #{follow.id}"
+  def handle_failure(follow, attempt)
+    Rails.logger.error "❌ Failed to send Follow activity for follow #{follow.id} (attempt #{attempt}/3)"
 
-    if executions < 3
+    if attempt < 3
       # 404エラーの場合はアクター情報を更新してからリトライ
-      if should_refresh_actor?(follow)
+      if should_refresh_actor?(attempt)
         Rails.logger.info "🔄 Attempting to refresh actor data for #{follow.target_actor.ap_id}"
         refresh_actor_data(follow.target_actor)
       end
 
-      # SolidQueue用に例外を投げて自動リトライを発生させる（30秒待機）
-      raise StandardError, 'Follow sending failed, retrying in 30 seconds'
+      # 新しいジョブとして次の試行をスケジュール
+      Rails.logger.info "🔄 Scheduling retry #{attempt + 1}/3 in 30 seconds for follow #{follow.id}"
+      SendFollowJob.set(wait: 30.seconds).perform_later(follow, attempt + 1)
     else
-      Rails.logger.error "💥 Follow sending failed permanently for follow #{follow.id}"
+      Rails.logger.error "💥 Follow sending failed permanently for follow #{follow.id} after 3 attempts"
       # 永続的に失敗した場合はフォロー関係を削除
       follow.destroy
     end
   end
 
-  def should_refresh_actor?(_follow)
+  def should_refresh_actor?(attempt)
     # 初回失敗時のみアクター情報を更新
-    executions == 1
+    attempt == 1
   end
 
   def refresh_actor_data(actor)

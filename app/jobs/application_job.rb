@@ -7,8 +7,8 @@ class ApplicationJob < ActiveJob::Base
   # 基盤となるレコードが利用できない場合、ほとんどのジョブは無視しても安全
   discard_on ActiveJob::DeserializationError
 
-  # デフォルトのリトライ設定（個別のジョブで上書き可能）
-  retry_on StandardError, wait: 1.minute, attempts: 3
+  # SolidQueueの重複制約エラーを避けるため、デフォルトのretry_onは使用しない
+  # 個別のジョブで手動リトライ実装が必要
 
   private
 
