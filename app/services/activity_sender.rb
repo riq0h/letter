@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'net/http'
+require 'uri'
+
 class ActivitySender
   include HTTParty
 
@@ -12,7 +15,10 @@ class ActivitySender
     headers = build_headers(target_inbox, body, signing_actor)
 
     Rails.logger.info "🔍 Sending #{activity['type']} activity to #{target_inbox}"
+    Rails.logger.info "🔍 Activity body: #{body}"
     Rails.logger.info "🔍 Request headers: #{headers.except('Signature')}"
+    Rails.logger.info "🔍 Signing actor: #{signing_actor.ap_id}"
+    Rails.logger.info "🔍 Current time: #{Time.current.httpdate}"
 
     response = perform_request(target_inbox, body, headers)
 
@@ -50,13 +56,51 @@ class ActivitySender
   end
 
   def perform_request(target_inbox, body, headers)
-    HTTParty.post(
-      target_inbox,
-      body: body,
-      headers: headers,
-      timeout: @timeout,
-      open_timeout: 30
-    )
+    # Net::HTTPを使用してヘッダーを正確に制御
+    uri = URI(target_inbox)
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = uri.scheme == 'https'
+    http.open_timeout = 30
+    http.read_timeout = @timeout
+
+    request = Net::HTTP::Post.new(uri.path)
+    request.body = body
+
+    headers.each do |key, value|
+      request[key] = value
+    end
+
+    Rails.logger.debug '🔍 Net::HTTP request headers:'
+    request.each_header { |key, value| Rails.logger.debug "   #{key}: #{value}" }
+
+    response = http.request(request)
+
+    # HTTParty風のレスポンスオブジェクトを模倣
+    MockResponse.new(response)
+  end
+
+  # HTTParty互換のレスポンスオブジェクト
+  class MockResponse
+    def initialize(net_http_response)
+      @response = net_http_response
+    end
+
+    def success?
+      @response.code.to_i.between?(200, 299)
+    end
+
+    def code
+      @response.code.to_i
+    end
+
+    delegate :body, to: :@response
+
+    def headers
+      @response.to_hash
+    end
+
+    delegate :message, to: :@response
   end
 
   def handle_response(response, activity_type, target_inbox = nil)
@@ -77,23 +121,32 @@ class ActivitySender
   def generate_http_signature(method:, url:, date:, digest:, actor:)
     uri = URI(url)
 
+    # request-targetの構築（パス + クエリパラメータ）
+    request_target_path = uri.path
+    request_target_path += "?#{uri.query}" if uri.query
+
     # 署名対象文字列構築
     signing_string = [
-      "(request-target): #{method.downcase} #{uri.path}",
+      "(request-target): #{method.downcase} #{request_target_path}",
       "host: #{uri.host}",
       "date: #{date}",
       "digest: #{digest}",
       'content-type: application/activity+json'
     ].join("\n")
 
+    Rails.logger.debug { "🔍 HTTP Signature signing string:\n#{signing_string}" }
+
     # 秘密鍵で署名（ActorKeyManagerを使用）
     private_key = actor.private_key_object
-    return nil unless private_key
+    unless private_key
+      Rails.logger.error "❌ No private key found for actor #{actor.ap_id}"
+      return nil
+    end
 
     signature = private_key.sign(OpenSSL::Digest.new('SHA256'), signing_string)
     encoded_signature = Base64.strict_encode64(signature)
 
-    # Signature headerフォーマット
+    # Signature headerフォーマット（スペースを含めない形式）
     signature_params = [
       "keyId=\"#{actor.ap_id}#main-key\"",
       'algorithm="rsa-sha256"',
@@ -101,7 +154,11 @@ class ActivitySender
       "signature=\"#{encoded_signature}\""
     ]
 
-    signature_params.join(',')
+    signature_header = signature_params.join(',')
+    Rails.logger.debug { "🔍 HTTP Signature header: #{signature_header}" }
+    Rails.logger.debug { "🔍 HTTP Signature header length: #{signature_header.length}" }
+
+    signature_header
   end
 
   # SHA256ダイジェスト生成
