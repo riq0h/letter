@@ -82,6 +82,8 @@ class SharedInboxesController < ApplicationController
       handle_like_activity
     when 'Undo'
       handle_undo_activity
+    when 'Accept'
+      handle_accept_activity
     else
       Rails.logger.warn "⚠️ Unsupported activity type: #{@activity['type']}"
       head :accepted

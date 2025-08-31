@@ -72,14 +72,29 @@ module ActivityPubVerification
   end
 
   def verify_signature
-    verifier = create_signature_verifier
-    signature_result = verifier.verify!(@activity['actor'])
+    actor_uri = @activity['actor']
+    Rails.logger.debug { "🔍 Verifying signature for actor: #{actor_uri}" }
 
-    return if signature_result
+    verifier = create_signature_verifier
+
+    begin
+      signature_result = verifier.verify!(actor_uri)
+      Rails.logger.debug { "✅ Signature verification result: #{signature_result}" }
+
+      return if signature_result
+    rescue StandardError => e
+      Rails.logger.error "❌ Signature verification error: #{e.message}"
+      Rails.logger.debug { "   Error class: #{e.class}" }
+      Rails.logger.debug { "   Backtrace: #{e.backtrace&.first(3)&.join(', ')}" }
+    end
 
     # リレーからの活動かチェック
-    return if relay_activity?
+    if relay_activity?
+      Rails.logger.debug '✅ Verified as relay activity, skipping signature check'
+      return
+    end
 
+    Rails.logger.error "❌ Signature verification failed for actor: #{actor_uri}"
     raise ::ActivityPub::SignatureError, 'Signature verification failed'
   end
 
