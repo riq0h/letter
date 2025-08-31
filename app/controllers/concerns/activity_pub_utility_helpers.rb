@@ -8,9 +8,22 @@ module ActivityPubUtilityHelpers
   def find_target_object(object_ap_id)
     target_object = ActivityPubObject.find_by(ap_id: object_ap_id)
 
+    unless target_object
+      Rails.logger.info "🔍 Target object not found locally, fetching: #{object_ap_id}"
+      target_object = fetch_remote_object(object_ap_id)
+    end
+
     Rails.logger.warn "⚠️ Target object not found for activity: #{object_ap_id}" unless target_object
 
     target_object
+  end
+
+  def fetch_remote_object(ap_id)
+    resolver = Search::RemoteResolverService.new
+    resolver.resolve_remote_status(ap_id)
+  rescue StandardError => e
+    Rails.logger.error "Failed to fetch remote object #{ap_id}: #{e.message}"
+    nil
   end
 
   def strip_html_tags(html_content)
