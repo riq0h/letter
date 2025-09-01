@@ -40,6 +40,7 @@ class Actor < ApplicationRecord
   # フォロー関係
   has_many :follows, dependent: :destroy
   has_many :followed_actors, -> { where(follows: { accepted: true }) }, through: :follows, source: :target_actor
+  has_many :following, -> { where(follows: { accepted: true }) }, through: :follows, source: :target_actor # followed_actorsのエイリアス
   has_many :reverse_follows, class_name: 'Follow', foreign_key: 'target_actor_id', dependent: :destroy, inverse_of: :target_actor
   has_many :followers, -> { where(follows: { accepted: true }) }, through: :reverse_follows, source: :actor
 
@@ -224,12 +225,12 @@ class Actor < ApplicationRecord
 
   # フォロー・フォロワー数の更新
   def update_following_count!
-    count = following_relationships.accepted.count
+    count = follows.accepted.count
     update_column(:following_count, count)
   end
 
   def update_followers_count!
-    count = follower_relationships.accepted.count
+    count = reverse_follows.accepted.count
     update_column(:followers_count, count)
   end
 

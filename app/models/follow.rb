@@ -9,8 +9,8 @@ class Follow < ApplicationRecord
   validate :cannot_follow_self
 
   # === アソシエーション ===
-  belongs_to :actor, inverse_of: :following_relationships
-  belongs_to :target_actor, class_name: 'Actor', inverse_of: :follower_relationships
+  belongs_to :actor, inverse_of: :follows
+  belongs_to :target_actor, class_name: 'Actor', inverse_of: :reverse_follows
 
   # === スコープ ===
   scope :accepted, -> { where(accepted: true) }
