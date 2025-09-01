@@ -1,15 +1,14 @@
 # frozen_string_literal: true
 
+require 'net/http'
+require 'timeout'
+
 # URLからOGP情報を取得してリンクプレビューカードを生成するジョブ
-# Solid Cableを使ったリアルタイム更新対応
 class FetchLinkPreviewJob < ApplicationJob
   queue_as :default
 
   # リトライ設定: ネットワークエラーに対応
   retry_on StandardError, wait: :exponentially_longer, attempts: 3
-
-  # タイムアウト設定: 長時間のURL取得を防ぐ
-  discard_on Net::TimeoutError, Net::ReadTimeout, Net::OpenTimeout
 
   def perform(url, activity_pub_object_id = nil)
     Rails.logger.info "🔗 Fetching link preview for: #{url}"
