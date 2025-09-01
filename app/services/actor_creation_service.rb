@@ -65,13 +65,13 @@ class ActorCreationService
   end
 
   def attach_remote_images(actor, actor_data)
-    # アバター画像を添付
-    if (avatar_url = actor_data.dig('icon', 'url'))
+    # アバター画像を添付 (Bluesky Bridge対応)
+    if (avatar_url = extract_image_url(actor_data, 'icon'))
       attach_remote_image(actor, :avatar, avatar_url)
     end
 
-    # ヘッダー画像を添付
-    if (header_url = actor_data.dig('image', 'url'))
+    # ヘッダー画像を添付 (Bluesky Bridge対応)
+    if (header_url = extract_image_url(actor_data, 'image'))
       attach_remote_image(actor, :header, header_url)
     end
   rescue StandardError => e
@@ -120,10 +120,42 @@ class ActorCreationService
   end
 
   def attach_image_to_actor(actor, attachment_name, image_data, filename, content_type)
+    # 型安全性を確保
+    unless image_data.is_a?(String)
+      Rails.logger.warn "Invalid image_data type for #{attachment_name}: #{image_data.class}"
+      return
+    end
+
+    if image_data.empty?
+      Rails.logger.warn "Empty image_data for #{attachment_name}"
+      return
+    end
+
     actor.public_send(attachment_name).attach(
       io: StringIO.new(image_data),
       filename: filename,
       content_type: content_type
     )
+
+    Rails.logger.debug { "Successfully attached #{attachment_name} (#{image_data.bytesize} bytes)" }
+  rescue StandardError => e
+    Rails.logger.warn "Failed to attach #{attachment_name}: #{e.message} (#{e.class})"
+  end
+
+  def extract_image_url(actor_data, field_name)
+    # Bluesky Bridge対応: icon/imageがArray形式の場合も処理
+    field_data = actor_data[field_name]
+
+    case field_data
+    when Hash
+      # 標準ActivityPub形式: {"type": "Image", "url": "..."}
+      field_data['url']
+    when Array
+      # Bluesky Bridge形式: [{"type": "Image", "url": "..."}]
+      field_data.find { |item| item.is_a?(Hash) && item['url'] }&.dig('url')
+    end
+  rescue StandardError => e
+    Rails.logger.warn "Failed to extract #{field_name} URL: #{e.message}"
+    nil
   end
 end
