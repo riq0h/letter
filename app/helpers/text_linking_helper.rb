@@ -140,13 +140,43 @@ module TextLinkingHelper
 
   def apply_mention_links_to_html(html_text)
     mention_pattern = /@([a-zA-Z0-9_.-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
-    html_text.gsub(mention_pattern) do
-      username = ::Regexp.last_match(1)
-      domain = ::Regexp.last_match(2)
-      mention_url = build_mention_url(username, domain)
-      "<a href=\"#{mention_url}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-gray-500 hover:text-gray-700 transition-colors\">" \
-        "@#{username}@#{domain}</a>"
+
+    # 既存のHTMLタグ位置を記録（apply_url_links_to_htmlと同じアプローチ）
+    tags = []
+    html_text.scan(/<[^>]+>/) { |match| tags << { content: match, start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
+
+    result = html_text.dup
+    offset = 0
+
+    html_text.scan(mention_pattern) do |match|
+      username = match[0]
+      domain = match[1]
+      mention_start = $LAST_MATCH_INFO.begin(0)
+      mention_end = $LAST_MATCH_INFO.end(0)
+
+      # このメンションが既存のHTMLタグ内にないかチェック
+      inside_tag = tags.any? do |tag|
+        mention_start >= tag[:start] && mention_end <= tag[:end]
+      end
+
+      unless inside_tag
+        mention_url = build_mention_url(username, domain)
+        # ローカル・リモート問わず@usernameのみ表示（ドメイン部分を隠す）
+        display_text = "@#{username}"
+
+        linked_mention = "<a href=\"#{mention_url}\" target=\"_blank\" rel=\"noopener noreferrer\" " \
+                         "class=\"text-gray-500 hover:text-gray-700 transition-colors\">#{display_text}</a>"
+
+        # オフセットを考慮して置換
+        actual_start = mention_start + offset
+        actual_end = mention_end + offset
+        original_mention = "@#{username}@#{domain}"
+        result[actual_start...actual_end] = linked_mention
+        offset += linked_mention.length - original_mention.length
+      end
     end
+
+    result
   end
 
   def build_mention_url(username, domain)
@@ -155,7 +185,21 @@ module TextLinkingHelper
 
     return '#' if safe_username.empty? || safe_domain.empty?
 
-    "https://#{ERB::Util.url_encode(safe_domain)}/users/#{ERB::Util.url_encode(safe_username)}"
+    local_domain = Rails.application.config.activitypub.domain
+
+    if domain == local_domain
+      # ローカルユーザの場合
+      "#{Rails.application.config.activitypub.base_url}/@#{ERB::Util.url_encode(safe_username)}"
+    else
+      # リモートユーザの場合、Actorレコードから正しいURLを取得を試行
+      actor = Actor.find_by(username: safe_username, domain: safe_domain)
+      if actor&.ap_id.present?
+        actor.ap_id
+      else
+        # Actorレコードがない場合は一般的なパターンを使用（暫定）
+        "https://#{ERB::Util.url_encode(safe_domain)}/@#{ERB::Util.url_encode(safe_username)}"
+      end
+    end
   end
 
   def mask_protocol(url)
