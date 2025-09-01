@@ -66,6 +66,7 @@ class ObjectsController < ApplicationController
       'cc' => build_audience(object, :cc),
       'attachment' => build_attachments(object),
       'tag' => ActivityBuilders::TagBuilder.new(object).build,
+      'mentions' => build_mentions(object),
       'summary' => object.summary,
       'sensitive' => object.sensitive?,
       'replies' => build_replies_collection(object),
@@ -103,6 +104,21 @@ class ObjectsController < ApplicationController
         'blurhash' => attachment.blurhash
       }.compact
     end
+  end
+
+  def build_mentions(object)
+    return [] if object.mentions.blank?
+
+    object.mentions.includes(:actor).map do |mention|
+      {
+        'type' => 'Mention',
+        'href' => mention.actor.ap_id,
+        'name' => "@#{mention.actor.username}@#{mention.actor.domain}"
+      }
+    end
+  rescue StandardError => e
+    Rails.logger.warn "Failed to build mentions for object #{object.id}: #{e.message}"
+    []
   end
 
   def build_activitypub_content(content)
