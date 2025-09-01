@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'net/http'
 require_relative 'concerns/actor_attachment_processing'
 require_relative 'concerns/featured_collection_fetching'
 
