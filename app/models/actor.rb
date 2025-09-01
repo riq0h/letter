@@ -80,7 +80,7 @@ class Actor < ApplicationRecord
 
   # フォロー関係
   has_many :follows, dependent: :destroy
-  has_many :followed_actors, through: :follows, source: :target_actor
+  has_many :followed_actors, -> { where(follows: { accepted: true }) }, through: :follows, source: :target_actor
   has_many :reverse_follows, class_name: 'Follow', foreign_key: 'target_actor_id', dependent: :destroy, inverse_of: :target_actor
 
   # バリデーション
