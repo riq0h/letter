@@ -177,7 +177,7 @@ module AccountSerializer
   def format_field_value_for_api(value)
     return '' if value.blank?
 
-    if value.include?('<a href=') || value.include?('<a href=\"')
+    if value.include?('<a href=') || value.include?('<a href=\"') || value.match?(/<a\s+[^>]*href=/i)
       # 既にHTMLリンクの場合は invisible span のみ除去して、他の処理はしない
       value.gsub(/<span class="invisible">[^<]*<\/span>/, '')
     elsif value.match?(/\Ahttps?:\/\//)
