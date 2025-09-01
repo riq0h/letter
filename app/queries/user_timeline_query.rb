@@ -54,12 +54,12 @@ class UserTimelineQuery
     # 1. 自分宛のメンション
     # 2. 相互フォロー関係にあるユーザ間のリプライ
     query.where(
-      '(objects.in_reply_to_id IS NULL) OR ' \
+      '(objects.in_reply_to_ap_id IS NULL) OR ' \
       '(objects.id IN (SELECT object_id FROM mentions WHERE actor_id = ?)) OR ' \
       '(EXISTS (' \
       'SELECT 1 FROM objects reply_objects ' \
       'INNER JOIN actors reply_actors ON reply_objects.actor_id = reply_actors.id ' \
-      'WHERE reply_objects.id = objects.in_reply_to_id ' \
+      'WHERE reply_objects.ap_id = objects.in_reply_to_ap_id ' \
       'AND reply_actors.id IN (?)' \
       '))',
       user.id,
