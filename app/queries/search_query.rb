@@ -79,7 +79,7 @@ class SearchQuery
 
   def search_full_text_only
     if contains_special_characters?
-      try_like_search
+      execute_like_search
     else
       execute_fts5_search
     end
@@ -96,6 +96,15 @@ class SearchQuery
 
   def execute_fts5_search
     object_ids = matching_object_ids
+    return [] if object_ids.empty?
+
+    ActivityPubObject.where(id: object_ids)
+                     .includes(:actor)
+                     .order('objects.id DESC')
+  end
+
+  def execute_like_search
+    object_ids = try_like_search
     return [] if object_ids.empty?
 
     ActivityPubObject.where(id: object_ids)
@@ -223,7 +232,7 @@ class SearchQuery
   end
 
   def contains_special_characters?
-    special_chars = ['@', '"', '^', '*', '(', ')', '[', ']', '{', '}', '\\', '.']
+    special_chars = ['@', '"', '^', '*', '(', ')', '[', ']', '{', '}', '\\']
     special_chars.any? { |char| query.include?(char) }
   end
 
