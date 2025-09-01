@@ -141,9 +141,11 @@ module TextLinkingHelper
   def apply_mention_links_to_html(html_text)
     mention_pattern = /@([a-zA-Z0-9_.-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
 
-    # 既存のHTMLタグ位置を記録（apply_url_links_to_htmlと同じアプローチ）
-    tags = []
-    html_text.scan(/<[^>]+>/) { |match| tags << { content: match, start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
+    # 既存のaタグ全体（開始タグから終了タグまで）の位置を記録
+    a_tags = []
+    html_text.scan(/<a\b[^>]*>.*?<\/a>/mi) do |match|
+      a_tags << { content: match, start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) }
+    end
 
     result = html_text.dup
     offset = 0
@@ -154,12 +156,12 @@ module TextLinkingHelper
       mention_start = $LAST_MATCH_INFO.begin(0)
       mention_end = $LAST_MATCH_INFO.end(0)
 
-      # このメンションが既存のHTMLタグ内にないかチェック
-      inside_tag = tags.any? do |tag|
+      # このメンションが既存のaタグ内にないかチェック
+      inside_a_tag = a_tags.any? do |tag|
         mention_start >= tag[:start] && mention_end <= tag[:end]
       end
 
-      unless inside_tag
+      unless inside_a_tag
         mention_url = build_mention_url(username, domain)
         # ローカル・リモート問わず@usernameのみ表示（ドメイン部分を隠す）
         display_text = "@#{username}"
