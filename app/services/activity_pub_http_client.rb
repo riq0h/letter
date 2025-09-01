@@ -99,8 +99,9 @@ class ActivityPubHttpClient
 
   # レスポンスがHTTP署名を要求しているかチェック
   def requires_signature?(response)
-    # 401 Unauthorized, 403 Forbidden, または 404 Not Found（threads.netなど）
-    return true if [401, 403, 404].include?(response.code)
+    # 認証・認可エラー（401, 403, 404, 500）
+    # threads.netは500を返すため追加
+    return true if [401, 403, 404, 500].include?(response.code.to_i)
 
     # WWW-Authenticate ヘッダーで署名を要求している場合
     auth_header = response.headers['WWW-Authenticate']
