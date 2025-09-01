@@ -38,10 +38,10 @@ class Actor < ApplicationRecord
   end
 
   # フォロー関係
-  has_many :following_relationships, class_name: 'Follow', dependent: :destroy, inverse_of: :actor
-  has_many :following, through: :following_relationships, source: :target_actor
-  has_many :follower_relationships, class_name: 'Follow', foreign_key: :target_actor_id, dependent: :destroy, inverse_of: :target_actor
-  has_many :followers, through: :follower_relationships, source: :actor
+  has_many :follows, dependent: :destroy
+  has_many :followed_actors, -> { where(follows: { accepted: true }) }, through: :follows, source: :target_actor
+  has_many :reverse_follows, class_name: 'Follow', foreign_key: 'target_actor_id', dependent: :destroy, inverse_of: :target_actor
+  has_many :followers, -> { where(follows: { accepted: true }) }, through: :reverse_follows, source: :actor
 
   # ブロック・ミュート関係
   has_many :blocks, dependent: :destroy
@@ -77,11 +77,6 @@ class Actor < ApplicationRecord
            foreign_key: :resource_owner_id,
            dependent: :delete_all,
            inverse_of: :resource_owner
-
-  # フォロー関係
-  has_many :follows, dependent: :destroy
-  has_many :followed_actors, -> { where(follows: { accepted: true }) }, through: :follows, source: :target_actor
-  has_many :reverse_follows, class_name: 'Follow', foreign_key: 'target_actor_id', dependent: :destroy, inverse_of: :target_actor
 
   # バリデーション
   validates :username, presence: true, format: { with: /\A[a-zA-Z0-9_.]+\z/ }
