@@ -145,7 +145,16 @@ class ActivityPubHttpClient
     signature = generate_get_signature(uri, date, signing_actor)
     headers['Signature'] = signature if signature
 
-    response = HTTParty.get(uri, headers: headers, timeout: timeout)
+    # 署名付きリクエストではリダイレクトを無効にする（署名が無効になるため）
+    response = HTTParty.get(uri, headers: headers, timeout: timeout, follow_redirects: false)
+
+    # リダイレクトの場合はLocationヘッダーで再試行
+    if [301, 302, 307, 308].include?(response.code) && response.headers['location']
+      redirect_uri = response.headers['location']
+      Rails.logger.info "🔀 Following redirect to: #{redirect_uri}"
+      return fetch_with_signature(redirect_uri, signing_actor, timeout)
+    end
+
     return nil unless response.success?
 
     JSON.parse(response.body)
