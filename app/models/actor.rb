@@ -80,7 +80,7 @@ class Actor < ApplicationRecord
            inverse_of: :resource_owner
 
   # バリデーション
-  validates :username, presence: true, format: { with: /\A[a-zA-Z0-9_.]+\z/ }
+  validates :username, presence: true, format: { with: /\A[a-zA-Z0-9_.-]+\z/ }
   validates :ap_id, presence: true, uniqueness: true, if: -> { !local? || !new_record? }
   validates :inbox_url, presence: true, if: -> { !local? || !new_record? }
   validates :outbox_url, presence: true, if: -> { !local? || !new_record? }
