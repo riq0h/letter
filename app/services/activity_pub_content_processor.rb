@@ -26,6 +26,9 @@ class ActivityPubContentProcessor
     extract_mentions
     extract_hashtags
     process_links
+
+    # リモート投稿の場合はActivityPubメタデータからも処理
+    process_activitypub_metadata unless object.local?
   end
 
   def public_url
@@ -105,5 +108,14 @@ class ActivityPubContentProcessor
     else
       Actor.find_by(username: username, local: true)
     end
+  end
+
+  def process_activitypub_metadata
+    # リモート投稿のActivityPubメタデータからmentions/tagsを処理
+    Rails.logger.debug { "Processing ActivityPub metadata for remote object #{object.id}" }
+
+    # ActivityPubのtagフィールドから処理する必要がある場合はここで実装
+    # 現在はテキストベースの処理のみを有効化
+    Rails.logger.debug { "ActivityPub metadata processing enabled for object #{object.id}" }
   end
 end

@@ -60,7 +60,7 @@ class ActivityPubObject < ApplicationRecord
   before_validation :generate_snowflake_id, on: :create
   before_save :extract_plaintext
   before_save :set_conversation_id
-  after_create :process_text_content, if: -> { local? && content.present? }
+  after_create :process_text_content, if: -> { content.present? }
   after_create :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
   after_create :distribute_to_relays, if: -> { local? && should_distribute_to_relays? }
   after_create :broadcast_status_update, if: -> { object_type == 'Note' }
