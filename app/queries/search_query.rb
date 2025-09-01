@@ -232,7 +232,7 @@ class SearchQuery
   end
 
   def contains_special_characters?
-    special_chars = ['@', '"', '^', '*', '(', ')', '[', ']', '{', '}', '\\']
+    special_chars = ['@', '"', '^', '*', '(', ')', '[', ']', '{', '}', '\\', '.']
     special_chars.any? { |char| query.include?(char) }
   end
 
