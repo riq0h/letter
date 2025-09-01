@@ -99,14 +99,14 @@ class ActivityPubHttpClient
 
   # レスポンスがHTTP署名を要求しているかチェック
   def requires_signature?(response)
-    # 401 Unauthorized または 403 Forbidden
-    return true if [401, 403].include?(response.code)
+    # 401 Unauthorized, 403 Forbidden, または 404 Not Found（threads.netなど）
+    return true if [401, 403, 404].include?(response.code)
 
     # WWW-Authenticate ヘッダーで署名を要求している場合
     auth_header = response.headers['WWW-Authenticate']
     return true if auth_header&.include?('Signature')
 
-    # ActivityPubリクエストに対してHTMLが返された場合（threads.netなど）
+    # ActivityPubリクエストに対してHTMLが返された場合
     if response.success? && html_response_to_activitypub_request?(response)
       Rails.logger.info '🔍 HTML response detected for ActivityPub request - likely requires signature'
       return true
