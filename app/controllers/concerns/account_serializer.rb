@@ -177,7 +177,7 @@ module AccountSerializer
   def format_field_value_for_api(value)
     return '' if value.blank?
 
-    if value.include?('<a href=')
+    if value.include?('<a href=') || value.include?('<a href=\"')
       # 既にHTMLリンクの場合は invisible span のみ除去して、他の処理はしない
       value.gsub(/<span class="invisible">[^<]*<\/span>/, '')
     elsif value.match?(/\Ahttps?:\/\//)
@@ -189,7 +189,7 @@ module AccountSerializer
       end
       %(<a href="#{CGI.escapeHTML(value)}" target="_blank" rel="nofollow noopener noreferrer me">#{CGI.escapeHTML(domain)}</a>)
     else
-      # プレーンテキストの場合のみエスケープしてリンク化
+      # プレーンテキストの場合のみエスケープ
       CGI.escapeHTML(value)
     end
   rescue URI::InvalidURIError
