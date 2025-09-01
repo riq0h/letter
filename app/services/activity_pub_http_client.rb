@@ -14,26 +14,19 @@ class ActivityPubHttpClient
   end
 
   def fetch_object(uri, timeout: DEFAULT_TIMEOUT, signing_actor: nil)
-    # HTTP署名が必要な場合は署名付きで送信
+    # HTTP署名が明示的に指定されている場合は署名付きで送信
     return fetch_with_signature(uri, signing_actor, timeout) if signing_actor
 
-    response = HTTParty.get(
-      uri,
-      headers: {
-        'Accept' => ACCEPT_HEADERS,
-        'User-Agent' => USER_AGENT,
-        'Date' => Time.now.httpdate
-      },
-      timeout: timeout,
-      follow_redirects: true
-    )
+    domain = extract_domain(uri)
 
-    # 401の場合は署名付きで再試行
-    if response.code == 401
-      Rails.logger.info "🔐 401 received, retrying with HTTP signature for #{uri}"
-      signing_actor = Actor.find_by(local: true)
-      return fetch_with_signature(uri, signing_actor, timeout) if signing_actor
-    end
+    # 学習済みの署名必須ドメインの場合は最初から署名付きで送信
+    return fetch_with_learned_signature(uri, domain, timeout) if signature_required_for_domain?(domain)
+
+    # 通常のリクエストを試行
+    response = attempt_unsigned_request(uri, timeout)
+
+    # 署名が必要な場合は学習して再試行
+    return handle_signature_requirement(uri, domain, response, timeout) if requires_signature?(response)
 
     return nil unless response.success?
 
@@ -50,6 +43,72 @@ class ActivityPubHttpClient
   end
 
   private
+
+  # 学習済み署名でリクエスト
+  def fetch_with_learned_signature(uri, domain, timeout)
+    Rails.logger.info "🔐 Using learned HTTP signature for domain #{domain}"
+    signing_actor = Actor.find_by(local: true)
+    fetch_with_signature(uri, signing_actor, timeout) if signing_actor
+  end
+
+  # 署名なしリクエスト試行
+  def attempt_unsigned_request(uri, timeout)
+    HTTParty.get(
+      uri,
+      headers: {
+        'Accept' => ACCEPT_HEADERS,
+        'User-Agent' => USER_AGENT,
+        'Date' => Time.now.httpdate
+      },
+      timeout: timeout,
+      follow_redirects: true
+    )
+  end
+
+  # 署名要求のハンドリング
+  def handle_signature_requirement(uri, domain, response, timeout)
+    Rails.logger.info "🔐 #{response.code} received, learning signature requirement for #{domain}"
+    learn_signature_requirement(domain)
+    signing_actor = Actor.find_by(local: true)
+    fetch_with_signature(uri, signing_actor, timeout) if signing_actor
+  end
+
+  # ドメイン抽出
+  def extract_domain(uri)
+    URI.parse(uri).host
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  # 署名が必要なドメインかチェック
+  def signature_required_for_domain?(domain)
+    return false unless domain
+
+    cache_key = "activitypub:signature_required:#{domain}"
+    Rails.cache.read(cache_key) == true
+  end
+
+  # 署名要求を学習してキャッシュに保存
+  def learn_signature_requirement(domain)
+    return unless domain
+
+    cache_key = "activitypub:signature_required:#{domain}"
+    Rails.cache.write(cache_key, true, expires_in: 30.days)
+    Rails.logger.info "📚 Learned signature requirement for domain: #{domain}"
+  end
+
+  # レスポンスがHTTP署名を要求しているかチェック
+  def requires_signature?(response)
+    # 401 Unauthorized または 403 Forbidden
+    return true if [401, 403].include?(response.code)
+
+    # WWW-Authenticate ヘッダーで署名を要求している場合
+    auth_header = response.headers['WWW-Authenticate']
+    return true if auth_header&.include?('Signature')
+
+    # その他の署名要求指示
+    false
+  end
 
   def fetch_with_signature(uri, signing_actor, timeout)
     date = Time.now.httpdate
