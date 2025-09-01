@@ -106,7 +106,27 @@ class ActivityPubHttpClient
     auth_header = response.headers['WWW-Authenticate']
     return true if auth_header&.include?('Signature')
 
+    # ActivityPubリクエストに対してHTMLが返された場合（threads.netなど）
+    if response.success? && html_response_to_activitypub_request?(response)
+      Rails.logger.info '🔍 HTML response detected for ActivityPub request - likely requires signature'
+      return true
+    end
+
     # その他の署名要求指示
+    false
+  end
+
+  # ActivityPubリクエストに対してHTMLが返されたかチェック
+  def html_response_to_activitypub_request?(response)
+    content_type = response.headers['content-type']&.downcase || ''
+
+    # HTMLコンテンツタイプ
+    return true if content_type.include?('text/html')
+
+    # Content-Typeが不明だがHTMLドキュメントの開始タグがある場合
+    body = response.body&.strip
+    return true if body&.start_with?('<!DOCTYPE', '<html', '<HTML')
+
     false
   end
 
