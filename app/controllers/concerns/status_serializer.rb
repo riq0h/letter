@@ -44,12 +44,17 @@ module StatusSerializer
   end
 
   def serialized_emojis(status)
-    return [] if status.content.blank?
+    # 防御的プログラミング: 常に配列を返し、nullは返さない
+    return [] if status.nil? || status.content.blank?
 
     emojis = EmojiPresenter.extract_emojis_from(status.content)
-    emojis.map(&:to_activitypub)
+    result = emojis.filter_map(&:to_activitypub) # nil エントリを除去
+
+    # 常に配列であることを保証
+    result.is_a?(Array) ? result : []
   rescue StandardError => e
-    Rails.logger.warn "Failed to serialize emojis for status #{status.id}: #{e.message}"
-    []
+    Rails.logger.warn "Failed to serialize emojis for status #{status&.id}: #{e.message}"
+    Rails.logger.warn "Backtrace: #{e.backtrace.first(3).join(', ')}"
+    [] # エラー時は常に空配列を返す
   end
 end

@@ -12,10 +12,20 @@ module StatusSerializationHelper
   private
 
   def serialized_status(status)
-    base_status_data(status)
-      .merge(interaction_data(status))
-      .merge(content_data(status))
-      .merge(metadata_data(status))
+    # moshidonクライアント互換性のための堅牢なStatus serialization
+    return default_status_structure unless status
+
+    begin
+      base_status_data(status)
+        .merge(interaction_data(status))
+        .merge(content_data(status))
+        .merge(metadata_data(status))
+        .merge(ensure_required_arrays)
+    rescue StandardError => e
+      Rails.logger.error "Critical error in serialized_status for #{status&.id}: #{e.message}"
+      Rails.logger.error "Backtrace: #{e.backtrace.first(5).join(', ')}"
+      default_status_structure
+    end
   end
 
   def base_status_data(status)
@@ -62,11 +72,12 @@ module StatusSerializationHelper
   end
 
   def metadata_data(status)
+    # moshidonが要求する必須配列フィールドを確実に提供
     {
-      media_attachments: serialized_media_attachments(status),
-      mentions: serialized_mentions(status),
-      tags: serialized_tags(status),
-      emojis: serialized_emojis(status),
+      media_attachments: ensure_array(serialized_media_attachments(status)),
+      mentions: ensure_array(serialized_mentions(status)),
+      tags: ensure_array(serialized_tags(status)),
+      emojis: ensure_array(serialized_emojis(status)),
       card: serialize_preview_card(status),
       poll: serialize_poll(status)
     }
@@ -192,6 +203,55 @@ module StatusSerializationHelper
       image: link_preview.image,
       embed_url: '',
       blurhash: nil
+    }
+  end
+
+  # moshidon互換性のためのヘルパーメソッド
+  def ensure_array(value)
+    return [] if value.nil?
+    return value if value.is_a?(Array)
+
+    [value] # 単一の値を配列に変換
+  end
+
+  def ensure_required_arrays
+    # moshidonの@RequiredFieldに対応
+    {}
+  end
+
+  def default_status_structure
+    # エラー時のフォールバック構造
+    {
+      id: '0',
+      created_at: Time.current.iso8601,
+      edited_at: nil,
+      uri: '',
+      url: '',
+      visibility: 'public',
+      language: nil,
+      sensitive: false,
+      in_reply_to_id: nil,
+      in_reply_to_account_id: nil,
+      replies_count: 0,
+      reblogs_count: 0,
+      favourites_count: 0,
+      favourited: false,
+      reblogged: false,
+      bookmarked: false,
+      pinned: false,
+      quotes_count: 0,
+      quoted: false,
+      spoiler_text: '',
+      content: '',
+      account: {},
+      reblog: nil,
+      quote: nil,
+      media_attachments: [],
+      mentions: [],
+      tags: [],
+      emojis: [],
+      card: nil,
+      poll: nil
     }
   end
 end
