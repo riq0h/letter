@@ -57,8 +57,8 @@ class NodeinfoController < ApplicationController
 
   def base_metadata
     {
-      nodeName: Rails.application.config.instance_name,
-      nodeDescription: Rails.application.config.instance_description,
+      nodeName: InstanceConfig.get('instance_name') || Rails.application.config.instance_name,
+      nodeDescription: InstanceConfig.get('instance_description') || Rails.application.config.instance_description,
       maintainer: maintainer_info,
       langs: Rails.application.config.activitypub.supported_locales,
       tosUrl: nil,
@@ -84,8 +84,8 @@ class NodeinfoController < ApplicationController
 
   def maintainer_info
     {
-      name: Rails.application.config.instance_maintainer,
-      email: Rails.application.config.instance_contact_email
+      name: InstanceConfig.get('instance_maintainer') || Rails.application.config.instance_maintainer,
+      email: InstanceConfig.get('instance_contact_email') || Rails.application.config.instance_contact_email
     }
   end
 
@@ -104,7 +104,7 @@ class NodeinfoController < ApplicationController
     {
       maxAccounts: Rails.application.config.activitypub.max_accounts,
       currentAccounts: Actor.local.count,
-      motto: 'General Letter Publication System based on ActivityPub'
+      motto: InstanceConfig.get('instance_description') || Rails.application.config.instance_description
     }
   end
 end
