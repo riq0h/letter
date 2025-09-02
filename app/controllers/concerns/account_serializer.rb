@@ -149,18 +149,16 @@ module AccountSerializer
   def format_text_for_client(text)
     return '' if text.blank?
 
-    # 1. emoji解析
-    text_with_emoji = parse_content_for_frontend(text)
-    # 2. URLリンク化
-    auto_link_urls(text_with_emoji)
+    # 絵文字処理とURLリンク化を一括実行（二重処理を防止）
+    parse_content_for_frontend(text)
   end
 
   def format_field_value_for_client(value)
     return '' if value.blank?
 
     cleaned_value = value.gsub(/<span class="invisible">[^<]*<\/span>/, '')
-    value_with_emoji = parse_content_for_frontend(cleaned_value)
-    auto_link_urls(value_with_emoji)
+    # 絵文字処理とURLリンク化を一括実行（二重処理を防止）
+    parse_content_for_frontend(cleaned_value)
   end
 
   def format_text_for_api(text)
