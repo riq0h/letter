@@ -48,11 +48,11 @@ module StatusSerializer
 
     # API用: メンション・URLのみリンク化、絵文字はショートコード形式で保持
     if content.include?('<a ') || content.include?('<p>')
-      # 外部投稿: 絵文字HTMLをショートコードに戻してからメンションリンク化
+      # 外部投稿: 絵文字HTMLをショートコードに戻してからメンション・URLリンク化
       content_with_shortcodes = parse_content_links_only(content)
       auto_link_urls(content_with_shortcodes)
     else
-      # ローカル投稿: メンション・URLリンク化のみ
+      # ローカル投稿: メンション・URLリンク化のみ（絵文字処理なし）
       auto_link_urls(content)
     end
   end

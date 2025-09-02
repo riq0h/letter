@@ -59,7 +59,7 @@ module StatusSerializationHelper
 
   def content_data(status)
     # API用: メンション・URLリンク化、絵文字はショートコード形式で保持
-    linked_content = parse_content_for_api(status.content || '')
+    linked_content = parse_content_for_api_with_mentions(status)
 
     {
       spoiler_text: status.summary || '',
@@ -146,7 +146,7 @@ module StatusSerializationHelper
       created_at: quote_post.quoted_object.published_at&.iso8601,
       uri: quote_post.quoted_object.ap_id,
       url: quote_post.quoted_object.public_url,
-      content: parse_content_for_api(quote_post.quoted_object.content || ''),
+      content: parse_content_for_api_with_mentions(quote_post.quoted_object),
       account: {
         id: quoted_actor.id.to_s,
         username: quoted_actor.username,
@@ -216,6 +216,49 @@ module StatusSerializationHelper
   def ensure_required_arrays
     # moshidonの@RequiredFieldに対応
     {}
+  end
+
+  def parse_content_for_api_with_mentions(status)
+    return '' if status.content.blank?
+
+    content = status.content
+
+    # 既存のmentionレコードを使って正確なリンクを生成
+    if status.mentions.any?
+      status.mentions.includes(:actor).find_each do |mention|
+        actor = mention.actor
+        # フルメンション形式とローカルメンション形式の両方に対応
+        full_mention = "@#{actor.username}@#{actor.domain}"
+        local_mention = "@#{actor.username}"
+
+        # ドメイン付きメンションを優先的に処理
+        if content.include?(full_mention)
+          mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
+                         %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
+          content = content.gsub(full_mention, mention_link)
+        elsif content.include?(local_mention) && actor.local?
+          mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
+                         %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
+          content = content.gsub(local_mention, mention_link)
+        end
+      end
+    end
+
+    # 絵文字HTMLをショートコードに戻す（外部投稿の場合）
+    content = parse_content_links_only(content) if content.include?('<img') && content.include?('custom-emoji')
+
+    # URLリンク化（既存のaタグは保持）
+    apply_url_links_only(content)
+  end
+
+  def apply_url_links_only(content)
+    # メンションリンクを保護しながらURLのみリンク化
+    url_pattern = /(https?:\/\/[^\s<>\"']+)/
+    content.gsub(url_pattern) do |match|
+      url = match
+      display_text = url.start_with?('https://') ? url.delete_prefix('https://') : url
+      %(<a href="#{url}" target="_blank" rel="noopener noreferrer" class="text-gray-500 hover:text-gray-700 transition-colors">#{display_text}</a>)
+    end
   end
 
   def default_status_structure
