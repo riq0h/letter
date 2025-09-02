@@ -17,7 +17,12 @@ module Api
 
       def instance_info
         local_domain = Rails.application.config.activitypub.domain
+
+        # ログでドメイン設定を確認
+        Rails.logger.info "Instance API v1: domain=#{local_domain}"
+
         {
+          domain: local_domain,
           uri: local_domain,
           title: InstanceConfig.get('instance_name') || 'letter',
           short_description: InstanceConfig.get('instance_description') || 'General Letter Publication System based on ActivityPub',

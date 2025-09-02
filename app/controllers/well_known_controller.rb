@@ -83,9 +83,13 @@ class WellKnownController < ApplicationController
   end
 
   def build_webfinger_response(actor)
+    domain = Rails.application.config.activitypub.domain
     actor_url = "#{base_url}/users/#{actor.username}"
     profile_url = "#{base_url}/@#{actor.username}"
-    subject = "acct:#{actor.username}@#{Rails.application.config.activitypub.domain}"
+    subject = "acct:#{actor.username}@#{domain}"
+
+    # ログでドメイン設定を確認
+    Rails.logger.info "WebFinger: domain=#{domain}, base_url=#{base_url}"
 
     {
       subject: subject,
@@ -93,6 +97,10 @@ class WellKnownController < ApplicationController
         actor_url,
         profile_url
       ].compact,
+      properties: {
+        'http://schema.org/name' => actor.display_name || actor.username,
+        'http://ostatus.org/schema/1.0/domain' => domain
+      },
       links: [
         {
           rel: 'self',
@@ -107,8 +115,13 @@ class WellKnownController < ApplicationController
         {
           rel: 'http://ostatus.org/schema/1.0/subscribe',
           template: "#{base_url}/authorize_interaction?uri={uri}"
-        }
-      ]
+        },
+        {
+          rel: 'http://webfinger.net/rel/avatar',
+          type: 'image/png',
+          href: actor.avatar_url
+        }.compact_blank
+      ].compact
     }
   end
 

@@ -13,6 +13,11 @@ class NodeinfoController < ApplicationController
   private
 
   def build_nodeinfo_response
+    domain = Rails.application.config.activitypub.domain
+
+    # ログでドメイン設定を確認
+    Rails.logger.info "NodeInfo: domain=#{domain}"
+
     {
       version: '2.1',
       software: {
@@ -28,7 +33,10 @@ class NodeinfoController < ApplicationController
       },
       usage: calculate_usage_stats,
       openRegistrations: false,
-      metadata: build_metadata
+      metadata: build_metadata.merge(
+        domain: domain,
+        baseUrl: "#{Rails.application.config.activitypub.protocol}://#{domain}"
+      )
     }
   end
 

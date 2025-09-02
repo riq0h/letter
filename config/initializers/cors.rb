@@ -26,4 +26,23 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
              headers: :any,
              methods: [:get, :options, :head]
   end
+
+  # ActivityPub用
+  allow do
+    origins '*'
+    
+    resource '/users/*',
+             headers: :any,
+             methods: [:get, :options, :head],
+             expose: ['Content-Type']
+  end
+
+  # NodeInfo用  
+  allow do
+    origins '*'
+    
+    resource '/nodeinfo/*',
+             headers: :any,
+             methods: [:get, :options, :head]
+  end
 end
