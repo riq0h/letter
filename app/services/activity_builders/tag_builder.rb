@@ -24,10 +24,16 @@ module ActivityBuilders
 
     def mention_tags
       @object.mentions.includes(:actor).map do |mention|
+        mention_name = if mention.actor.local?
+                         "@#{mention.actor.username}"
+                       else
+                         "@#{mention.actor.username}@#{mention.actor.domain}"
+                       end
+
         {
           'type' => 'Mention',
           'href' => mention.actor.ap_id,
-          'name' => "@#{mention.actor.username}@#{mention.actor.domain}"
+          'name' => mention_name
         }
       end
     end
