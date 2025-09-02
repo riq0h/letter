@@ -68,7 +68,7 @@ module Api
       # GET /api/v1/accounts/:id/followers
       def followers
         if @account.local?
-          followers = @account.followers.limit(limit_param)
+          followers = paginated_followers
           @paginated_items = followers
           render json: followers.map { |follower| serialized_account(follower) }
         else
@@ -80,7 +80,7 @@ module Api
       # GET /api/v1/accounts/:id/following
       def following
         if @account.local?
-          following = @account.followed_actors.limit(limit_param)
+          following = paginated_following
           @paginated_items = following
           render json: following.map { |followed| serialized_account(followed) }
         else
@@ -380,6 +380,38 @@ module Api
 
       def set_account_for_featured_tags
         @account = Actor.find(params[:id])
+      end
+
+      def paginated_followers
+        base_query = @account.followers.order(id: :desc)
+
+        if params[:max_id].present?
+          # max_idより小さいIDのフォロワーを取得
+          base_query = base_query.where(actors: { id: ...(params[:max_id]) })
+        end
+
+        if params[:since_id].present?
+          # since_idより大きいIDのフォロワーを取得
+          base_query = base_query.where('actors.id > ?', params[:since_id])
+        end
+
+        base_query.limit(limit_param)
+      end
+
+      def paginated_following
+        base_query = @account.followed_actors.order(id: :desc)
+
+        if params[:max_id].present?
+          # max_idより小さいIDのフォロー中アカウントを取得
+          base_query = base_query.where(actors: { id: ...(params[:max_id]) })
+        end
+
+        if params[:since_id].present?
+          # since_idより大きいIDのフォロー中アカウントを取得
+          base_query = base_query.where('actors.id > ?', params[:since_id])
+        end
+
+        base_query.limit(limit_param)
       end
     end
   end
