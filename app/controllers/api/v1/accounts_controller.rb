@@ -41,7 +41,7 @@ module Api
       def statuses
         service_params = params.permit(:pinned, :exclude_replies, :only_media, :max_id, :since_id, :min_id)
 
-        query = AccountStatusesQuery.new(@account)
+        query = AccountStatusesQuery.new(@account, current_user)
         if service_params[:pinned] == 'true'
           # 固定投稿のみを取得
           pinned_statuses = query.pinned_only.limit(limit_param)

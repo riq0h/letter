@@ -3,9 +3,10 @@
 require 'rails_helper'
 
 RSpec.describe AccountStatusesQuery do
-  subject(:query) { described_class.new(account) }
+  subject(:query) { described_class.new(account, current_user) }
 
   let(:account) { create(:actor) }
+  let(:current_user) { nil }
 
   describe '#call' do
     let!(:older_status) { create(:activity_pub_object, :note, actor: account, published_at: 2.hours.ago) }
@@ -135,6 +136,57 @@ RSpec.describe AccountStatusesQuery do
                     .to_a
 
       expect(result).to eq([media_status])
+    end
+  end
+
+  describe 'visibility filtering' do
+    let!(:public_status) { create(:activity_pub_object, :note, actor: account, visibility: 'public') }
+    let!(:unlisted_status) { create(:activity_pub_object, :note, actor: account, visibility: 'unlisted') }
+    let!(:private_status) { create(:activity_pub_object, :note, actor: account, visibility: 'private') }
+    let!(:direct_status) { create(:activity_pub_object, :note, actor: account, visibility: 'direct') }
+
+    context 'when current_user is nil (unauthenticated)' do
+      let(:current_user) { nil }
+
+      it 'only shows public statuses' do
+        result = query.call
+        expect(result).to include(public_status)
+        expect(result).not_to include(unlisted_status, private_status, direct_status)
+      end
+    end
+
+    context 'when current_user is the account owner' do
+      let(:current_user) { account }
+
+      it 'shows public, unlisted, and private statuses' do
+        result = query.call
+        expect(result).to include(public_status, unlisted_status, private_status)
+        expect(result).not_to include(direct_status)
+      end
+    end
+
+    context 'when current_user is following the account' do
+      let(:current_user) { create(:actor) }
+
+      before do
+        create(:follow, actor: current_user, target_actor: account, accepted: true)
+      end
+
+      it 'shows public, unlisted, and private statuses' do
+        result = query.call
+        expect(result).to include(public_status, unlisted_status, private_status)
+        expect(result).not_to include(direct_status)
+      end
+    end
+
+    context 'when current_user is not following the account' do
+      let(:current_user) { create(:actor) }
+
+      it 'shows public and unlisted statuses only' do
+        result = query.call
+        expect(result).to include(public_status, unlisted_status)
+        expect(result).not_to include(private_status, direct_status)
+      end
     end
   end
 end

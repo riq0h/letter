@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 class AccountStatusesQuery
-  def initialize(account, relation = nil)
+  def initialize(account, current_user = nil, relation = nil)
     @account = account
+    @current_user = current_user
     @relation = relation || default_relation
   end
 
@@ -11,9 +12,13 @@ class AccountStatusesQuery
   end
 
   def pinned_only
-    @account.pinned_statuses
-            .includes(object: %i[actor media_attachments mentions tags poll])
-            .ordered
+    pinned_relation = @account.pinned_statuses
+                              .includes(object: %i[actor media_attachments mentions tags poll])
+                              .joins(:object)
+
+    # 可視性フィルタリングを適用
+    pinned_relation = apply_visibility_filters_to_pinned(pinned_relation)
+    pinned_relation.ordered
   end
 
   def exclude_replies
@@ -57,10 +62,41 @@ class AccountStatusesQuery
 
   private
 
-  attr_reader :account
+  attr_reader :account, :current_user
 
   def default_relation
-    @account.objects.where(object_type: %w[Note Question])
-            .where(local: [true, false])
+    relation = @account.objects.where(object_type: %w[Note Question])
+                       .where(local: [true, false])
+
+    apply_visibility_filters(relation)
+  end
+
+  def apply_visibility_filters(relation)
+    # 常にダイレクトメッセージを除外
+    relation = relation.where.not(visibility: 'direct')
+
+    relation.where(visibility: allowed_visibility_levels)
+  end
+
+  def apply_visibility_filters_to_pinned(pinned_relation)
+    # 常にダイレクトメッセージを除外
+    pinned_relation = pinned_relation.where.not(objects: { visibility: 'direct' })
+
+    pinned_relation.where(objects: { visibility: allowed_visibility_levels })
+  end
+
+  def allowed_visibility_levels
+    if current_user
+      if current_user == account || Follow.exists?(actor: current_user, target_actor: account, accepted: true)
+        # 自分のアカウント or フォロー中の場合：public, unlisted, private を表示
+        %w[public unlisted private]
+      else
+        # フォローしていない場合：public, unlisted のみ表示
+        %w[public unlisted]
+      end
+    else
+      # 未認証ユーザー：public のみ表示
+      %w[public]
+    end
   end
 end
