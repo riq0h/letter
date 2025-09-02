@@ -12,8 +12,13 @@ module ActivityPubAnnounceHandlers
     object_ap_id = extract_announce_object_id
     return head(:accepted) unless object_ap_id
 
-    target_object = find_target_object(object_ap_id)
-    return head(:accepted) unless target_object
+    target_object = find_local_target_object(object_ap_id)
+
+    unless target_object
+      Rails.logger.info "📢 Target object not found locally, queuing for background fetch: #{object_ap_id}"
+      AnnounceProcessorJob.perform_later(@activity, @sender.id)
+      return head(:accepted)
+    end
 
     create_or_update_announce(target_object)
     head :accepted
@@ -82,5 +87,9 @@ module ActivityPubAnnounceHandlers
   def log_announce_creation(reblog, announce_activity, target_object)
     Rails.logger.info "📢 Announce created: Reblog #{reblog.id}, Activity #{announce_activity.id}, " \
                       "reblogs_count updated to #{target_object.reload.reblogs_count}"
+  end
+
+  def find_local_target_object(object_ap_id)
+    ActivityPubObject.find_by(ap_id: object_ap_id)
   end
 end
