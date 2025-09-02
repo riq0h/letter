@@ -81,7 +81,7 @@ class MergedTimeline
         item: reblog,
         timestamp: reblog.created_at,
         is_reblog: true,
-        status_id: reblog.id
+        status_id: reblog.object.id
       }
     end
 
