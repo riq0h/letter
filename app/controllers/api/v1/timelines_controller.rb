@@ -54,22 +54,12 @@ module Api
           reblogged_status[:reblog] = nil # ネストしたリブログを防ぐ
 
           # リブログ情報を追加
-          reblog_data = {
+          {
             id: item.id.to_s,
             created_at: item.created_at.iso8601,
             account: simple_account_data(item.actor),
             reblog: reblogged_status
-          }
-
-          # default_interaction_dataをマージするが、reblogged_statusの重要なデータを保持
-          reblog_data.merge(default_interaction_data) do |key, _old_val, new_val|
-            case key
-            when :poll, :media_attachments, :mentions, :tags, :emojis
-              reblogged_status[key] || new_val
-            else
-              new_val
-            end
-          end
+          }.merge(default_interaction_data)
         else
           # 通常のステータスまたはActivityPubObject
           serialized_status(item)
