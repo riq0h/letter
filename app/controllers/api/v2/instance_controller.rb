@@ -15,7 +15,7 @@ module Api
           domain: Rails.application.config.activitypub.domain,
           title: load_instance_setting('instance_name') || 'letter',
           version: '0.1',
-          source_url: 'https://github.com/letteractivitypub/letter',
+          source_url: 'https://github.com/riq0h/letter',
           description: load_instance_setting('instance_description') || 'General Letter Publication System based on ActivityPub',
           usage: usage_stats,
           thumbnail: {
@@ -26,7 +26,7 @@ module Api
           languages: %w[ja en],
           configuration: configuration_data,
           registrations: {
-            enabled: true,
+            enabled: false,
             approval_required: false,
             message: nil
           },

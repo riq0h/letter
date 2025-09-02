@@ -19,10 +19,10 @@ module Api
         local_domain = Rails.application.config.activitypub.domain
         {
           uri: local_domain,
-          title: 'letter',
-          short_description: 'General Letter Publication System based on ActivityPub',
-          description: 'General Letter Publication System based on ActivityPub',
-          email: Rails.application.config.instance_contact_email || '',
+          title: InstanceConfig.get('instance_name') || 'letter',
+          short_description: InstanceConfig.get('instance_description') || 'General Letter Publication System based on ActivityPub',
+          description: InstanceConfig.get('instance_description') || 'General Letter Publication System based on ActivityPub',
+          email: InstanceConfig.get('instance_contact_email') || Rails.application.config.instance_contact_email || '',
           version: '0.1.0 (compatible; letter 0.1.0)',
           urls: {
             streaming_api: "wss://#{local_domain.sub(/^https?:\/\//, '')}"
