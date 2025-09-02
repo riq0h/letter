@@ -252,14 +252,39 @@ module StatusSerializationHelper
   end
 
   def apply_url_links_only(content)
-    # メンションリンクを保護しながらURLのみリンク化
+    # 既存のHTMLタグ位置を記録
+    tags = []
+    content.scan(/<[^>]+>/) { |_match| tags << { start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
+
+    # URLパターンを探してリンク化（ただし、既存のタグ内は除外）
     url_pattern = /(https?:\/\/[^\s<>\"']+)/
-    content.gsub(url_pattern) do |match|
-      url = match
-      display_text = url.start_with?('https://') ? url.delete_prefix('https://') : url
-      %(<a href="#{url}" target="_blank" rel="noopener noreferrer" ) +
-        %(class="text-gray-500 hover:text-gray-700 transition-colors">#{display_text}</a>)
+    result = content.dup
+    offset = 0
+
+    content.scan(url_pattern) do |url|
+      url_start = $LAST_MATCH_INFO.begin(0)
+      url_end = $LAST_MATCH_INFO.end(0)
+
+      # このURLが既存のHTMLタグ内にないかチェック
+      inside_tag = tags.any? do |tag|
+        url_start >= tag[:start] && url_end <= tag[:end]
+      end
+
+      unless inside_tag
+        # リンク化
+        display_text = url[0].start_with?('https://') ? url[0].delete_prefix('https://') : url[0]
+        linked_url = %(<a href="#{url[0]}" target="_blank" rel="noopener noreferrer" ) +
+                     %(class="text-gray-500 hover:text-gray-700 transition-colors">#{display_text}</a>)
+
+        # オフセットを考慮して置換
+        actual_start = url_start + offset
+        actual_end = url_end + offset
+        result[actual_start...actual_end] = linked_url
+        offset += linked_url.length - url[0].length
+      end
     end
+
+    result
   end
 
   def default_status_structure
