@@ -29,9 +29,15 @@ class ActivityPubContentProcessor
     extract_hashtags
     process_links
 
-    # メンションとURLをリンク化
-    linked_content = auto_link_urls(content)
-    object.update_column(:content, linked_content) if linked_content != content
+    if content.include?('<') && content.include?('>')
+      linked_content = apply_url_links_to_html(content)
+      mention_linked_content = apply_mention_links_to_html(linked_content)
+    else
+      escaped_text = ERB::Util.html_escape(ActionView::Base.full_sanitizer.sanitize(content).strip).gsub("\n", '<br>')
+      linked_content = apply_url_links(escaped_text)
+      mention_linked_content = apply_mention_links(linked_content)
+    end
+    object.update_column(:content, mention_linked_content) if mention_linked_content != content
 
     # リモート投稿の場合はActivityPubメタデータからも処理
     process_activitypub_metadata unless object.local?
