@@ -31,9 +31,9 @@ class SharedInboxesController < ApplicationController
   private
 
   def find_target_actor
-    # Follow/Accept/Reject活動の場合、対象アクターを特定
+    # Follow/Accept/Reject/Block活動の場合、対象アクターを特定
     case @activity['type']
-    when 'Follow', 'Accept', 'Reject'
+    when 'Follow', 'Accept', 'Reject', 'Block'
       target_uri = extract_target_actor_uri
       @target_actor = Actor.find_by(ap_id: target_uri) if target_uri
     end
@@ -41,7 +41,7 @@ class SharedInboxesController < ApplicationController
 
   def extract_target_actor_uri
     case @activity['type']
-    when 'Follow'
+    when 'Follow', 'Block'
       @activity['object']
     when 'Accept', 'Reject'
       # Accept/Rejectの場合、objectの中のFollowのobjectが対象アクター
@@ -104,6 +104,8 @@ class SharedInboxesController < ApplicationController
       handle_like_activity
     when 'Follow'
       handle_follow_activity
+    when 'Block'
+      handle_block_activity
     when 'Undo'
       handle_undo_activity
     when 'Accept'

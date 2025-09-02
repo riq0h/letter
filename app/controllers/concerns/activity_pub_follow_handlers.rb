@@ -127,6 +127,8 @@ module ActivityPubFollowHandlers
     case object['type']
     when 'Follow'
       handle_undo_follow(object)
+    when 'Block'
+      handle_undo_block(object)
     else
       Rails.logger.warn "⚠️ Unsupported Undo object: #{object['type']}"
     end
@@ -155,6 +157,19 @@ module ActivityPubFollowHandlers
 
     follow.destroy!
     Rails.logger.info "↩️ Follow undone: #{follow.id} (requested: #{object['id']})"
+  end
+
+  def handle_undo_block(_object)
+    # ブロック関係を検索して削除
+    block = Block.find_by(
+      actor: @sender,
+      target_actor: @target_actor
+    )
+
+    return unless block
+
+    block.destroy!
+    Rails.logger.info "🔓 Block undone: #{@sender.ap_id} unblocked #{@target_actor.ap_id}"
   end
 
   def extract_activity_id(object)
