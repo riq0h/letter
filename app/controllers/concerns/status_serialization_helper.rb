@@ -257,7 +257,8 @@ module StatusSerializationHelper
     content.gsub(url_pattern) do |match|
       url = match
       display_text = url.start_with?('https://') ? url.delete_prefix('https://') : url
-      %(<a href="#{url}" target="_blank" rel="noopener noreferrer" class="text-gray-500 hover:text-gray-700 transition-colors">#{display_text}</a>)
+      %(<a href="#{url}" target="_blank" rel="noopener noreferrer" ) +
+        %(class="text-gray-500 hover:text-gray-700 transition-colors">#{display_text}</a>)
     end
   end
 
