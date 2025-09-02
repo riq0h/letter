@@ -10,7 +10,7 @@ class TimelineQuery
     followed_ids = user.followed_actors.pluck(:id) + [user.id]
 
     statuses = base_timeline_query.where(actors: { id: followed_ids })
-    statuses = apply_pagination_filters(statuses).limit(limit * 25)
+    statuses = apply_pagination_filters(statuses).limit(limit * 10)
 
     reblogs = fetch_reblogs(followed_ids)
 
@@ -62,7 +62,7 @@ class TimelineQuery
                     .where(actor_id: followed_ids)
                     .where(objects: { visibility: %w[public unlisted] })
                     .includes(:object, :actor)
-    apply_reblog_pagination_filters(reblogs).limit(limit * 50)
+    apply_reblog_pagination_filters(reblogs).limit(limit * 10)
   end
 
   def apply_pagination_filters(query)
