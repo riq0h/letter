@@ -61,7 +61,7 @@ class TimelineQuery
     reblogs = Reblog.joins(:actor, :object)
                     .where(actor_id: followed_ids)
                     .where(objects: { visibility: %w[public unlisted] })
-                    .includes(:object, :actor)
+                    .includes(object: :poll, actor: {})
     apply_reblog_pagination_filters(reblogs).limit(limit * 10)
   end
 
