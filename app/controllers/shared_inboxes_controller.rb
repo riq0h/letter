@@ -4,6 +4,7 @@ class SharedInboxesController < ApplicationController
   include ActivityPubVerification
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
+  include ActivityPubFollowHandlers
   include GeneralErrorHandler
 
   # CSRFトークン無効化（外部からのPOST）
@@ -14,6 +15,7 @@ class SharedInboxesController < ApplicationController
   before_action :parse_activity_json
   before_action :verify_http_signature
   before_action :find_or_create_sender
+  before_action :find_target_actor
   before_action :check_if_relay_activity
 
   def create
@@ -27,6 +29,26 @@ class SharedInboxesController < ApplicationController
   end
 
   private
+
+  def find_target_actor
+    # Follow/Accept/Reject活動の場合、対象アクターを特定
+    case @activity['type']
+    when 'Follow', 'Accept', 'Reject'
+      target_uri = extract_target_actor_uri
+      @target_actor = Actor.find_by(ap_id: target_uri) if target_uri
+    end
+  end
+
+  def extract_target_actor_uri
+    case @activity['type']
+    when 'Follow'
+      @activity['object']
+    when 'Accept', 'Reject'
+      # Accept/Rejectの場合、objectの中のFollowのobjectが対象アクター
+      follow_activity = @activity['object']
+      follow_activity.is_a?(Hash) ? follow_activity['object'] : nil
+    end
+  end
 
   def check_if_relay_activity
     @is_relay_activity = relay_activity?
@@ -80,10 +102,14 @@ class SharedInboxesController < ApplicationController
       handle_announce_activity
     when 'Like'
       handle_like_activity
+    when 'Follow'
+      handle_follow_activity
     when 'Undo'
       handle_undo_activity
     when 'Accept'
       handle_accept_activity
+    when 'Reject'
+      handle_reject_activity
     else
       Rails.logger.warn "⚠️ Unsupported activity type: #{@activity['type']}"
       head :accepted
