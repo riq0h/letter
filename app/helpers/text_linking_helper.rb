@@ -79,7 +79,7 @@ module TextLinkingHelper
       domain = ::Regexp.last_match(2)
       mention_url = build_mention_url(username, domain)
       "<a href=\"#{mention_url}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-gray-500 hover:text-gray-700 transition-colors\">" \
-        "@#{username}@#{domain}</a>"
+        "@#{username}</a>"
     end
   end
 
