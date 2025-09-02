@@ -58,10 +58,8 @@ module StatusSerializationHelper
   end
 
   def content_data(status)
-    # API用: 絵文字HTMLをショートコードに戻してからメンション・URLリンク化
-    content_with_shortcodes = parse_content_links_only(status.content || '')
-    # メンションリンク化も含む完全な処理
-    linked_content = parse_content_for_frontend(content_with_shortcodes)
+    # API用: メンション・URLリンク化、絵文字はショートコード形式で保持
+    linked_content = parse_content_for_api(status.content || '')
 
     {
       spoiler_text: status.summary || '',
@@ -148,7 +146,7 @@ module StatusSerializationHelper
       created_at: quote_post.quoted_object.published_at&.iso8601,
       uri: quote_post.quoted_object.ap_id,
       url: quote_post.quoted_object.public_url,
-      content: parse_content_for_frontend(parse_content_links_only(quote_post.quoted_object.content || '')),
+      content: parse_content_for_api(quote_post.quoted_object.content || ''),
       account: {
         id: quoted_actor.id.to_s,
         username: quoted_actor.username,

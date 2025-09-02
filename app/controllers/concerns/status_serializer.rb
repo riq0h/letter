@@ -43,6 +43,20 @@ module StatusSerializer
     end
   end
 
+  def parse_content_for_api(content)
+    return '' if content.blank?
+
+    # API用: メンション・URLのみリンク化、絵文字はショートコード形式で保持
+    if content.include?('<a ') || content.include?('<p>')
+      # 外部投稿: 絵文字HTMLをショートコードに戻してからメンションリンク化
+      content_with_shortcodes = parse_content_links_only(content)
+      auto_link_urls(content_with_shortcodes)
+    else
+      # ローカル投稿: メンション・URLリンク化のみ
+      auto_link_urls(content)
+    end
+  end
+
   def serialized_emojis(status)
     # 防御的プログラミング: 常に配列を返し、nullは返さない
     return [] if status.nil? || status.content.blank?
