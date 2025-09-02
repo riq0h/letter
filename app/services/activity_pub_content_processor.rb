@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class ActivityPubContentProcessor
+  include TextLinkingHelper
+
   def initialize(object)
     @object = object
   end
@@ -26,6 +28,10 @@ class ActivityPubContentProcessor
     extract_mentions
     extract_hashtags
     process_links
+
+    # メンションとURLをリンク化
+    linked_content = auto_link_urls(content)
+    object.update_column(:content, linked_content) if linked_content != content
 
     # リモート投稿の場合はActivityPubメタデータからも処理
     process_activitypub_metadata unless object.local?
