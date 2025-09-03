@@ -216,10 +216,28 @@ module TextLinkingHelper
 
   def normalize_mention_html(html_text)
     # リモートサーバからの複雑なメンション構造をMastodon互換形式に正規化
-    # 例: <span class="h-card"><a href="URL" class="u-url mention">@<span>username</span></a></span>
-    # → <a href="URL" class="u-url mention">@username</a>
 
-    html_text.gsub(/<span class="h-card">\s*<a\s+([^>]*)\s*>\s*@<span>([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
+    result = html_text.dup
+
+    # パターン1: @マークがaタグ外にある場合
+    # <span class="h-card"><a href="URL" class="u-url mention">@<span>username</span></a></span>
+    result = result.gsub(/<span class="h-card">\s*<a\s+([^>]*)\s*>\s*@<span>([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
+      attributes = ::Regexp.last_match(1)
+      username = ::Regexp.last_match(2)
+
+      # class="u-url mention"が含まれているかチェック
+      if attributes.include?('u-url') && attributes.include?('mention')
+        # シンプルな形式に変換
+        "<a #{attributes}>@#{username}</a>"
+      else
+        # メンション以外のリンクの場合は元のまま
+        ::Regexp.last_match(0)
+      end
+    end
+
+    # パターン2: @マークがspan内にある場合
+    # <span class="h-card" translate="no"><a class="u-url mention" href="URL"><span>@username</span></a></span>
+    result.gsub(/<span class="h-card"[^>]*>\s*<a\s+([^>]*)\s*>\s*<span>@([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
       attributes = ::Regexp.last_match(1)
       username = ::Regexp.last_match(2)
 
