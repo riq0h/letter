@@ -24,7 +24,6 @@ class ActivityPubObjectSerializer
 
   def base_activitypub_data
     {
-      '@context' => Rails.application.config.activitypub.context_url,
       'id' => object.ap_id,
       'type' => object.object_type,
       'attributedTo' => actor.ap_id,
