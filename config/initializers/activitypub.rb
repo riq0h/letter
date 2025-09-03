@@ -25,8 +25,28 @@ Rails.application.configure do
   # ベースURL構築
   config.activitypub.base_url = "#{config.activitypub.protocol}://#{config.activitypub.domain}"
 
-  # ActivityPub標準URL
-  config.activitypub.context_url = 'https://www.w3.org/ns/activitystreams'
+  # ActivityPub標準URL（Mastodon互換の完全なコンテキスト）
+  config.activitypub.context_url = [
+    'https://www.w3.org/ns/activitystreams',
+    {
+      'toot' => 'http://joinmastodon.org/ns#',
+      'sensitive' => 'as:sensitive',
+      'schema' => 'http://schema.org#',
+      'PropertyValue' => 'schema:PropertyValue',
+      'value' => 'schema:value',
+      'Hashtag' => 'as:Hashtag',
+      'Emoji' => 'toot:Emoji',
+      'blurhash' => 'toot:blurhash',
+      'discoverable' => 'toot:discoverable',
+      'indexable' => 'toot:indexable',
+      'memorial' => 'toot:memorial',
+      'attributionDomains' => 'toot:attributionDomains',
+      'quoteUrl' => 'as:quoteUrl',
+      '_misskey_quote' => '_misskey_quote',
+      'quoteUri' => 'fedibird:quoteUri',
+      'fedibird' => 'http://fedibird.com/ns#'
+    }
+  ]
   config.activitypub.public_collection_url = 'https://www.w3.org/ns/activitystreams#Public'
 
   # 投稿制限
