@@ -206,14 +206,10 @@ else
 fi
 
 # サマリーを生成
-total_db_size=$(docker exec $WEB_CONTAINER du -sb /app/storage/*.sqlite3 2>/dev/null | awk '{sum+=$1} END {print sum}' || echo "0")
-compression_ratio=$(echo "scale=1; $archive_size * 100 / $total_db_size" | bc -l 2>/dev/null || echo "N/A")
 
 log "📈 バックアップ要約:"
 log "  🎯 letter"
-log "  📊 元のDBサイズ: $(numfmt --to=iec $total_db_size)"
 log "  📦 アーカイブサイズ: $(numfmt --to=iec $archive_size)"
-log "  📉 圧縮率: ${compression_ratio}%"
 log "  📍 ローカルパス: $BACKUP_DIR"
 log "  🕐 保持期間: $BACKUP_LIFETIME_DAYS 日"
 
