@@ -219,12 +219,18 @@ module TextLinkingHelper
     # 例: <span class="h-card"><a href="URL" class="u-url mention">@<span>username</span></a></span>
     # → <a href="URL" class="u-url mention">@username</a>
 
-    html_text.gsub(/<span class="h-card">\s*<a\s+([^>]*class="[^"]*u-url[^"]*mention[^"]*"[^>]*)>\s*@<span>([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
+    html_text.gsub(/<span class="h-card">\s*<a\s+([^>]*)\s*>\s*@<span>([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
       attributes = ::Regexp.last_match(1)
       username = ::Regexp.last_match(2)
 
-      # シンプルな形式に変換
-      "<a #{attributes}>@#{username}</a>"
+      # class="u-url mention"が含まれているかチェック
+      if attributes.include?('u-url') && attributes.include?('mention')
+        # シンプルな形式に変換
+        "<a #{attributes}>@#{username}</a>"
+      else
+        # メンション以外のリンクの場合は元のまま
+        ::Regexp.last_match(0)
+      end
     end
   end
 
