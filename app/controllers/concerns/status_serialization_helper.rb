@@ -223,6 +223,9 @@ module StatusSerializationHelper
 
     content = status.content
 
+    # リモートサーバからの複雑なメンション構造を正規化
+    content = normalize_mention_html(content)
+
     # 既存のmentionレコードを使って正確なリンクを生成
     if status.mentions.any?
       status.mentions.includes(:actor).find_each do |mention|
