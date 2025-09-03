@@ -231,13 +231,19 @@ module StatusSerializationHelper
       status.mentions.includes(:actor).find_each do |mention|
         actor = mention.actor
         # フルメンション形式とローカルメンション形式の両方に対応
-        full_mention = "@#{actor.username}@#{actor.domain}"
+        # ローカルユーザの場合はdomainがnilなので、適切に処理
+        full_mention = if actor.local?
+                         "@#{actor.username}" # ローカルユーザにはドメイン部分なし
+                       else
+                         "@#{actor.username}@#{actor.domain}"
+                       end
         local_mention = "@#{actor.username}"
 
-        # 既にaタグ内に含まれていないかチェック
+        # 既にaタグ内に含まれていないかチェック（正規化後のh-card形式も含む）
         mention_already_linked = content.include?(%(<a href="#{actor.ap_id}")) ||
-                                 content.include?(%(<a href="https://#{actor.domain}/@#{actor.username}")) ||
-                                 content.include?(%(>@#{actor.username}</a>))
+                                 (actor.domain && content.include?(%(<a href="https://#{actor.domain}/@#{actor.username}"))) ||
+                                 content.include?(%(>@#{actor.username}</a>)) ||
+                                 content.include?(%(<span class="p-nickname">@#{actor.username}</span>))
 
         unless mention_already_linked
           # ドメイン付きメンションを優先的に処理
