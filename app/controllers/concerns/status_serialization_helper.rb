@@ -242,12 +242,12 @@ module StatusSerializationHelper
         unless mention_already_linked
           # ドメイン付きメンションを優先的に処理
           if content.include?(full_mention)
-            mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
-                           %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
+            # Mastodon標準のh-card形式でメンションを作成
+            mention_link = %(<a href="#{actor.ap_id}" class="h-card mention"><span class="p-nickname">@#{actor.username}</span></a>)
             content = content.gsub(full_mention, mention_link)
           elsif content.include?(local_mention) && actor.local?
-            mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
-                           %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
+            # Mastodon標準のh-card形式でメンションを作成
+            mention_link = %(<a href="#{actor.ap_id}" class="h-card mention"><span class="p-nickname">@#{actor.username}</span></a>)
             content = content.gsub(local_mention, mention_link)
           end
         end

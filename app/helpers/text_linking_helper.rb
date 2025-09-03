@@ -78,8 +78,8 @@ module TextLinkingHelper
       username = ::Regexp.last_match(1)
       domain = ::Regexp.last_match(2)
       mention_url = build_mention_url(username, domain)
-      "<a href=\"#{mention_url}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-gray-500 hover:text-gray-700 transition-colors\">" \
-        "@#{username}</a>"
+      # Mastodon標準のh-card形式でメンションを作成
+      %(<a href="#{mention_url}" class="h-card mention"><span class="p-nickname">@#{username}</span></a>)
     end
   end
 
@@ -215,40 +215,29 @@ module TextLinkingHelper
   end
 
   def normalize_mention_html(html_text)
-    # リモートサーバからの複雑なメンション構造をMastodon互換形式に正規化
+    # リモートサーバからの複雑なメンション構造をMastodon標準のh-card形式に正規化
+    # 参考: https://docs.joinmastodon.org/spec/microformats/#h-card
 
     result = html_text.dup
 
     # パターン1: @マークがaタグ外にある場合
     # <span class="h-card"><a href="URL" class="u-url mention">@<span>username</span></a></span>
-    result = result.gsub(/<span class="h-card">\s*<a\s+([^>]*)\s*>\s*@<span>([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
-      attributes = ::Regexp.last_match(1)
-      username = ::Regexp.last_match(2)
+    result = result.gsub(/<span class="h-card">\s*<a\s+([^>]*href=["']([^"']+)["'][^>]*)\s*>\s*@<span>([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
+      href_url = ::Regexp.last_match(2)
+      username = ::Regexp.last_match(3)
 
-      # class="u-url mention"が含まれているかチェック
-      if attributes.include?('u-url') && attributes.include?('mention')
-        # シンプルな形式に変換
-        "<a #{attributes}>@#{username}</a>"
-      else
-        # メンション以外のリンクの場合は元のまま
-        ::Regexp.last_match(0)
-      end
+      # Mastodon標準のh-card形式に変換
+      %(<a href="#{href_url}" class="h-card mention"><span class="p-nickname">@#{username}</span></a>)
     end
 
     # パターン2: @マークがspan内にある場合
     # <span class="h-card" translate="no"><a class="u-url mention" href="URL"><span>@username</span></a></span>
-    result.gsub(/<span class="h-card"[^>]*>\s*<a\s+([^>]*)\s*>\s*<span>@([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
-      attributes = ::Regexp.last_match(1)
-      username = ::Regexp.last_match(2)
+    result.gsub(/<span class="h-card"[^>]*>\s*<a\s+([^>]*href=["']([^"']+)["'][^>]*)\s*>\s*<span>@([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
+      href_url = ::Regexp.last_match(2)
+      username = ::Regexp.last_match(3)
 
-      # class="u-url mention"が含まれているかチェック
-      if attributes.include?('u-url') && attributes.include?('mention')
-        # シンプルな形式に変換
-        "<a #{attributes}>@#{username}</a>"
-      else
-        # メンション以外のリンクの場合は元のまま
-        ::Regexp.last_match(0)
-      end
+      # Mastodon標準のh-card形式に変換
+      %(<a href="#{href_url}" class="h-card mention"><span class="p-nickname">@#{username}</span></a>)
     end
   end
 
