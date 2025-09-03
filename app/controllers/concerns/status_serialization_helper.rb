@@ -226,7 +226,7 @@ module StatusSerializationHelper
     # リモートサーバからの複雑なメンション構造を正規化
     content = normalize_mention_html(content)
 
-    # 既存のmentionレコードを使って正確なリンクを生成
+    # 既存のmentionレコードを使って正確なリンクを生成（ただし、既にリンク化済みの場合はスキップ）
     if status.mentions.any?
       status.mentions.includes(:actor).find_each do |mention|
         actor = mention.actor
@@ -234,15 +234,22 @@ module StatusSerializationHelper
         full_mention = "@#{actor.username}@#{actor.domain}"
         local_mention = "@#{actor.username}"
 
-        # ドメイン付きメンションを優先的に処理
-        if content.include?(full_mention)
-          mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
-                         %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
-          content = content.gsub(full_mention, mention_link)
-        elsif content.include?(local_mention) && actor.local?
-          mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
-                         %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
-          content = content.gsub(local_mention, mention_link)
+        # 既にaタグ内に含まれていないかチェック
+        mention_already_linked = content.include?(%(<a href="#{actor.ap_id}")) ||
+                                 content.include?(%(<a href="https://#{actor.domain}/@#{actor.username}")) ||
+                                 content.include?(%(>@#{actor.username}</a>))
+
+        unless mention_already_linked
+          # ドメイン付きメンションを優先的に処理
+          if content.include?(full_mention)
+            mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
+                           %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
+            content = content.gsub(full_mention, mention_link)
+          elsif content.include?(local_mention) && actor.local?
+            mention_link = %(<a href="#{actor.ap_id}" target="_blank" rel="noopener noreferrer" ) +
+                           %(class="text-gray-500 hover:text-gray-700 transition-colors">@#{actor.username}</a>)
+            content = content.gsub(local_mention, mention_link)
+          end
         end
       end
     end
