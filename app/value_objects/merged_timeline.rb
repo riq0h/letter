@@ -91,11 +91,17 @@ class MergedTimeline
   def process_timeline_items(all_items, seen_status_ids, merged_items)
     all_items.each do |item_data|
       status_id = item_data[:status_id]
+      item = item_data[:item]
 
-      next if seen_status_ids.include?(status_id)
+      # ブーストの場合：元投稿と重複しても表示し、複数のブーストも全て表示
+      unless item_data[:is_reblog]
+        # 元投稿の場合：従来通りの重複除去
+        next if seen_status_ids.include?(status_id)
 
-      seen_status_ids.add(status_id)
-      merged_items << item_data[:item]
+        seen_status_ids.add(status_id)
+      end
+      merged_items << item
+
       break if merged_items.length >= limit
     end
   end
