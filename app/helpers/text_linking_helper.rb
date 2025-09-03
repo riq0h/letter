@@ -139,6 +139,9 @@ module TextLinkingHelper
   end
 
   def apply_mention_links_to_html(html_text)
+    # まず、リモートサーバからの複雑なメンション構造を正規化する
+    html_text = normalize_mention_html(html_text)
+
     mention_pattern = /@([a-zA-Z0-9_.-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
 
     # 既存のaタグ全体（開始タグから終了タグまで）の位置を記録
@@ -209,6 +212,20 @@ module TextLinkingHelper
     return url unless url.start_with?('https://')
 
     url.delete_prefix('https://')
+  end
+
+  def normalize_mention_html(html_text)
+    # リモートサーバからの複雑なメンション構造をMastodon互換形式に正規化
+    # 例: <span class="h-card"><a href="URL" class="u-url mention">@<span>username</span></a></span>
+    # → <a href="URL" class="u-url mention">@username</a>
+
+    html_text.gsub(/<span class="h-card">\s*<a\s+([^>]*class="[^"]*u-url[^"]*mention[^"]*"[^>]*)>\s*@<span>([^<]+)<\/span>\s*<\/a>\s*<\/span>/mi) do
+      attributes = ::Regexp.last_match(1)
+      username = ::Regexp.last_match(2)
+
+      # シンプルな形式に変換
+      "<a #{attributes}>@#{username}</a>"
+    end
   end
 
   def fix_split_url_links(html_text)
