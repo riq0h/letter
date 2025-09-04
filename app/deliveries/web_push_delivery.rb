@@ -166,6 +166,13 @@ class WebPushDelivery
       # 事前検証でエラーを防ぐ
       unless valid_webpush_keys?(subscription)
         Rails.logger.warn "🔐 Invalid WebPush keys for #{subscription.actor.username}, skipping notification"
+
+        # 古い（7日以上）の無効なサブスクリプションは削除
+        if subscription.created_at < 7.days.ago
+          Rails.logger.info "🧹 Removing old invalid WebPush subscription for #{subscription.actor.username}"
+          subscription.destroy
+        end
+
         return false
       end
 
@@ -249,8 +256,23 @@ class WebPushDelivery
       test_options = build_push_options(subscription, test: true)
 
       Rails.logger.info "🔍 Testing WebPush with endpoint: #{subscription.endpoint}"
-      WebPush.payload_send(**test_options, message: test_payload)
-      false # テスト送信なので実際には送信させない
+
+      # 実際のWebPush.payload_sendで使用される暗号化処理を直接テスト
+      # 但しネットワーク送信はモック
+      require 'net/http'
+      original_method = Net::HTTP.instance_method(:request)
+      Net::HTTP.define_method(:request) do |_req|
+        # リクエストを作成させるが送信はスキップ
+        OpenStruct.new(code: '200', message: 'OK')
+      end
+
+      begin
+        WebPush.payload_send(**test_options, message: test_payload)
+        true # 暗号化成功
+      ensure
+        # 元のメソッドを復元
+        Net::HTTP.define_method(:request, original_method)
+      end
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
       Rails.logger.info "🔐 WebPush key validation failed (crypto): #{e.message}"
       false
