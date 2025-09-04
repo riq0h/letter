@@ -162,7 +162,7 @@ class WebPushDelivery
     # プッシュ通知の送信
     def send_push_notification(subscription, payload)
       Rails.logger.info "🔐 Validating WebPush keys for #{subscription.actor.username}"
-      
+
       # 事前検証でエラーを防ぐ
       unless valid_webpush_keys?(subscription)
         Rails.logger.warn "🔐 Invalid WebPush keys for #{subscription.actor.username}, skipping notification"
@@ -192,7 +192,7 @@ class WebPushDelivery
         ttl: 3600 * 24,
         urgency: 'normal'
       }
-      
+
       options[:message] = payload.to_json unless test
       options
     end
@@ -241,24 +241,27 @@ class WebPushDelivery
     def valid_webpush_keys?(subscription)
       return false if subscription.p256dh_key.blank? || subscription.auth_key.blank?
 
+      # VAPIDキーがない場合はスキップ（実際の送信もスキップされるため）
+      return false unless vapid_keys_configured?
+
       # 実際のWebPush.payload_sendと同じオプションでテスト
       test_payload = { message: 'test' }.to_json
       test_options = build_push_options(subscription, test: true)
-      
-      # VAPIDキーがない場合はスキップ（実際の送信もスキップされるため）
-      return false unless vapid_keys_configured?
-      
-      WebPush.payload_send(**test_options.merge(message: test_payload))
+
+      Rails.logger.info "🔍 Testing WebPush with endpoint: #{subscription.endpoint}"
+      WebPush.payload_send(**test_options, message: test_payload)
       false # テスト送信なので実際には送信させない
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
-      Rails.logger.debug { "🔐 WebPush key validation failed: #{e.message}" }
+      Rails.logger.info "🔐 WebPush key validation failed (crypto): #{e.message}"
       false
     rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
-      Rails.logger.debug { "🔐 WebPush subscription invalid: #{e.message}" }
+      Rails.logger.info "🔐 WebPush subscription invalid: #{e.message}"
       false
     rescue StandardError => e
+      Rails.logger.info "🔍 WebPush validation error (#{e.class}): #{e.message}"
       # ネットワークエラーなど送信の問題は検証OKとみなす
       if e.message.include?('getaddrinfo') || e.message.include?('Connection') || e.message.include?('timeout')
+        Rails.logger.info '✅ Network error during validation, assuming keys are valid'
         true
       else
         Rails.logger.warn "❌ Unexpected error validating WebPush keys: #{e.message}"
