@@ -80,6 +80,8 @@ RSpec.describe WebPushDelivery do
 
     context 'when VAPID keys are configured' do
       it 'sends push notification with correct parameters' do
+        # 事前検証を通す
+        allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
         expect(WebPush).to receive(:payload_send).with(push_options)
 
         result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
@@ -88,6 +90,7 @@ RSpec.describe WebPushDelivery do
       end
 
       it 'handles invalid subscription errors' do
+        allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
         allow(WebPush).to receive(:payload_send).and_raise(WebPush::InvalidSubscription, 'Invalid endpoint')
 
         result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
@@ -96,6 +99,7 @@ RSpec.describe WebPushDelivery do
       end
 
       it 'handles expired subscription errors' do
+        allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
         allow(WebPush).to receive(:payload_send).and_raise(WebPush::ExpiredSubscription, 'Subscription expired')
 
         result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
@@ -104,6 +108,8 @@ RSpec.describe WebPushDelivery do
       end
 
       it 'handles general errors without destroying subscription' do
+        # 事前検証を通す
+        allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
         allow(WebPush).to receive(:payload_send).and_raise(StandardError, 'Network error')
         expect(subscription).not_to receive(:destroy)
         expect(Rails.logger).to receive(:error).with(/Push notification failed/)
@@ -373,6 +379,137 @@ RSpec.describe WebPushDelivery do
 
       result = described_class.send(:vapid_keys_configured?)
 
+      expect(result).to be false
+    end
+  end
+
+  describe '.valid_webpush_keys?' do
+    let(:valid_subscription) do
+      create(:web_push_subscription,
+             actor: actor,
+             p256dh_key: valid_p256dh_key,
+             auth_key: valid_auth_key)
+    end
+
+    let(:valid_p256dh_key) do
+      # 有効な65バイト uncompressed NIST P-256 公開鍵
+      key_bytes = "\u0004#{"\x01" * 32}#{"\x02" * 32}"
+      Base64.strict_encode64(key_bytes)
+    end
+
+    let(:valid_auth_key) do
+      # 有効な16バイト認証キー
+      Base64.strict_encode64('a' * 16)
+    end
+
+    it 'returns true for valid keys' do
+      # valid_p256_public_keyメソッドをモックして、実際のEC検証をスキップ
+      allow(described_class).to receive_messages(validate_p256_public_key: true, validate_auth_key: true)
+
+      expect(described_class.send(:valid_webpush_keys?, valid_subscription)).to be true
+    end
+
+    it 'returns false for blank keys' do
+      blank_subscription = build(:web_push_subscription, p256dh_key: '', auth_key: '')
+      expect(described_class.send(:valid_webpush_keys?, blank_subscription)).to be false
+    end
+
+    it 'returns false for invalid Base64' do
+      invalid_subscription = build(:web_push_subscription,
+                                   p256dh_key: 'invalid!@#',
+                                   auth_key: 'invalid!@#')
+      expect(described_class.send(:valid_webpush_keys?, invalid_subscription)).to be false
+    end
+
+    it 'returns false when p256dh validation fails' do
+      subscription = build(:web_push_subscription,
+                           p256dh_key: Base64.strict_encode64('a' * 65),
+                           auth_key: Base64.strict_encode64('b' * 16))
+
+      allow(described_class).to receive_messages(validate_p256_public_key: false, validate_auth_key: true)
+
+      expect(described_class.send(:valid_webpush_keys?, subscription)).to be false
+    end
+
+    it 'returns false when auth validation fails' do
+      subscription = build(:web_push_subscription,
+                           p256dh_key: Base64.strict_encode64('a' * 65),
+                           auth_key: Base64.strict_encode64('b' * 16))
+
+      allow(described_class).to receive_messages(validate_p256_public_key: true, validate_auth_key: false)
+
+      expect(described_class.send(:valid_webpush_keys?, subscription)).to be false
+    end
+  end
+
+  describe '.validate_p256_public_key' do
+    it 'returns true for valid 65-byte uncompressed key' do
+      # 0x04 prefix + 32バイト x + 32バイト y
+      key_bytes = "\u0004#{"\x01" * 32}#{"\x02" * 32}"
+      expect(described_class.send(:validate_p256_public_key, key_bytes)).to be true
+    end
+
+    it 'returns true for valid 33-byte compressed key' do
+      # 0x02 prefix + 32バイト x
+      key_bytes = "\u0002#{"\x01" * 32}"
+      expect(described_class.send(:validate_p256_public_key, key_bytes)).to be true
+    end
+
+    it 'returns false for invalid length' do
+      # 64バイト（無効な長さ）
+      key_bytes = 'a' * 64
+      expect(described_class.send(:validate_p256_public_key, key_bytes)).to be false
+    end
+
+    it 'returns false for invalid prefix' do
+      # 長さは正しいが無効なprefix（0x05）
+      invalid_key = "\u0005#{"\x01" * 64}"
+      expect(described_class.send(:validate_p256_public_key, invalid_key)).to be false
+    end
+  end
+
+  describe '.validate_auth_key' do
+    it 'returns true for 16-byte key' do
+      auth_bytes = 'a' * 16
+      expect(described_class.send(:validate_auth_key, auth_bytes)).to be true
+    end
+
+    it 'returns true for keys in 8-32 byte range' do
+      [8, 12, 16, 24, 32].each do |length|
+        auth_bytes = 'a' * length
+        expect(described_class.send(:validate_auth_key, auth_bytes)).to be true
+      end
+    end
+
+    it 'returns false for too short key' do
+      auth_bytes = 'a' * 7
+      expect(described_class.send(:validate_auth_key, auth_bytes)).to be false
+    end
+
+    it 'returns false for too long key' do
+      auth_bytes = 'a' * 33
+      expect(described_class.send(:validate_auth_key, auth_bytes)).to be false
+    end
+  end
+
+  describe '.send_push_notification with key validation' do
+    let(:payload) { { title: 'Test', body: 'Test body' } }
+
+    it 'skips notification and logs warning when keys are invalid' do
+      allow(described_class).to receive(:valid_webpush_keys?).and_return(false)
+      expect(Rails.logger).to receive(:warn).with(/Invalid WebPush keys.*skipping notification/)
+      expect(WebPush).not_to receive(:payload_send)
+
+      result = described_class.send(:send_push_notification, subscription, payload)
+      expect(result).to be false
+    end
+
+    it 'handles OpenSSL::PKey::ECError gracefully when keys are valid' do
+      allow(described_class).to receive_messages(valid_webpush_keys?: true, build_push_options: {})
+      allow(WebPush).to receive(:payload_send).and_raise(OpenSSL::PKey::ECError, 'EC_POINT_bn2point: invalid encoding')
+      expect(Rails.logger).to receive(:error).with(/Unexpected encryption error/)
+
+      result = described_class.send(:send_push_notification, subscription, payload)
       expect(result).to be false
     end
   end
