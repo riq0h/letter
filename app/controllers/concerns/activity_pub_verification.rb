@@ -75,6 +75,12 @@ module ActivityPubVerification
     actor_uri = @activity['actor']
     Rails.logger.debug { "🔍 Verifying signature for actor: #{actor_uri}" }
 
+    # リレーからの活動かチェック（署名検証前に実行）
+    if relay_activity?
+      Rails.logger.debug '✅ Verified as relay activity, skipping signature check'
+      return
+    end
+
     verifier = create_signature_verifier
 
     begin
@@ -83,18 +89,19 @@ module ActivityPubVerification
 
       return if signature_result
     rescue StandardError => e
-      Rails.logger.error "❌ Signature verification error: #{e.message}"
+      Rails.logger.warn "🔐 Signature verification error for #{actor_uri}: #{e.message}"
       Rails.logger.debug { "   Error class: #{e.class}" }
-      Rails.logger.debug { "   Backtrace: #{e.backtrace&.first(3)&.join(', ')}" }
+      Rails.logger.debug { "   Headers: #{request.headers['Signature']}" }
+      Rails.logger.debug { "   Method: #{request.method}" }
+      Rails.logger.debug { "   Path: #{request.fullpath}" }
+
+      # 特定のエラーは詳細ログ
+      if e.message.include?('key') || e.message.include?('public') || e.message.include?('signature')
+        Rails.logger.debug '   Public key issue detected, actor may have rotated keys'
+      end
     end
 
-    # リレーからの活動かチェック
-    if relay_activity?
-      Rails.logger.debug '✅ Verified as relay activity, skipping signature check'
-      return
-    end
-
-    Rails.logger.error "❌ Signature verification failed for actor: #{actor_uri}"
+    Rails.logger.warn "🔐 HTTP signature verification failed for actor: #{actor_uri}"
     raise ::ActivityPub::SignatureError, 'Signature verification failed'
   end
 

@@ -6,6 +6,9 @@ class InboxController < ApplicationController
   include ActivityPubObjectHandlers
   include GeneralErrorHandler
 
+  # エラーハンドリング
+  rescue_from ActivityPub::SignatureError, with: :handle_signature_error
+
   # CSRFトークン無効化（外部からのPOST）
   skip_before_action :verify_authenticity_token
 
@@ -26,6 +29,15 @@ class InboxController < ApplicationController
   end
 
   private
+
+  # 署名検証失敗時の処理
+  def handle_signature_error(error)
+    actor_uri = @activity&.dig('actor') || 'unknown'
+    Rails.logger.warn "🔐 HTTP signature verification failed for #{actor_uri}: #{error.message}"
+
+    # クライアント側エラーとして401で返す（サーバエラーにしない）
+    render json: { error: 'Signature verification failed' }, status: :unauthorized
+  end
 
   def process_activity
     case @activity['type']
@@ -67,11 +79,6 @@ class InboxController < ApplicationController
   def handle_validation_error(error)
     Rails.logger.error "❌ ActivityPub validation error: #{error.message}"
     render json: { error: error.message }, status: :bad_request
-  end
-
-  def handle_signature_error(error)
-    Rails.logger.error "🔒 HTTP Signature error: #{error.message}"
-    render_authentication_required
   end
 
   def check_if_sender_blocked

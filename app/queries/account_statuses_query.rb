@@ -95,7 +95,7 @@ class AccountStatusesQuery
         %w[public unlisted]
       end
     else
-      # 未認証ユーザー：public のみ表示
+      # 未認証ユーザ：public のみ表示
       %w[public]
     end
   end
