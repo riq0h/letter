@@ -161,6 +161,13 @@ class WebPushDelivery
 
     # プッシュ通知の送信
     def send_push_notification(subscription, payload)
+      # 暗号化キーの検証
+      unless valid_subscription_keys?(subscription)
+        Rails.logger.warn "❌ Invalid subscription keys for #{subscription.actor.username}, removing subscription"
+        subscription.destroy
+        return false
+      end
+
       WebPush.payload_send(**build_push_options(subscription, payload))
       true
     rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
@@ -220,6 +227,24 @@ class WebPushDelivery
     # VAPID秘密キー
     def vapid_private_key
       ENV['VAPID_PRIVATE_KEY'] || Rails.application.credentials.dig(:vapid, :private_key)
+    end
+
+    # サブスクリプションキーの検証
+    def valid_subscription_keys?(subscription)
+      return false if subscription.p256dh_key.blank? || subscription.auth_key.blank?
+
+      # Base64デコードテスト
+      Base64.decode64(subscription.p256dh_key)
+      Base64.decode64(subscription.auth_key)
+
+      # 長さチェック (p256dh: 65バイト, auth: 16バイト)
+      p256dh_decoded = Base64.decode64(subscription.p256dh_key)
+      auth_decoded = Base64.decode64(subscription.auth_key)
+
+      p256dh_decoded.length == 65 && auth_decoded.length == 16
+    rescue ArgumentError
+      # Base64デコードに失敗
+      false
     end
   end
 end

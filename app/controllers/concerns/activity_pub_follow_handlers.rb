@@ -180,7 +180,7 @@ module ActivityPubFollowHandlers
     Rails.logger.info '💔 Processing Undo Like activity'
 
     # Like objectのオブジェクトIDを取得
-    liked_object_id = extract_like_object_id(object)
+    liked_object_id = extract_like_object_id_from_undo(object)
     return unless liked_object_id
 
     # 対象オブジェクトを検索
@@ -206,7 +206,7 @@ module ActivityPubFollowHandlers
     Rails.logger.info '🔄 Processing Undo Announce activity'
 
     # Announce objectのオブジェクトIDを取得
-    announced_object_id = extract_announce_object_id(object)
+    announced_object_id = extract_announce_object_id_from_undo(object)
     return unless announced_object_id
 
     # 対象オブジェクトを検索
@@ -232,14 +232,14 @@ module ActivityPubFollowHandlers
     object.is_a?(Hash) ? object['id'] : object
   end
 
-  def extract_like_object_id(like_object)
-    # Like活動のobjectフィールドから対象のオブジェクトIDを抽出
+  def extract_like_object_id_from_undo(like_object)
+    # Undo.Like活動のobjectフィールドから対象のオブジェクトIDを抽出
     object = like_object['object']
     object.is_a?(Hash) ? object['id'] : object
   end
 
-  def extract_announce_object_id(announce_object)
-    # Announce活動のobjectフィールドから対象のオブジェクトIDを抽出
+  def extract_announce_object_id_from_undo(announce_object)
+    # Undo.Announce活動のobjectフィールドから対象のオブジェクトIDを抽出
     object = announce_object['object']
     object.is_a?(Hash) ? object['id'] : object
   end

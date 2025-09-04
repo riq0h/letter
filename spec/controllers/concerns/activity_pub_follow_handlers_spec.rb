@@ -4,7 +4,7 @@ require 'rails_helper'
 
 RSpec.describe ActivityPubFollowHandlers, type: :controller do
   controller(ApplicationController) do
-    include ActivityPubFollowHandlers
+    include described_class
 
     # CSRFトークン無効化（テスト用）
     skip_before_action :verify_authenticity_token
