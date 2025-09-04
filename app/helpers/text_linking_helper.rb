@@ -78,8 +78,8 @@ module TextLinkingHelper
       username = ::Regexp.last_match(1)
       domain = ::Regexp.last_match(2)
       mention_url = build_mention_url(username, domain)
-      # Mastodon標準のh-card形式でメンションを作成
-      %(<a href="#{mention_url}" class="h-card mention"><span class="p-nickname">@#{username}</span></a>)
+      # ActivityPub標準のh-card形式でメンションを作成
+      %(<a href="#{mention_url}" class="h-card u-url mention"><span class="p-nickname">@#{username}</span></a>)
     end
   end
 
@@ -168,7 +168,7 @@ module TextLinkingHelper
         mention_url = build_mention_url(username, domain)
         display_text = "@#{username}"
 
-        linked_mention = "<a href=\"#{mention_url}\" class=\"h-card mention\"><span class=\"p-nickname\">#{display_text}</span></a>"
+        linked_mention = "<a href=\"#{mention_url}\" class=\"h-card u-url mention\"><span class=\"p-nickname\">#{display_text}</span></a>"
 
         # オフセットを考慮して置換
         actual_start = mention_start + offset
@@ -226,8 +226,8 @@ module TextLinkingHelper
       href_url = ::Regexp.last_match(2)
       username = ::Regexp.last_match(3)
 
-      # Mastodon標準のh-card形式に変換
-      %(<a href="#{href_url}" class="h-card mention"><span class="p-nickname">@#{username}</span></a>)
+      # ActivityPub標準のh-card形式に変換
+      %(<a href="#{href_url}" class="h-card u-url mention"><span class="p-nickname">@#{username}</span></a>)
     end
 
     # パターン2: @マークがspan内にある場合
@@ -236,8 +236,8 @@ module TextLinkingHelper
       href_url = ::Regexp.last_match(2)
       username = ::Regexp.last_match(3)
 
-      # Mastodon標準のh-card形式に変換
-      %(<a href="#{href_url}" class="h-card mention"><span class="p-nickname">@#{username}</span></a>)
+      # ActivityPub標準のh-card形式に変換
+      %(<a href="#{href_url}" class="h-card u-url mention"><span class="p-nickname">@#{username}</span></a>)
     end
   end
 

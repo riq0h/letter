@@ -37,7 +37,9 @@ class ActivityPubContentProcessor
       linked_content = apply_url_links(escaped_text)
       mention_linked_content = apply_mention_links(linked_content)
     end
-    object.update_column(:content, mention_linked_content) if mention_linked_content != content
+    # ActivityPub標準に従ってpタグで囲む
+    wrapped_content = wrap_content_in_p(mention_linked_content)
+    object.update_column(:content, wrapped_content) if wrapped_content != content
 
     # リモート投稿の場合はActivityPubメタデータからも処理
     process_activitypub_metadata unless object.local?
@@ -129,5 +131,14 @@ class ActivityPubContentProcessor
     # ActivityPubのtagフィールドから処理する必要がある場合はここで実装
     # 現在はテキストベースの処理のみを有効化
     Rails.logger.debug { "ActivityPub metadata processing enabled for object #{object.id}" }
+  end
+
+  def wrap_content_in_p(content)
+    return content if content.blank?
+    
+    # 既にpタグで囲まれている場合はそのまま返す
+    return content if content.strip.start_with?('<p') && content.strip.end_with?('</p>')
+    
+    "<p>#{content}</p>"
   end
 end
