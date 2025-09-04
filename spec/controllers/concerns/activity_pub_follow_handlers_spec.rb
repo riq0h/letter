@@ -79,6 +79,24 @@ RSpec.describe ActivityPubFollowHandlers, type: :controller do
 
       expect(response).to have_http_status(:accepted)
     end
+
+    it 'removes related notifications' do
+      # favourite let! でnotificationが既に1つ作成されている
+      # さらに追加のnotificationを作成
+      additional_notification = create(:notification,
+                                       account: status.actor,
+                                       from_account: remote_actor,
+                                       notification_type: 'favourite',
+                                       activity_type: 'ActivityPubObject',
+                                       activity_id: status.id.to_s)
+
+      # 既存1つ + 追加1つ = 合計2つのnotificationが削除される
+      expect do
+        post :test_undo_action, params: { activity: undo_like_activity, sender: remote_actor }
+      end.to change(Notification, :count).by(-2)
+
+      expect(Notification.exists?(additional_notification.id)).to be false
+    end
   end
 
   describe '#handle_undo_announce' do
@@ -132,6 +150,24 @@ RSpec.describe ActivityPubFollowHandlers, type: :controller do
       end.not_to(change(Reblog, :count))
 
       expect(response).to have_http_status(:accepted)
+    end
+
+    it 'removes related notifications' do
+      # reblog let! でnotificationが既に1つ作成されている
+      # さらに追加のnotificationを作成
+      additional_notification = create(:notification,
+                                       account: status.actor,
+                                       from_account: remote_actor,
+                                       notification_type: 'reblog',
+                                       activity_type: 'ActivityPubObject',
+                                       activity_id: status.id.to_s)
+
+      # 既存1つ + 追加1つ = 合計2つのnotificationが削除される
+      expect do
+        post :test_undo_action, params: { activity: undo_announce_activity, sender: remote_actor }
+      end.to change(Notification, :count).by(-2)
+
+      expect(Notification.exists?(additional_notification.id)).to be false
     end
   end
 end

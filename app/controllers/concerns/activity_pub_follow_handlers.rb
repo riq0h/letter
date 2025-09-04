@@ -190,6 +190,9 @@ module ActivityPubFollowHandlers
     # Favouriteレコードを検索して削除
     favourite = Favourite.find_by(actor: @sender, object: target_object)
     if favourite
+      # 関連するNotificationも削除
+      remove_favourite_notification(favourite, target_object)
+
       favourite.destroy!
       Rails.logger.info "💔 Like undone: removed favourite #{favourite.id} for object #{target_object.ap_id}"
     end
@@ -216,6 +219,9 @@ module ActivityPubFollowHandlers
     # Reblogレコードを検索して削除
     reblog = Reblog.find_by(actor: @sender, object: target_object)
     if reblog
+      # 関連するNotificationも削除
+      remove_reblog_notification(reblog, target_object)
+
       reblog.destroy!
       Rails.logger.info "🔄 Announce undone: removed reblog #{reblog.id} for object #{target_object.ap_id}"
     end
@@ -242,5 +248,37 @@ module ActivityPubFollowHandlers
     # Undo.Announce活動のobjectフィールドから対象のオブジェクトIDを抽出
     object = announce_object['object']
     object.is_a?(Hash) ? object['id'] : object
+  end
+
+  # Favourite通知の削除
+  def remove_favourite_notification(favourite, target_object)
+    notifications = Notification.where(
+      account: target_object.actor,
+      from_account: favourite.actor,
+      notification_type: 'favourite',
+      activity_type: 'ActivityPubObject',
+      activity_id: target_object.id.to_s
+    )
+
+    notifications.each do |notification|
+      notification.destroy!
+      Rails.logger.info "🔔 Removed favourite notification #{notification.id}"
+    end
+  end
+
+  # Reblog通知の削除
+  def remove_reblog_notification(reblog, target_object)
+    notifications = Notification.where(
+      account: target_object.actor,
+      from_account: reblog.actor,
+      notification_type: 'reblog',
+      activity_type: 'ActivityPubObject',
+      activity_id: target_object.id.to_s
+    )
+
+    notifications.each do |notification|
+      notification.destroy!
+      Rails.logger.info "🔔 Removed reblog notification #{notification.id}"
+    end
   end
 end
