@@ -4,7 +4,7 @@ class ProfilesController < ApplicationController
   include StatusSerializer
   include PaginationHelper
   include TimelineBuilder
-  before_action :find_actor
+  before_action :find_actor, except: [:redirect_to_frontend]
 
   def show
     return render_activitypub_profile if activitypub_request?
@@ -24,10 +24,35 @@ class ProfilesController < ApplicationController
     @posts_count = @actor.posts_count
   end
 
+  # GET /users/{username}
+  # ActivityPubリクエストかフロントエンドリダイレクトかを判定
+  def redirect_to_frontend
+    username = params[:username]
+
+    # ActivityPubクライアントの場合はJSONレスポンスを返す
+    if activitypub_request?
+      render_activitypub_profile_by_username(username)
+    else
+      # ブラウザアクセスの場合はフロントエンドにリダイレクト
+      redirect_to profile_path(username: username), status: :moved_permanently
+    end
+  end
+
   private
 
   def render_activitypub_profile
     render json: @actor.to_activitypub(request),
+           content_type: 'application/activity+json; charset=utf-8'
+  end
+
+  def render_activitypub_profile_by_username(username)
+    actor = Actor.local.find_by(username: username)
+    unless actor
+      render json: { error: 'Actor not found' }, status: :not_found
+      return
+    end
+
+    render json: actor.to_activitypub(request),
            content_type: 'application/activity+json; charset=utf-8'
   end
 

@@ -30,7 +30,7 @@ class ObjectsController < ApplicationController
 
     return if @object
 
-    render_not_found('Object')
+    render json: { error: 'Object not found' }, status: :not_found
   end
 
   def ensure_activitypub_request

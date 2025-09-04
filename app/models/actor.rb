@@ -162,12 +162,12 @@ class Actor < ApplicationRecord
     "acct:#{username}@#{domain || local_domain}"
   end
 
-  # パブリック HTML URL
+  # パブリック HTML URL (クライアント向けにはAPI形式)
   def public_url
     return nil unless local?
 
     base_url = Rails.application.config.activitypub.base_url
-    "#{base_url}/@#{username}"
+    "#{base_url}/users/#{username}"
   end
 
   # 表示メソッド

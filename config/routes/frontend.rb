@@ -16,6 +16,7 @@ Rails.application.routes.draw do
 
   # API形式URLからフロントエンド形式URLへのリダイレクト
   get '/users/:username/posts/:id', to: 'posts#redirect_to_frontend', as: :post_redirect
+  get '/users/:username', to: 'profiles#redirect_to_frontend', as: :profile_redirect
 
   # 認証
   get '/login', to: 'sessions#new'

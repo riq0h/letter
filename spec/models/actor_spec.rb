@@ -98,9 +98,9 @@ RSpec.describe Actor, type: :model do
   end
 
   describe '#public_url' do
-    it 'returns correct public URL for local actor' do
+    it 'returns API-style URL for local actor (client compatibility)' do
       actor = create(:actor, username: 'testuser', local: true)
-      expected = "#{Rails.application.config.activitypub.base_url}/@testuser"
+      expected = "#{Rails.application.config.activitypub.base_url}/users/testuser"
       expect(actor.public_url).to eq(expected)
     end
 

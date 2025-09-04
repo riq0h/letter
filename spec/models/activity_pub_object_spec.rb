@@ -129,8 +129,8 @@ RSpec.describe ActivityPubObject, type: :model do
       let(:actor) { create(:actor, username: 'testuser') }
       let(:object) { create(:activity_pub_object, actor: actor, local: true) }
 
-      it 'returns correct public URL' do
-        expected = "#{Rails.application.config.activitypub.base_url}/@testuser/#{object.id}"
+      it 'returns API-style URL (client compatibility)' do
+        expected = "#{Rails.application.config.activitypub.base_url}/users/testuser/posts/#{object.id}"
         expect(object.public_url).to eq(expected)
       end
     end

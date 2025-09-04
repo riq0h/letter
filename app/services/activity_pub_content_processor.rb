@@ -49,9 +49,9 @@ class ActivityPubContentProcessor
     return object.ap_id if object.ap_id.present? && !object.local?
     return nil unless object.actor&.username
 
-    # base_urlから適切なURLを生成
+    # クライアント向けにはAPI形式のURLを返す（ブラウザアクセス時はコントローラでリダイレクト）
     base_url = Rails.application.config.activitypub.base_url
-    "#{base_url}/@#{object.actor.username}/#{object.id}"
+    "#{base_url}/users/#{object.actor.username}/posts/#{object.id}"
   rescue StandardError => e
     Rails.logger.warn "Failed to generate public_url for object #{object.id}: #{e.message}"
     object.ap_id.presence || ''

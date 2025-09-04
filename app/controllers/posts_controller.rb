@@ -9,7 +9,13 @@ class PostsController < ApplicationController
     username = params[:username]
     id = params[:id]
 
-    redirect_to post_html_path(username: username, id: id), status: :moved_permanently
+    # ActivityPubクライアントの場合はJSONレスポンスを返す
+    if activitypub_request?
+      render_activitypub_object(username, id)
+    else
+      # ブラウザアクセスの場合はフロントエンドにリダイレクト
+      redirect_to post_html_path(username: username, id: id), status: :moved_permanently
+    end
   end
 
   # GET /@{username}/{id}
@@ -22,6 +28,34 @@ class PostsController < ApplicationController
   end
 
   private
+
+  def activitypub_request?
+    # Accept headerでActivityPubリクエストを判定
+    accept_header = request.headers['Accept'] || ''
+    accept_header.include?('application/activity+json') ||
+      accept_header.include?('application/ld+json') ||
+      accept_header.include?('application/json')
+  end
+
+  def render_activitypub_object(username, id)
+    actor = Actor.local.find_by(username: username)
+    unless actor
+      render json: { error: 'Actor not found' }, status: :not_found
+      return
+    end
+
+    object = ActivityPubObject.where(actor: actor)
+                              .where(local: true)
+                              .find_by(id: id)
+    unless object
+      render json: { error: 'Object not found' }, status: :not_found
+      return
+    end
+
+    # ActivityPubObjectSerializerを使用してシリアライズ
+    serialized = ActivityPubObjectSerializer.new(object).to_activitypub
+    render json: serialized, content_type: 'application/activity+json'
+  end
 
   def setup_meta_tags
     title = truncate(@post.content_plaintext, length: 60)
@@ -85,7 +119,7 @@ class PostsController < ApplicationController
   end
 
   def render_not_found
-    render file: Rails.public_path.join('404.html'), status: :not_found
+    render plain: 'Not Found', status: :not_found
   end
 
   attr_writer :meta_tags
