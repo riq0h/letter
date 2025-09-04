@@ -161,12 +161,15 @@ class WebPushDelivery
 
     # プッシュ通知の送信
     def send_push_notification(subscription, payload)
+      Rails.logger.info "🔐 Validating WebPush keys for #{subscription.actor.username}"
+      
       # 事前検証でエラーを防ぐ
       unless valid_webpush_keys?(subscription)
         Rails.logger.warn "🔐 Invalid WebPush keys for #{subscription.actor.username}, skipping notification"
         return false
       end
 
+      Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
       WebPush.payload_send(**build_push_options(subscription, payload))
       true
     rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
