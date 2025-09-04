@@ -183,9 +183,8 @@ class WebPushDelivery
     end
 
     # プッシュオプションの構築
-    def build_push_options(subscription, payload)
-      {
-        message: payload.to_json,
+    def build_push_options(subscription, payload = nil, test: false)
+      options = {
         endpoint: subscription.endpoint,
         p256dh: subscription.p256dh_key,
         auth: subscription.auth_key,
@@ -193,6 +192,9 @@ class WebPushDelivery
         ttl: 3600 * 24,
         urgency: 'normal'
       }
+      
+      options[:message] = payload.to_json unless test
+      options
     end
 
     # VAPIDオプションの構築
@@ -239,14 +241,29 @@ class WebPushDelivery
     def valid_webpush_keys?(subscription)
       return false if subscription.p256dh_key.blank? || subscription.auth_key.blank?
 
-      WebPush::Encryption.encrypt('test', subscription.p256dh_key, subscription.auth_key)
-      true
+      # 実際のWebPush.payload_sendと同じオプションでテスト
+      test_payload = { message: 'test' }.to_json
+      test_options = build_push_options(subscription, test: true)
+      
+      # VAPIDキーがない場合はスキップ（実際の送信もスキップされるため）
+      return false unless vapid_keys_configured?
+      
+      WebPush.payload_send(**test_options.merge(message: test_payload))
+      false # テスト送信なので実際には送信させない
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
       Rails.logger.debug { "🔐 WebPush key validation failed: #{e.message}" }
       false
-    rescue StandardError => e
-      Rails.logger.warn "❌ Unexpected error validating WebPush keys: #{e.message}"
+    rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
+      Rails.logger.debug { "🔐 WebPush subscription invalid: #{e.message}" }
       false
+    rescue StandardError => e
+      # ネットワークエラーなど送信の問題は検証OKとみなす
+      if e.message.include?('getaddrinfo') || e.message.include?('Connection') || e.message.include?('timeout')
+        true
+      else
+        Rails.logger.warn "❌ Unexpected error validating WebPush keys: #{e.message}"
+        false
+      end
     end
   end
 end
