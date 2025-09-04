@@ -135,10 +135,10 @@ class ActivityPubContentProcessor
 
   def wrap_content_in_p(content)
     return content if content.blank?
-    
+
     # 既にpタグで囲まれている場合はそのまま返す
     return content if content.strip.start_with?('<p') && content.strip.end_with?('</p>')
-    
+
     "<p>#{content}</p>"
   end
 end
