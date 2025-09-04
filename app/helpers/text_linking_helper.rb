@@ -166,11 +166,9 @@ module TextLinkingHelper
 
       unless inside_a_tag
         mention_url = build_mention_url(username, domain)
-        # ローカル・リモート問わず@usernameのみ表示（ドメイン部分を隠す）
         display_text = "@#{username}"
 
-        linked_mention = "<a href=\"#{mention_url}\" target=\"_blank\" rel=\"noopener noreferrer\" " \
-                         "class=\"text-gray-500 hover:text-gray-700 transition-colors\">#{display_text}</a>"
+        linked_mention = "<a href=\"#{mention_url}\" class=\"h-card mention\"><span class=\"p-nickname\">#{display_text}</span></a>"
 
         # オフセットを考慮して置換
         actual_start = mention_start + offset
@@ -199,7 +197,9 @@ module TextLinkingHelper
       # リモートユーザの場合、Actorレコードから正しいURLを取得を試行
       actor = Actor.find_by(username: safe_username, domain: safe_domain)
       if actor&.ap_id.present?
-        actor.ap_id
+        # ap_idが完全なURLの場合はそのまま使用、そうでなければhttpsを追加
+        actor_url = actor.ap_id
+        actor_url.start_with?('http') ? actor_url : "https://#{actor_url}"
       else
         # Actorレコードがない場合は一般的なパターンを使用（暫定）
         "https://#{ERB::Util.url_encode(safe_domain)}/@#{ERB::Util.url_encode(safe_username)}"
