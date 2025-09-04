@@ -403,7 +403,7 @@ RSpec.describe WebPushDelivery do
     end
 
     it 'returns true for valid keys' do
-      allow(WebPush::Encryption).to receive(:encrypt).and_return('encrypted_data')
+      allow(WebPush).to receive(:payload_send).and_return(true)
 
       expect(described_class.send(:valid_webpush_keys?, valid_subscription)).to be true
     end
@@ -424,7 +424,7 @@ RSpec.describe WebPushDelivery do
       subscription = build(:web_push_subscription,
                            p256dh_key: Base64.strict_encode64('a' * 65),
                            auth_key: Base64.strict_encode64('b' * 16))
-      allow(WebPush::Encryption).to receive(:encrypt).and_raise(ArgumentError, 'Invalid key')
+      allow(WebPush).to receive(:payload_send).and_raise(ArgumentError, 'Invalid key')
 
       expect(described_class.send(:valid_webpush_keys?, subscription)).to be false
     end

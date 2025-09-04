@@ -190,7 +190,7 @@ class WebPushDelivery
     end
 
     # プッシュオプションの構築
-    def build_push_options(subscription, payload = nil, test: false)
+    def build_push_options(subscription, payload = nil, validation_mode: false)
       options = {
         endpoint: subscription.endpoint,
         p256dh: subscription.p256dh_key,
@@ -200,7 +200,7 @@ class WebPushDelivery
         urgency: 'normal'
       }
 
-      options[:message] = payload.to_json unless test
+      options[:message] = payload.to_json unless validation_mode
       options
     end
 
@@ -247,31 +247,21 @@ class WebPushDelivery
     # WebPush暗号化キーの適切な検証
     def valid_webpush_keys?(subscription)
       return false if subscription.p256dh_key.blank? || subscription.auth_key.blank?
-
-      # VAPIDキーがない場合はスキップ（実際の送信もスキップされるため）
       return false unless vapid_keys_configured?
 
-      # 実際のWebPush.payload_sendと同じオプションでテスト
-      test_payload = { message: 'test' }.to_json
-      test_options = build_push_options(subscription, test: true)
+      perform_webpush_validation(subscription)
+    end
 
-      Rails.logger.info "🔍 Testing WebPush with endpoint: #{subscription.endpoint}"
+    # WebPush検証の実行
+    def perform_webpush_validation(subscription)
+      validation_payload = { message: 'validation' }.to_json
+      validation_options = build_push_options(subscription, validation_mode: true)
 
-      # 実際のWebPush.payload_sendで使用される暗号化処理を直接テスト
-      # 但しネットワーク送信はモック
-      require 'net/http'
-      original_method = Net::HTTP.instance_method(:request)
-      Net::HTTP.define_method(:request) do |_req|
-        # リクエストを作成させるが送信はスキップ
-        OpenStruct.new(code: '200', message: 'OK')
-      end
+      Rails.logger.info "🔍 Validating WebPush with endpoint: #{subscription.endpoint}"
 
-      begin
-        WebPush.payload_send(**test_options, message: test_payload)
+      mock_network_request do
+        WebPush.payload_send(**validation_options, message: validation_payload)
         true # 暗号化成功
-      ensure
-        # 元のメソッドを復元
-        Net::HTTP.define_method(:request, original_method)
       end
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
       Rails.logger.info "🔐 WebPush key validation failed (crypto): #{e.message}"
@@ -280,13 +270,31 @@ class WebPushDelivery
       Rails.logger.info "🔐 WebPush subscription invalid: #{e.message}"
       false
     rescue StandardError => e
-      Rails.logger.info "🔍 WebPush validation error (#{e.class}): #{e.message}"
+      handle_validation_error(e)
+    end
+
+    # ネットワークリクエストをモック
+    def mock_network_request
+      require 'net/http'
+      original_method = Net::HTTP.instance_method(:request)
+      Net::HTTP.define_method(:request) do |_req|
+        Struct.new(:code, :message).new('200', 'OK')
+      end
+
+      yield
+    ensure
+      Net::HTTP.define_method(:request, original_method)
+    end
+
+    # 検証エラーの処理
+    def handle_validation_error(error)
+      Rails.logger.info "🔍 WebPush validation error (#{error.class}): #{error.message}"
       # ネットワークエラーなど送信の問題は検証OKとみなす
-      if e.message.include?('getaddrinfo') || e.message.include?('Connection') || e.message.include?('timeout')
+      if error.message.include?('getaddrinfo') || error.message.include?('Connection') || error.message.include?('timeout')
         Rails.logger.info '✅ Network error during validation, assuming keys are valid'
         true
       else
-        Rails.logger.warn "❌ Unexpected error validating WebPush keys: #{e.message}"
+        Rails.logger.warn "❌ Unexpected error validating WebPush keys: #{error.message}"
         false
       end
     end
