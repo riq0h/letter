@@ -161,7 +161,7 @@ class WebPushDelivery
 
     # プッシュ通知の送信
     def send_push_notification(subscription, payload)
-      WebPush.payload_send(build_push_options(subscription, payload))
+      WebPush.payload_send(**build_push_options(subscription, payload))
       true
     rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
       handle_invalid_subscription(subscription, e)

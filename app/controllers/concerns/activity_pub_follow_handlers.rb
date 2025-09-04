@@ -129,6 +129,10 @@ module ActivityPubFollowHandlers
       handle_undo_follow(object)
     when 'Block'
       handle_undo_block(object)
+    when 'Like'
+      handle_undo_like(object)
+    when 'Announce'
+      handle_undo_announce(object)
     else
       Rails.logger.warn "⚠️ Unsupported Undo object: #{object['type']}"
     end
@@ -172,7 +176,71 @@ module ActivityPubFollowHandlers
     Rails.logger.info "🔓 Block undone: #{@sender.ap_id} unblocked #{@target_actor.ap_id}"
   end
 
+  def handle_undo_like(object)
+    Rails.logger.info '💔 Processing Undo Like activity'
+
+    # Like objectのオブジェクトIDを取得
+    liked_object_id = extract_like_object_id(object)
+    return unless liked_object_id
+
+    # 対象オブジェクトを検索
+    target_object = ActivityPubObject.find_by(ap_id: liked_object_id)
+    return unless target_object
+
+    # Favouriteレコードを検索して削除
+    favourite = Favourite.find_by(actor: @sender, object: target_object)
+    if favourite
+      favourite.destroy!
+      Rails.logger.info "💔 Like undone: removed favourite #{favourite.id} for object #{target_object.ap_id}"
+    end
+
+    # Activityレコードも削除（あれば）
+    activity = target_object.activities.find_by(actor: @sender, activity_type: 'Like')
+    return unless activity
+
+    activity.destroy!
+    Rails.logger.info "💔 Like activity removed: #{activity.id}"
+  end
+
+  def handle_undo_announce(object)
+    Rails.logger.info '🔄 Processing Undo Announce activity'
+
+    # Announce objectのオブジェクトIDを取得
+    announced_object_id = extract_announce_object_id(object)
+    return unless announced_object_id
+
+    # 対象オブジェクトを検索
+    target_object = ActivityPubObject.find_by(ap_id: announced_object_id)
+    return unless target_object
+
+    # Reblogレコードを検索して削除
+    reblog = Reblog.find_by(actor: @sender, object: target_object)
+    if reblog
+      reblog.destroy!
+      Rails.logger.info "🔄 Announce undone: removed reblog #{reblog.id} for object #{target_object.ap_id}"
+    end
+
+    # Activityレコードも削除（あれば）
+    activity = target_object.activities.find_by(actor: @sender, activity_type: 'Announce')
+    return unless activity
+
+    activity.destroy!
+    Rails.logger.info "🔄 Announce activity removed: #{activity.id}"
+  end
+
   def extract_activity_id(object)
+    object.is_a?(Hash) ? object['id'] : object
+  end
+
+  def extract_like_object_id(like_object)
+    # Like活動のobjectフィールドから対象のオブジェクトIDを抽出
+    object = like_object['object']
+    object.is_a?(Hash) ? object['id'] : object
+  end
+
+  def extract_announce_object_id(announce_object)
+    # Announce活動のobjectフィールドから対象のオブジェクトIDを抽出
+    object = announce_object['object']
     object.is_a?(Hash) ? object['id'] : object
   end
 end
