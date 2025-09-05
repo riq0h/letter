@@ -53,7 +53,22 @@ class MediaAttachmentCreationService
     attrs[:processing_status] = processing_status if processing_status
 
     media_attachment = user.media_attachments.build(attrs)
-    media_attachment.file.attach(file)
+
+    # S3が有効な場合はimg/フォルダに格納
+    if ENV['S3_ENABLED'] == 'true'
+      custom_key = "img/#{SecureRandom.hex(16)}"
+      blob = ActiveStorage::Blob.create_and_upload!(
+        io: file,
+        filename: file.original_filename,
+        content_type: file.content_type,
+        service_name: :cloudflare_r2,
+        key: custom_key
+      )
+      media_attachment.file.attach(blob)
+    else
+      media_attachment.file.attach(file)
+    end
+
     media_attachment
   end
 
