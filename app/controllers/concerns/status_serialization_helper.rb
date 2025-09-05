@@ -241,7 +241,7 @@ module StatusSerializationHelper
 
         # 既にaタグ内に含まれていないかチェック（正規化後のh-card形式も含む）
         mention_already_linked = content.include?(%(<a href="#{actor.ap_id}")) ||
-                                 (actor.domain && content.include?(%(<a href="https://#{actor.domain}/@#{actor.username}"))) ||
+                                 (actor.domain && content.include?(%(<a href="https://#{actor.domain}/users/#{actor.username}"))) ||
                                  content.include?(%(>@#{actor.username}</a>)) ||
                                  content.include?(%(<span class="p-nickname">@#{actor.username}</span>))
 

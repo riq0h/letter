@@ -164,6 +164,14 @@ RSpec.describe TextLinkingHelper, type: :helper do
       expect(result).not_to include('https://example.com/users/test')
       expect(result).not_to include('https://example.com/image.jpg')
     end
+
+    it 'filters out hashtag links' do
+      content = '<p>Check this <a href="/tags/ruby" class="hashtag">#ruby</a> and <a href="https://example.com">normal link</a></p>'
+      result = helper.send(:extract_urls_from_content, content)
+
+      expect(result).not_to include('/tags/ruby')
+      expect(result).to include('https://example.com')
+    end
   end
 
   describe '#valid_preview_url?' do

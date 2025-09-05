@@ -20,7 +20,16 @@ module TextLinkingHelper
     return [] if content.blank?
 
     # <a href="URL">形式のURLを抽出（これが最も正確）
-    urls = content.scan(/<a[^>]+href=["']([^"']+)["'][^>]*>/i).flatten
+    # ただし、ハッシュタグリンク（/tags/やclassにhashtag含む）は除外
+    urls = []
+    content.scan(/<a[^>]+href=["']([^"']+)["'][^>]*>/i) do |match|
+      href = match[0]
+      full_tag = ::Regexp.last_match(0) # マッチした全体のタグ
+
+      # ハッシュタグリンクの場合はスキップ
+      # /tags/ で始まるパス、または class属性に hashtag が含まれる場合
+      urls << href unless href.start_with?('/tags/') || full_tag.include?('hashtag')
+    end
 
     # プレーンテキストのURLも追加抽出（aタグに含まれていないもの）
     content.scan(/(https?:\/\/[^\s<>"']+)/i) do |url|
@@ -43,6 +52,10 @@ module TextLinkingHelper
       # ActivityPubのユーザリンク（メンション）は除外
       # /users/username や /@username 形式のパスを除外
       return false if /^\/(users\/|@)/.match?(uri.path)
+
+      # ハッシュタグリンクは除外
+      # /tags/hashtag 形式のパスを除外
+      return false if /^\/tags\//.match?(uri.path)
 
       # 画像・動画・音声ファイルは除外
       path = uri.path.downcase
