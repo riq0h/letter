@@ -111,6 +111,9 @@ class AccountIdentifier
   def self.account_query?(query)
     return false if query.blank?
 
+    # URL形式のユーザプロファイルもアカウントクエリとして扱う
+    return true if query.match?(/^https?:\/\/[^\/]+\/users\/[^\/]+$/)
+
     query.match?(/^@?[\w.-]+@[\w.-]+\.\w+$/) ||
       query.start_with?('@') ||
       domain_query?(query)

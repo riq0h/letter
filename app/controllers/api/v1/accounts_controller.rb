@@ -359,7 +359,17 @@ module Api
       end
 
       def lookup_account(acct)
-        if acct.include?('@')
+        # URL形式の場合
+        if acct.match?(/^https?:\/\//)
+          uri = URI.parse(acct)
+          return nil unless uri.host == Rails.application.config.activitypub.domain
+
+          # /users/username 形式のパスを解析
+          if uri.path =~ /^\/users\/([^\/]+)$/
+            username = ::Regexp.last_match(1)
+            Actor.find_by(username: username, local: true)
+          end
+        elsif acct.include?('@')
           username, domain = acct.split('@', 2)
           # まずローカルDBから検索
           actor = Actor.find_by(username: username, domain: domain)
