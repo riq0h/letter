@@ -131,11 +131,16 @@ class ActorCreationService
       return
     end
 
-    actor.public_send(attachment_name).attach(
-      io: StringIO.new(image_data),
-      filename: filename,
-      content_type: content_type
-    )
+    # ActorImageProcessorを使用してフォルダ構造を適用
+    processor = ActorImageProcessor.new(actor)
+    io = StringIO.new(image_data)
+
+    case attachment_name.to_s
+    when 'avatar'
+      processor.attach_avatar_with_folder(io: io, filename: filename, content_type: content_type)
+    when 'header'
+      processor.attach_header_with_folder(io: io, filename: filename, content_type: content_type)
+    end
 
     Rails.logger.debug { "Successfully attached #{attachment_name} (#{image_data.bytesize} bytes)" }
   rescue StandardError => e

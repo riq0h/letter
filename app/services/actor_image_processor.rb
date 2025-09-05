@@ -14,7 +14,7 @@ class ActorImageProcessor
     processed_io = process_avatar_image(io)
 
     if ENV['S3_ENABLED'] == 'true'
-      custom_key = "img/#{SecureRandom.hex(16)}"
+      custom_key = "avatar/#{SecureRandom.hex(16)}"
       blob = ActiveStorage::Blob.create_and_upload!(
         io: processed_io,
         filename: filename,
@@ -33,7 +33,7 @@ class ActorImageProcessor
 
   def attach_header_with_folder(io:, filename:, content_type:)
     if ENV['S3_ENABLED'] == 'true'
-      custom_key = "img/#{SecureRandom.hex(16)}"
+      custom_key = "header/#{SecureRandom.hex(16)}"
       blob = ActiveStorage::Blob.create_and_upload!(
         io: io,
         filename: filename,
