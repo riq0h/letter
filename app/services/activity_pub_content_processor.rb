@@ -30,7 +30,8 @@ class ActivityPubContentProcessor
     process_links
 
     if content.include?('<') && content.include?('>')
-      linked_content = apply_url_links_to_html(content)
+      normalized_content = normalize_html_structure(content)
+      linked_content = apply_url_links_to_html(normalized_content)
       mention_linked_content = apply_mention_links_to_html(linked_content)
     else
       escaped_text = ERB::Util.html_escape(ActionView::Base.full_sanitizer.sanitize(content).strip).gsub("\n", '<br>')
@@ -131,6 +132,14 @@ class ActivityPubContentProcessor
     # ActivityPubのtagフィールドから処理する必要がある場合はここで実装
     # 現在はテキストベースの処理のみを有効化
     Rails.logger.debug { "ActivityPub metadata processing enabled for object #{object.id}" }
+  end
+
+  def normalize_html_structure(content)
+    return content if content.blank?
+
+    content.gsub('<p><div>', '<div>')
+           .gsub('</div></p>', '</div>')
+           .gsub('<p></p>', '')
   end
 
   def wrap_content_in_p(content)
