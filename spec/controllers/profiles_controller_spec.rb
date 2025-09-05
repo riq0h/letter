@@ -7,6 +7,11 @@ RSpec.describe ProfilesController, type: :controller do
 
   describe 'GET #redirect_to_frontend' do
     context 'when request is from browser' do
+      before do
+        request.headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        request.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      end
+
       it 'redirects to frontend profile URL' do
         get :redirect_to_frontend, params: { username: actor.username }
 
@@ -40,6 +45,20 @@ RSpec.describe ProfilesController, type: :controller do
       end
 
       it 'returns ActivityPub JSON response' do
+        get :redirect_to_frontend, params: { username: actor.username }
+
+        expect(response.status).to eq(200)
+        expect(response.content_type).to include('application/activity+json')
+      end
+    end
+
+    context 'when ActivityPub client uses Mastodon User-Agent' do
+      before do
+        request.headers['Accept'] = '*/*'
+        request.headers['User-Agent'] = 'Mastodon/4.0.0'
+      end
+
+      it 'returns ActivityPub JSON response based on User-Agent' do
         get :redirect_to_frontend, params: { username: actor.username }
 
         expect(response.status).to eq(200)
