@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # リモート画像のキャッシュサービス
-# Solid Cacheを使用してリモート画像を一定期間キャッシュし、/imgに保存
+# Solid Cacheを使用してリモート画像を一定期間キャッシュし、/cacheに保存
 class RemoteImageCacheService
   CACHE_DURATION = 7.days # キャッシュ期間
   MAX_FILE_SIZE = 10.megabytes # 最大ファイルサイズ
@@ -118,7 +118,7 @@ class RemoteImageCacheService
     io = StringIO.new(response.body)
 
     if ENV['S3_ENABLED'] == 'true'
-      custom_key = "img/#{SecureRandom.hex(16)}"
+      custom_key = "cache/#{SecureRandom.hex(16)}"
       ActiveStorage::Blob.create_and_upload!(
         io: io,
         filename: filename,
