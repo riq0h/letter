@@ -127,6 +127,15 @@ class SearchInteractor
       results.concat(exact_matches)
     end
 
+    # ローカルドメインのURL形式での検索
+    if local_url_query?
+      username = extract_username_from_local_url
+      if username
+        exact_matches = Actor.where(username: username, local: true)
+        results.concat(exact_matches)
+      end
+    end
+
     # ローカルアカウントの部分一致検索
     sanitized_query = ActiveRecord::Base.sanitize_sql_like(clean_search_query)
     partial_matches = Actor.where(local: true)
@@ -209,6 +218,22 @@ class SearchInteractor
 
   def local_username_query?
     search_query.start_with?('@') && search_query.count('@') == 1
+  end
+
+  def local_url_query?
+    return false unless url_query?
+
+    local_base_url = Rails.application.config.activitypub.base_url
+    search_query.start_with?(local_base_url)
+  end
+
+  def extract_username_from_local_url
+    return nil unless local_url_query?
+
+    # ローカルURL形式 /users/username から username を抽出
+    return unless search_query =~ /\/users\/([^\/]+)$/
+
+    ::Regexp.last_match(1)
   end
 
   def clean_search_query
