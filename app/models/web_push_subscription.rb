@@ -2,6 +2,7 @@
 
 class WebPushSubscription < ApplicationRecord
   include PushPayloadBuilder
+
   belongs_to :actor
 
   validates :endpoint, presence: true, uniqueness: { scope: :actor_id }

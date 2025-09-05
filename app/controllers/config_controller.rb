@@ -4,6 +4,7 @@ class ConfigController < ApplicationController
   include BulkEmojiActions
   include ConfigBuilder
   include EmojiFiltering
+
   before_action :authenticate_user!
 
   # GET /config

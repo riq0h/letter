@@ -4,6 +4,7 @@ module Api
   module V1
     class ListsController < Api::BaseController
       include AccountSerializer
+
       before_action :doorkeeper_authorize!
       before_action :require_user!
       before_action :set_list, only: %i[show update destroy accounts add_accounts remove_accounts]

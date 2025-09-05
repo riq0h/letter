@@ -5,6 +5,7 @@ module SearchStatusSerializer
   include MediaSerializer
   include TextLinkingHelper
   include StatusSerializer
+
   def serialized_status(status)
     base_status_data(status).merge(
       additional_status_data(status)

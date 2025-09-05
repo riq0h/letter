@@ -4,6 +4,7 @@ module Api
   module V1
     class ConversationsController < Api::BaseController
       include ConversationSerializer
+
       before_action :doorkeeper_authorize!
       before_action :set_conversation, only: %i[show destroy read]
 

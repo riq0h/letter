@@ -2,6 +2,7 @@
 
 class WellKnownController < ApplicationController
   include UrlBuildable
+
   skip_before_action :verify_authenticity_token
 
   # GET /.well-known/webfinger

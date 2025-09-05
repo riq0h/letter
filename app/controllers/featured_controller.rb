@@ -2,6 +2,7 @@
 
 class FeaturedController < ApplicationController
   include ErrorResponseHelper
+
   def show
     username = params[:username]
     @actor = Actor.find_by(username: username, local: true)

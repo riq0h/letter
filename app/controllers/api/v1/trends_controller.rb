@@ -6,6 +6,7 @@ module Api
       include StatusSerializationHelper
       include AccountSerializer
       include TagSerializer
+
       before_action :doorkeeper_authorize!
 
       # GET /api/v1/trends

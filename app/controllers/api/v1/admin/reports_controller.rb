@@ -5,6 +5,7 @@ module Api
     module Admin
       class ReportsController < Api::BaseController
         include AdminAuthorization
+
         before_action :doorkeeper_authorize!
         before_action :require_admin!
 

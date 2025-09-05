@@ -9,6 +9,7 @@ module Api
       include MediaSerializer
       include MediaAttachmentSerialization
       include MediaAttachmentCreation
+
       before_action :doorkeeper_authorize!, :require_user!
 
       # POST /api/v2/media

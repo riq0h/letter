@@ -123,3 +123,6 @@ Naming/PredicateName:
     - 'app/models/media_attachment.rb'
     - 'app/services/follow_service.rb'
     - 'app/services/web_push_notification_service.rb'
+    - 'app/deliveries/web_push_delivery.rb'
+    - 'app/models/instance_config.rb'
+    - 'app/services/relay_follow_service.rb'

@@ -3,6 +3,7 @@
 class HomeController < ApplicationController
   include PaginationHelper
   include TimelineBuilder
+
   def index
     @posts = load_public_timeline
     @page_title = I18n.t('pages.home.title')

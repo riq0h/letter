@@ -2,6 +2,7 @@
 
 class MediaAttachment < ApplicationRecord
   include RemoteLocalHelper
+
   # === 定数 ===
   MEDIA_TYPES = %w[image video audio document].freeze
   IMAGE_FORMATS = %w[jpeg jpg png gif webp avif].freeze

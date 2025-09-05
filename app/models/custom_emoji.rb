@@ -2,6 +2,7 @@
 
 class CustomEmoji < ApplicationRecord
   include RemoteLocalHelper
+
   # バリデーション
   validates :shortcode, presence: true, format: { with: /\A[a-zA-Z0-9_]+\z/ }
   validates :shortcode, uniqueness: { scope: :domain, case_sensitive: false }

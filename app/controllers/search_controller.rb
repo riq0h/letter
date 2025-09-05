@@ -2,6 +2,7 @@
 
 class SearchController < ApplicationController
   include PaginationHelper
+
   def index
     initialize_search_params
     return if @query.blank?

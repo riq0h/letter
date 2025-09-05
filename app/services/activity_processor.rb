@@ -2,6 +2,7 @@
 
 class ActivityProcessor
   include ActivityPubUtilityHelpers
+
   PROCESSOR_MAP = {
     'Create' => :process_create_activity,
     'Follow' => :process_follow_activity,

@@ -8,6 +8,7 @@ module Api
       include MediaSerializer
       include PollSerializer
       include MentionTagSerializer
+
       before_action :doorkeeper_authorize!, only: %i[index show clear dismiss]
       before_action :require_user!, only: %i[index show clear dismiss]
       before_action :set_notification, only: %i[show dismiss]

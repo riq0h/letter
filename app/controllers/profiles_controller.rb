@@ -4,6 +4,7 @@ class ProfilesController < ApplicationController
   include StatusSerializer
   include PaginationHelper
   include TimelineBuilder
+
   before_action :find_actor, except: [:redirect_to_frontend]
 
   def show

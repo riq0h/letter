@@ -2,6 +2,7 @@
 
 class UndoProcessor
   include ActivityPubUtilityHelpers
+
   def initialize(target_activity)
     @target_activity = target_activity
   end

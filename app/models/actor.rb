@@ -2,6 +2,7 @@
 
 class Actor < ApplicationRecord
   include UrlBuildable
+
   has_secure_password validations: false
 
   attribute :settings, :json, default: -> { {} }
