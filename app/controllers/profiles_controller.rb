@@ -30,7 +30,7 @@ class ProfilesController < ApplicationController
     username = params[:username]
 
     # ActivityPubクライアントの場合はJSONレスポンスを返す
-    if activitypub_request?
+    if activitypub_client_request?
       render_activitypub_profile_by_username(username)
     else
       # ブラウザアクセスの場合はフロントエンドにリダイレクト
@@ -39,6 +39,15 @@ class ProfilesController < ApplicationController
   end
 
   private
+
+  # ActivityPubクライアントからのリクエストかどうかを判定（PostsControllerと同じロジック）
+  def activitypub_client_request?
+    # Accept headerでActivityPubリクエストを判定
+    accept_header = request.headers['Accept'] || ''
+    accept_header.include?('application/activity+json') ||
+      accept_header.include?('application/ld+json') ||
+      accept_header.include?('application/json')
+  end
 
   def render_activitypub_profile
     render json: @actor.to_activitypub(request),
