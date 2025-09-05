@@ -92,7 +92,7 @@ module MentionProcessor
 
       if mentioned_user
         escaped_username = CGI.escapeHTML(username)
-        profile_url = "#{Rails.application.config.activitypub.base_url}/@#{escaped_username}"
+        profile_url = "#{Rails.application.config.activitypub.base_url}/users/#{escaped_username}"
         %(<a href="#{profile_url}" class="mention" data-user-id="#{mentioned_user.id}">@#{escaped_username}</a>)
       else
         match # ユーザが見つからない場合は元のテキストを保持

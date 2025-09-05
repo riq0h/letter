@@ -85,7 +85,7 @@ class WellKnownController < ApplicationController
   def build_webfinger_response(actor)
     domain = Rails.application.config.activitypub.domain
     actor_url = "#{base_url}/users/#{actor.username}"
-    profile_url = "#{base_url}/@#{actor.username}"
+    profile_url = "#{base_url}/users/#{actor.username}"
     subject = "acct:#{actor.username}@#{domain}"
 
     # ログでドメイン設定を確認

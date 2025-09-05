@@ -51,7 +51,7 @@ RSpec.describe TextLinkingHelper, type: :helper do
         result = helper.auto_link_urls(text)
 
         expect(result).to include('<a href="https://example.com/users/user"')
-        expect(result).to include('@user@example.com</a>')
+        expect(result).to include('@user</span></a>')
       end
 
       it 'links both URLs and mentions' do
@@ -253,7 +253,7 @@ RSpec.describe TextLinkingHelper, type: :helper do
         result = helper.send(:apply_mention_links, text)
 
         expect(result).to include('<a href="https://example.com/users/user"')
-        expect(result).to include('@user@example.com</a>')
+        expect(result).to include('@user</span></a>')
       end
 
       it 'handles multiple mentions' do

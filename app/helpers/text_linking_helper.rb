@@ -191,8 +191,8 @@ module TextLinkingHelper
     local_domain = Rails.application.config.activitypub.domain
 
     if domain == local_domain
-      # ローカルユーザの場合
-      "#{Rails.application.config.activitypub.base_url}/@#{ERB::Util.url_encode(safe_username)}"
+      # ローカルユーザの場合（クライアント互換のためAPI形式URLを使用）
+      "#{Rails.application.config.activitypub.base_url}/users/#{ERB::Util.url_encode(safe_username)}"
     else
       # リモートユーザの場合、Actorレコードから正しいURLを取得を試行
       actor = Actor.find_by(username: safe_username, domain: safe_domain)
@@ -201,8 +201,8 @@ module TextLinkingHelper
         actor_url = actor.ap_id
         actor_url.start_with?('http') ? actor_url : "https://#{actor_url}"
       else
-        # Actorレコードがない場合は一般的なパターンを使用（暫定）
-        "https://#{ERB::Util.url_encode(safe_domain)}/@#{ERB::Util.url_encode(safe_username)}"
+        # Actorレコードがない場合は一般的なパターンを使用（クライアント互換のためAPI形式）
+        "https://#{ERB::Util.url_encode(safe_domain)}/users/#{ERB::Util.url_encode(safe_username)}"
       end
     end
   end

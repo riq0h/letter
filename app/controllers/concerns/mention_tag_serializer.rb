@@ -41,7 +41,7 @@ module MentionTagSerializer
     return '' unless actor
 
     if actor.local?
-      "#{Rails.application.config.activitypub.scheme}://#{Rails.application.config.activitypub.domain}/@#{actor.username}"
+      "#{Rails.application.config.activitypub.scheme}://#{Rails.application.config.activitypub.domain}/users/#{actor.username}"
     else
       actor.ap_id.to_s
     end
