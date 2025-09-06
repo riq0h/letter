@@ -145,8 +145,14 @@ class ActivityPubContentProcessor
   def wrap_content_in_p(content)
     return content if content.blank?
 
+    trimmed_content = content.strip
+
     # 既にpタグで囲まれている場合はそのまま返す
-    return content if content.strip.start_with?('<p') && content.strip.end_with?('</p>')
+    return content if trimmed_content.start_with?('<p') && trimmed_content.end_with?('</p>')
+
+    # ブロック要素で始まる場合は pタグで囲まない
+    block_elements = %w[<div <article <section <aside <nav <main <header <footer <figure <blockquote <ul <ol <dl <table <form]
+    return content if block_elements.any? { |element| trimmed_content.start_with?(element) }
 
     "<p>#{content}</p>"
   end
