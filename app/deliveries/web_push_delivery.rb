@@ -173,7 +173,7 @@ class WebPushDelivery
       Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
 
       # Mastodon式の直接暗号化
-      encrypted_payload = Webpush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
+      encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
       vapid_headers = build_vapid_headers(subscription.endpoint)
 
       send_encrypted_notification(subscription, encrypted_payload, vapid_headers)
@@ -253,7 +253,7 @@ class WebPushDelivery
     # WebPush検証の実行
     def perform_webpush_validation(subscription)
       Rails.logger.info "🔍 Validating WebPush with endpoint: #{subscription.endpoint}"
-      Webpush::Encryption.encrypt('validation_test', subscription.p256dh_key, subscription.auth_key)
+      WebPush::Encryption.encrypt('validation_test', subscription.p256dh_key, subscription.auth_key)
       true
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
       Rails.logger.info "🔐 WebPush key validation failed (crypto): #{e.message}"
@@ -266,7 +266,7 @@ class WebPushDelivery
     # VAPID認証ヘッダーの構築
     def build_vapid_headers(endpoint)
       audience = URI.parse(endpoint).then { |uri| "#{uri.scheme}://#{uri.host}" }
-      vapid_key = Webpush::VapidKey.from_keys(vapid_public_key, vapid_private_key)
+      vapid_key = WebPush::VapidKey.from_keys(vapid_public_key, vapid_private_key)
 
       token = JWT.encode(
         {
