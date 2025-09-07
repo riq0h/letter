@@ -214,18 +214,12 @@ class WebPushDelivery
     # 検証成功ログの出力
     def log_validation_success(subscription)
       Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
-      Rails.logger.info "🔑 VAPID public key: #{vapid_public_key&.inspect}"
-      Rails.logger.info "🔑 VAPID private key: #{vapid_private_key&.inspect}"
-      Rails.logger.info "🔑 Client p256dh key: #{subscription.p256dh_key&.inspect}"
-      Rails.logger.info "🔑 Client auth key: #{subscription.auth_key&.inspect}"
     end
 
     # WebPush送信の実行
     def perform_webpush_send(subscription, payload)
-      # Mastodon方式：低レベルAPIで直接暗号化
       encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
 
-      # シンプルなHTTP送信（VAPID認証なし）
       uri = URI.parse(subscription.endpoint)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = uri.scheme == 'https'
@@ -235,6 +229,11 @@ class WebPushDelivery
       request['Content-Encoding'] = 'aes128gcm'
       request['TTL'] = '86400'
       request['Urgency'] = 'normal'
+
+      # VAPID認証ヘッダーを追加
+      vapid_headers = build_vapid_headers(subscription.endpoint)
+      vapid_headers.each { |key, value| request[key] = value }
+
       request.body = encrypted_payload
 
       response = http.request(request)
@@ -293,14 +292,13 @@ class WebPushDelivery
 
     # WebPush検証の実行
     def perform_webpush_validation(subscription)
-      Rails.logger.info "🔍 Validating WebPush with endpoint: #{subscription.endpoint}"
       WebPush::Encryption.encrypt('validation_test', subscription.p256dh_key, subscription.auth_key)
       true
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
-      Rails.logger.info "🔐 WebPush key validation failed (crypto): #{e.message}"
+      Rails.logger.warn "🔐 WebPush key validation failed: #{e.message}"
       false
     rescue StandardError => e
-      Rails.logger.info "🔐 Unexpected validation error: #{e.message}"
+      Rails.logger.warn "🔐 WebPush validation error: #{e.message}"
       false
     end
 
