@@ -222,19 +222,26 @@ class WebPushDelivery
 
     # WebPush送信の実行
     def perform_webpush_send(subscription, payload)
-      WebPush.payload_send(
-        message: payload.to_json,
-        endpoint: subscription.endpoint,
-        p256dh: subscription.p256dh_key,
-        auth: subscription.auth_key,
-        vapid: {
-          subject: Rails.application.config.activitypub.base_url,
-          public_key: vapid_public_key,
-          private_key: vapid_private_key
-        },
-        ttl: 24 * 3600,
-        urgency: 'normal'
-      )
+      # Mastodon方式：低レベルAPIで直接暗号化
+      encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
+
+      # シンプルなHTTP送信（VAPID認証なし）
+      uri = URI.parse(subscription.endpoint)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = uri.scheme == 'https'
+
+      request = Net::HTTP::Post.new(uri.request_uri)
+      request['Content-Type'] = 'application/octet-stream'
+      request['Content-Encoding'] = 'aes128gcm'
+      request['TTL'] = '86400'
+      request['Urgency'] = 'normal'
+      request.body = encrypted_payload
+
+      response = http.request(request)
+
+      return if (200...300).cover?(response.code.to_i)
+
+      raise "HTTP #{response.code}: #{response.message}"
     end
 
     # 無効なサブスクリプションの処理
