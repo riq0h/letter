@@ -164,31 +164,12 @@ class WebPushDelivery
       Rails.logger.info "🔐 Validating WebPush keys for #{subscription.actor.username}"
 
       unless valid_webpush_keys?(subscription)
-        Rails.logger.warn "🔐 Invalid WebPush keys for #{subscription.actor.username}, skipping notification"
-        Rails.logger.info "🧹 Removing invalid WebPush subscription for #{subscription.actor.username}"
-        subscription.destroy
+        handle_invalid_keys(subscription)
         return false
       end
 
-      Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
-
-      Rails.logger.info "🔑 VAPID public key: #{vapid_public_key&.inspect}"
-      Rails.logger.info "🔑 VAPID private key: #{vapid_private_key&.inspect}"
-
-      # WebPushライブラリの高レベルAPI使用
-      WebPush.payload_send(
-        message: payload.to_json,
-        endpoint: subscription.endpoint,
-        p256dh: subscription.p256dh_key,
-        auth: subscription.auth_key,
-        vapid: {
-          subject: Rails.application.config.activitypub.base_url,
-          public_key: vapid_public_key,
-          private_key: vapid_private_key
-        },
-        ttl: 24 * 3600,
-        urgency: 'normal'
-      )
+      log_validation_success(subscription)
+      perform_webpush_send(subscription, payload)
       true
     rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
       handle_invalid_subscription(subscription, e)
@@ -223,6 +204,37 @@ class WebPushDelivery
       }
     end
 
+    # 無効なキーの処理
+    def handle_invalid_keys(subscription)
+      Rails.logger.warn "🔐 Invalid WebPush keys for #{subscription.actor.username}, skipping notification"
+      Rails.logger.info "🧹 Removing invalid WebPush subscription for #{subscription.actor.username}"
+      subscription.destroy
+    end
+
+    # 検証成功ログの出力
+    def log_validation_success(subscription)
+      Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
+      Rails.logger.info "🔑 VAPID public key: #{vapid_public_key&.inspect}"
+      Rails.logger.info "🔑 VAPID private key: #{vapid_private_key&.inspect}"
+    end
+
+    # WebPush送信の実行
+    def perform_webpush_send(subscription, payload)
+      WebPush.payload_send(
+        message: payload.to_json,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.p256dh_key,
+        auth: subscription.auth_key,
+        vapid: {
+          subject: Rails.application.config.activitypub.base_url,
+          public_key: vapid_public_key,
+          private_key: vapid_private_key
+        },
+        ttl: 24 * 3600,
+        urgency: 'normal'
+      )
+    end
+
     # 無効なサブスクリプションの処理
     def handle_invalid_subscription(subscription, error)
       Rails.logger.warn "📱 Invalid push subscription for #{subscription.actor.username}: #{error.message}"
@@ -246,12 +258,20 @@ class WebPushDelivery
 
     # VAPID公開キー
     def vapid_public_key
-      ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
+      key = ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
+      return nil unless key
+
+      # Base64エンコードされたPEM形式をデコード
+      Base64.decode64(key)
     end
 
     # VAPID秘密キー
     def vapid_private_key
-      ENV['VAPID_PRIVATE_KEY'] || Rails.application.credentials.dig(:vapid, :private_key)
+      key = ENV['VAPID_PRIVATE_KEY'] || Rails.application.credentials.dig(:vapid, :private_key)
+      return nil unless key
+
+      # Base64エンコードされたPEM形式をデコード
+      Base64.decode64(key)
     end
 
     # WebPush暗号化キーの適切な検証
