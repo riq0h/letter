@@ -163,27 +163,25 @@ class WebPushDelivery
     def send_push_notification(subscription, payload)
       Rails.logger.info "🔐 Validating WebPush keys for #{subscription.actor.username}"
 
-      # 事前検証でエラーを防ぐ
       unless valid_webpush_keys?(subscription)
         Rails.logger.warn "🔐 Invalid WebPush keys for #{subscription.actor.username}, skipping notification"
-
-        # 古い（7日以上）の無効なサブスクリプションは削除
-        if subscription.created_at < 7.days.ago
-          Rails.logger.info "🧹 Removing old invalid WebPush subscription for #{subscription.actor.username}"
-          subscription.destroy
-        end
-
+        Rails.logger.info "🧹 Removing invalid WebPush subscription for #{subscription.actor.username}"
+        subscription.destroy
         return false
       end
 
       Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
-      WebPush.payload_send(**build_push_options(subscription, payload))
+
+      # Mastodon式の直接暗号化
+      encrypted_payload = Webpush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
+      vapid_headers = build_vapid_headers(subscription.endpoint)
+
+      send_encrypted_notification(subscription, encrypted_payload, vapid_headers)
       true
     rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
       handle_invalid_subscription(subscription, e)
     rescue ArgumentError, OpenSSL::PKey::ECError => e
-      # 事前検証を通過したが送信時にエラーが発生した稀なケース
-      Rails.logger.error "🔐 Unexpected encryption error for #{subscription.actor.username}: #{e.message}"
+      Rails.logger.error "🔐 Encryption error for #{subscription.actor.username}: #{e.message}"
       false
     rescue StandardError => e
       handle_push_error(subscription, e)
@@ -254,48 +252,62 @@ class WebPushDelivery
 
     # WebPush検証の実行
     def perform_webpush_validation(subscription)
-      validation_payload = { message: 'validation' }.to_json
-      validation_options = build_push_options(subscription, validation_mode: true)
-
       Rails.logger.info "🔍 Validating WebPush with endpoint: #{subscription.endpoint}"
-
-      mock_network_request do
-        WebPush.payload_send(**validation_options, message: validation_payload)
-        true # 暗号化成功
-      end
+      Webpush::Encryption.encrypt('validation_test', subscription.p256dh_key, subscription.auth_key)
+      true
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
       Rails.logger.info "🔐 WebPush key validation failed (crypto): #{e.message}"
       false
-    rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
-      Rails.logger.info "🔐 WebPush subscription invalid: #{e.message}"
-      false
     rescue StandardError => e
-      handle_validation_error(e)
+      Rails.logger.info "🔐 Unexpected validation error: #{e.message}"
+      false
     end
 
-    # ネットワークリクエストをモック
-    def mock_network_request
+    # VAPID認証ヘッダーの構築
+    def build_vapid_headers(endpoint)
+      audience = URI.parse(endpoint).then { |uri| "#{uri.scheme}://#{uri.host}" }
+      vapid_key = Webpush::VapidKey.from_keys(vapid_public_key, vapid_private_key)
+
+      token = JWT.encode(
+        {
+          aud: audience,
+          exp: 24.hours.from_now.to_i,
+          sub: "mailto:#{Rails.application.config.activitypub.contact_email || 'admin@example.com'}"
+        },
+        vapid_key.curve,
+        'ES256',
+        typ: 'JWT'
+      )
+
+      {
+        'Authorization' => "vapid t=#{token},k=#{vapid_key.public_key_for_push_header}",
+        'Crypto-Key' => "p256ecdsa=#{vapid_key.public_key_for_push_header}"
+      }
+    end
+
+    # 暗号化済み通知の送信
+    def send_encrypted_notification(subscription, encrypted_payload, headers)
       require 'net/http'
-      original_method = Net::HTTP.instance_method(:request)
-      Net::HTTP.define_method(:request) do |_req|
-        Struct.new(:code, :message).new('200', 'OK')
-      end
 
-      yield
-    ensure
-      Net::HTTP.define_method(:request, original_method)
-    end
+      uri = URI.parse(subscription.endpoint)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = uri.scheme == 'https'
 
-    # 検証エラーの処理
-    def handle_validation_error(error)
-      Rails.logger.info "🔍 WebPush validation error (#{error.class}): #{error.message}"
-      # ネットワークエラーなど送信の問題は検証OKとみなす
-      if error.message.include?('getaddrinfo') || error.message.include?('Connection') || error.message.include?('timeout')
-        Rails.logger.info '✅ Network error during validation, assuming keys are valid'
-        true
-      else
-        Rails.logger.warn "❌ Unexpected error validating WebPush keys: #{error.message}"
-        false
+      request = Net::HTTP::Post.new(uri.path)
+      request['Content-Type'] = 'application/octet-stream'
+      request['Content-Encoding'] = 'aes128gcm'
+      request['TTL'] = '86400'
+      request['Urgency'] = 'normal'
+      headers.each { |key, value| request[key] = value }
+      request.body = encrypted_payload
+
+      response = http.request(request)
+
+      if (400..499).cover?(response.code.to_i) && [408, 429].exclude?(response.code.to_i)
+        Rails.logger.warn "📱 Invalid push subscription: #{response.code}"
+        subscription.destroy
+      elsif !(200...300).cover?(response.code.to_i)
+        raise "HTTP #{response.code}: #{response.message}"
       end
     end
   end
