@@ -305,7 +305,11 @@ class WebPushDelivery
     # VAPID認証ヘッダーの構築
     def build_vapid_headers(endpoint)
       audience = URI.parse(endpoint).then { |uri| "#{uri.scheme}://#{uri.host}" }
-      vapid_key = WebPush::VapidKey.from_keys(vapid_public_key, vapid_private_key)
+
+      # OpenSSLでECキーを直接処理
+      private_key = OpenSSL::PKey::EC.new(vapid_private_key)
+      public_key_uncompressed = private_key.public_key.to_bn.to_s(2)
+      public_key_base64 = Base64.urlsafe_encode64(public_key_uncompressed).tr('=', '')
 
       token = JWT.encode(
         {
@@ -313,14 +317,14 @@ class WebPushDelivery
           exp: 24.hours.from_now.to_i,
           sub: "mailto:#{Rails.application.config.activitypub.contact_email || 'admin@example.com'}"
         },
-        vapid_key.curve,
+        private_key,
         'ES256',
         typ: 'JWT'
       )
 
       {
-        'Authorization' => "vapid t=#{token},k=#{vapid_key.public_key_for_push_header}",
-        'Crypto-Key' => "p256ecdsa=#{vapid_key.public_key_for_push_header}"
+        'Authorization' => "vapid t=#{token},k=#{public_key_base64}",
+        'Crypto-Key' => "p256ecdsa=#{public_key_base64}"
       }
     end
 
