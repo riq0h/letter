@@ -30,8 +30,8 @@ module Api
           )
 
           @subscription.assign_attributes(
-            p256dh_key: subscription_params[:keys][:p256dh],
-            auth_key: subscription_params[:keys][:auth],
+            p256dh_key: normalize_base64(subscription_params[:keys][:p256dh]),
+            auth_key: normalize_base64(subscription_params[:keys][:auth]),
             data: {
               alerts: extract_alerts,
               policy: params.dig(:data, :policy) || 'all'
@@ -119,6 +119,23 @@ module Api
 
         def vapid_public_key
           ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
+        end
+
+        def normalize_base64(key)
+          return key if key.blank?
+
+          # URL-safe Base64 を標準 Base64 に変換
+          standard_key = key.tr('-_', '+/')
+
+          # パディングを追加
+          case standard_key.length % 4
+          when 2
+            "#{standard_key}=="
+          when 3
+            "#{standard_key}="
+          else
+            standard_key
+          end
         end
       end
     end
