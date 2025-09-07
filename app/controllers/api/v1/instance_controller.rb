@@ -72,9 +72,14 @@ module Api
               max_expiration: 2_629_746
             }
           },
+          vapid_public_key: vapid_public_key,
           contact_account: nil,
           rules: []
         }
+      end
+
+      def vapid_public_key
+        ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
       end
     end
   end
