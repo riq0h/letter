@@ -172,11 +172,20 @@ class WebPushDelivery
 
       Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
 
-      # Mastodon式の直接暗号化
-      encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
-      vapid_headers = build_vapid_headers(subscription.endpoint)
-
-      send_encrypted_notification(subscription, encrypted_payload, vapid_headers)
+      # WebPushライブラリの高レベルAPI使用
+      WebPush.payload_send(
+        message: payload.to_json,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.p256dh_key,
+        auth: subscription.auth_key,
+        vapid: {
+          subject: Rails.application.config.activitypub.base_url,
+          public_key: vapid_public_key,
+          private_key: vapid_private_key
+        },
+        ttl: 24 * 3600,
+        urgency: 'normal'
+      )
       true
     rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
       handle_invalid_subscription(subscription, e)
