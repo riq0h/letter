@@ -172,6 +172,9 @@ class WebPushDelivery
 
       Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
 
+      Rails.logger.info "🔑 VAPID public key: #{vapid_public_key&.inspect}"
+      Rails.logger.info "🔑 VAPID private key: #{vapid_private_key&.inspect}"
+
       # WebPushライブラリの高レベルAPI使用
       WebPush.payload_send(
         message: payload.to_json,
