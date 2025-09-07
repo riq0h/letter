@@ -315,7 +315,7 @@ class WebPushDelivery
         {
           aud: audience,
           exp: 24.hours.from_now.to_i,
-          sub: "mailto:#{Rails.application.config.activitypub.contact_email || 'admin@example.com'}"
+          sub: "mailto:#{InstanceConfig.get('instance_contact_email') || Rails.application.config.instance_contact_email || 'admin@localhost'}"
         },
         private_key,
         'ES256',

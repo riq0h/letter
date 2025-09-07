@@ -49,7 +49,7 @@ module Api
             streaming: "wss://#{Rails.application.config.activitypub.domain}"
           },
           vapid: {
-            public_key: ENV['VAPID_PUBLIC_KEY'] || 'not_configured'
+            public_key: vapid_public_key || 'not_configured'
           },
           accounts: {
             max_featured_tags: 10
@@ -148,6 +148,10 @@ module Api
         when 'instance_contact_email', 'contact_email'
           InstanceConfig.get('instance_contact_email')
         end
+      end
+
+      def vapid_public_key
+        ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
       end
     end
   end

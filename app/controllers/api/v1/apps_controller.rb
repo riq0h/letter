@@ -49,8 +49,12 @@ module Api
           redirect_uri: application.redirect_uri,
           client_id: application.uid,
           client_secret: application.secret,
-          vapid_key: ENV['VAPID_PUBLIC_KEY'] || 'not_configured'
+          vapid_key: vapid_public_key || 'not_configured'
         }
+      end
+
+      def vapid_public_key
+        ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
       end
     end
   end
