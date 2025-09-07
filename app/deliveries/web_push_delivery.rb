@@ -216,6 +216,8 @@ class WebPushDelivery
       Rails.logger.info "✅ WebPush keys validated for #{subscription.actor.username}, sending notification"
       Rails.logger.info "🔑 VAPID public key: #{vapid_public_key&.inspect}"
       Rails.logger.info "🔑 VAPID private key: #{vapid_private_key&.inspect}"
+      Rails.logger.info "🔑 Client p256dh key: #{subscription.p256dh_key&.inspect}"
+      Rails.logger.info "🔑 Client auth key: #{subscription.auth_key&.inspect}"
     end
 
     # WebPush送信の実行
