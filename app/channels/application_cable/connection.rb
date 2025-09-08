@@ -97,11 +97,14 @@ module ApplicationCable
     def subscribe_to_streaming_channel
       # StreamingChannelに自動購読
       Rails.logger.info "🔗 Auto-subscribing to StreamingChannel for user: #{current_user.username}"
-      # Action Cableの内部でチャンネル購読を実行
-      server.execute_command(self, {
-                               'command' => 'subscribe',
-                               'identifier' => '{"channel":"StreamingChannel"}'
-                             })
+      # 遅延実行でチャンネル購読を実行
+      ActionCable.server.event_loop.post do
+        Rails.logger.info '🔗 Executing StreamingChannel subscription'
+        ActionCable.server.execute_command(self, {
+                                             'command' => 'subscribe',
+                                             'identifier' => '{"channel":"StreamingChannel"}'
+                                           })
+      end
     end
   end
 end
