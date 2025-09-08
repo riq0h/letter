@@ -4,6 +4,10 @@ class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
     Rails.logger.info '🔗 StreamingChannel ready for Mastodon client messages'
+
+    # Mastodonクライアント向けの接続確認メッセージ
+    transmit({ stream: ['user'], event: 'connected' })
+    Rails.logger.info '🔗 Sent connected message to Mastodon client'
   end
 
   # Mastodon互換のメッセージ送信をオーバーライド
