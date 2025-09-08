@@ -106,7 +106,8 @@ module Api
           admin_alerts = alerts_params[:admin] || {}
 
           # Strong Parametersで許可されたキーのみを取得
-          permitted_base_alerts = ActionController::Parameters.new(alerts_params).permit(*default_alerts.keys)
+          alerts_parameters = alerts_params.is_a?(ActionController::Parameters) ? alerts_params : ActionController::Parameters.new(alerts_params)
+          permitted_base_alerts = alerts_parameters.permit(*default_alerts.keys)
 
           # フラット構造に変換
           flat_alerts = permitted_base_alerts.to_h
