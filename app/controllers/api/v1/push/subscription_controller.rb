@@ -102,8 +102,17 @@ module Api
           alerts_params = params.dig(:data, :alerts) || {}
           default_alerts = WebPushSubscription.new.default_alerts
 
+          # 管理者アラートのネスト構造を処理
+          admin_alerts = alerts_params[:admin] || {}
+
+          # フラット構造に変換
+          flat_alerts = alerts_params.except(:admin).to_h
+          flat_alerts['admin.sign_up'] = admin_alerts[:sign_up] if admin_alerts.key?(:sign_up)
+          flat_alerts['admin.report'] = admin_alerts[:report] if admin_alerts.key?(:report)
+
           # Strong Parametersを適切に処理
-          permitted_alerts = alerts_params.permit(*default_alerts.keys, 'admin.sign_up', 'admin.report')
+          permitted_keys = default_alerts.keys + ['admin.sign_up', 'admin.report']
+          permitted_alerts = ActionController::Parameters.new(flat_alerts).permit(*permitted_keys)
           default_alerts.merge(permitted_alerts.to_h)
         end
 

@@ -40,7 +40,10 @@ class WebPushSubscription < ApplicationRecord
       'mention' => true,
       'poll' => true,
       'status' => false,
-      'update' => false
+      'update' => false,
+      'quote' => true,
+      'admin.sign_up' => false,
+      'admin.report' => false
     }
   end
 
