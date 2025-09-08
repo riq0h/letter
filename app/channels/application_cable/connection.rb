@@ -27,7 +27,8 @@ module ApplicationCable
         return
       end
 
-      unless access_token.acceptable?
+      # access_tokenが有効かどうか確認（期限切れや取り消しをチェック）
+      unless access_token && !access_token.expired? && !access_token.revoked?
         Rails.logger.error "❌ Access token not acceptable (expired/revoked): #{token[0..10]}..."
         reject_unauthorized_connection
         return
