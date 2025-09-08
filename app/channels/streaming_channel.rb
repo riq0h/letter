@@ -3,8 +3,15 @@
 class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
-    # Mastodon互換：接続確認メッセージを送信
-    transmit({ event: 'connected' })
+    # Mastodon互換：Action Cableのconfirm_subscriptionメッセージを送信しない
+    # Mastodonクライアントはこのメッセージを理解せず、接続を閉じてしまう可能性がある
+    # 代わりに、receiveメソッドでsubscribeメッセージを受信するまで待機する
+  end
+
+  # Mastodon互換のメッセージ送信をオーバーライド
+  def transmit(data, via: nil)
+    # Action Cableの標準フォーマットではなく、Mastodonフォーマットで送信
+    super
   end
 
   def unsubscribed
@@ -46,9 +53,12 @@ class StreamingChannel < ApplicationCable::Channel
     when 'public:local'
       stream_from 'timeline:public:local'
       transmit({ event: 'stream', stream: %w[public local], payload: 'subscribed' })
-    when /\Ahashtag(?::local)?\z/
-      stream_hashtag(stream_type.include?('local'))
-      transmit({ event: 'stream', stream: [stream_type], payload: 'subscribed' })
+    when 'hashtag'
+      stream_hashtag(message['tag'], local_only: false)
+      transmit({ event: 'stream', stream: ['hashtag'], payload: 'subscribed' })
+    when 'hashtag:local'
+      stream_hashtag(message['tag'], local_only: true)
+      transmit({ event: 'stream', stream: %w[hashtag local], payload: 'subscribed' })
     when /\Alist:\d+\z/
       stream_list(stream_type.split(':').last)
       transmit({ event: 'stream', stream: [stream_type], payload: 'subscribed' })
@@ -76,11 +86,11 @@ class StreamingChannel < ApplicationCable::Channel
     stream_from "notifications:#{current_user.id}"
   end
 
-  def stream_hashtag(local_only: false)
-    hashtag = params[:tag]&.downcase
+  def stream_hashtag(hashtag, local_only: false)
     return reject if hashtag.blank?
 
-    stream_name = local_only ? "hashtag:#{hashtag}:local" : "hashtag:#{hashtag}"
+    normalized_hashtag = hashtag.to_s.downcase
+    stream_name = local_only ? "hashtag:#{normalized_hashtag}:local" : "hashtag:#{normalized_hashtag}"
     stream_from stream_name
   end
 
