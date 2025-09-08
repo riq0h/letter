@@ -4,10 +4,7 @@ class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
     Rails.logger.info '🔗 StreamingChannel ready for Mastodon client messages'
-
-    # Mastodonクライアント向けの接続確認メッセージ
-    transmit({ stream: ['user'], event: 'connected' })
-    Rails.logger.info '🔗 Sent connected message to Mastodon client'
+    # Mastodonでは接続時に特別なメッセージを送信しない
   end
 
   # Mastodon互換のメッセージ送信をオーバーライド
@@ -49,25 +46,24 @@ class StreamingChannel < ApplicationCable::Channel
     case stream_type
     when 'user'
       stream_for_user
-      transmit({ event: 'stream', stream: ['user'], payload: 'subscribed' })
+      Rails.logger.info '🔗 User stream subscribed successfully'
     when 'public'
       stream_from 'timeline:public'
-      transmit({ event: 'stream', stream: ['public'], payload: 'subscribed' })
+      Rails.logger.info '🔗 Public stream subscribed successfully'
     when 'public:local'
       stream_from 'timeline:public:local'
-      transmit({ event: 'stream', stream: %w[public local], payload: 'subscribed' })
+      Rails.logger.info '🔗 Local public stream subscribed successfully'
     when 'hashtag'
       stream_hashtag(message['tag'], local_only: false)
-      transmit({ event: 'stream', stream: ['hashtag'], payload: 'subscribed' })
+      Rails.logger.info "🔗 Hashtag stream subscribed successfully: #{message['tag']}"
     when 'hashtag:local'
       stream_hashtag(message['tag'], local_only: true)
-      transmit({ event: 'stream', stream: %w[hashtag local], payload: 'subscribed' })
+      Rails.logger.info "🔗 Local hashtag stream subscribed successfully: #{message['tag']}"
     when /\Alist:\d+\z/
       stream_list(stream_type.split(':').last)
-      transmit({ event: 'stream', stream: [stream_type], payload: 'subscribed' })
+      Rails.logger.info "🔗 List stream subscribed successfully: #{stream_type}"
     else
       Rails.logger.warn "🔗 Unknown stream type: #{stream_type}"
-      transmit({ event: 'error', error: 'Unknown stream type' })
     end
   end
 
@@ -75,7 +71,7 @@ class StreamingChannel < ApplicationCable::Channel
     stream_type = message['stream']
     Rails.logger.info "🔗 Unsubscribing from stream: #{stream_type}"
     # Action Cableでは明示的なunsubscribeは不要（接続終了時に自動的に処理される）
-    transmit({ event: 'stream', stream: [stream_type], payload: 'unsubscribed' })
+    Rails.logger.info "🔗 Stream unsubscribed successfully: #{stream_type}"
   end
 
   def stream_for_user
