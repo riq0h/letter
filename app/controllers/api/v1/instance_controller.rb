@@ -30,7 +30,7 @@ module Api
           email: InstanceConfig.get('instance_contact_email') || Rails.application.config.instance_contact_email || '',
           version: '0.1.0 (compatible; letter 0.1.0)',
           urls: {
-            streaming_api: "wss://#{local_domain.sub(/^https?:\/\//, '')}"
+            streaming_api: "wss://#{local_domain.sub(/^https?:\/\//, '')}/api/v1/streaming"
           },
           stats: {
             user_count: Actor.where(local: true).count,
@@ -42,6 +42,9 @@ module Api
           approval_required: false,
           invites_enabled: false,
           configuration: {
+            urls: {
+              streaming: "wss://#{local_domain.sub(/^https?:\/\//, '')}/api/v1/streaming"
+            },
             accounts: {
               max_featured_tags: 0
             },

@@ -11,8 +11,8 @@ module ApplicationCable
     private
 
     def find_verified_user
-      # OAuth トークンからユーザを認証
-      token = request.params[:access_token]
+      # Mastodon互換のOAuth トークン取得
+      token = extract_access_token
       return reject_unauthorized_connection unless token
 
       # Doorkeeper のアクセストークンを検証
@@ -26,6 +26,20 @@ module ApplicationCable
       user
     rescue StandardError
       reject_unauthorized_connection
+    end
+
+    def extract_access_token
+      # 1. Authorization ヘッダー (Bearer token)
+      authorization = request.headers['Authorization']
+      return authorization.sub('Bearer ', '') if authorization&.start_with?('Bearer ')
+
+      # 2. WebSocket Protocol ヘッダー (Mastodon互換)
+      protocol = request.headers['sec-websocket-protocol']
+      return protocol if protocol.present?
+
+      # 3. URLクエリパラメータ access_token
+      query_params = Rack::Utils.parse_query(request.query_string)
+      query_params['access_token']
     end
   end
 end

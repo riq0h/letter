@@ -46,7 +46,7 @@ module Api
       def configuration_data
         {
           urls: {
-            streaming: "wss://#{Rails.application.config.activitypub.domain}"
+            streaming: "wss://#{Rails.application.config.activitypub.domain}/api/v1/streaming"
           },
           vapid: {
             public_key: vapid_public_key || 'not_configured'
