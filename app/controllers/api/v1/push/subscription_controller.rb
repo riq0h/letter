@@ -105,9 +105,6 @@ module Api
           # 管理者アラートのネスト構造を処理
           admin_alerts = alerts_params[:admin] || {}
 
-          # まず全ての許可されたキーを定義
-          default_alerts.keys
-
           # Strong Parametersで許可されたキーのみを取得
           permitted_base_alerts = ActionController::Parameters.new(alerts_params).permit(*default_alerts.keys)
 
