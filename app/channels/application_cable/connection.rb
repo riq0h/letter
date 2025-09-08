@@ -35,8 +35,8 @@ module ApplicationCable
     end
 
     def verify_access_token(token)
-      # Action Cableは別のDB接続を使用するため、メインDB接続を明示的に使用
-      ActiveRecord::Base.connected_to(role: :writing, shard: :default) do
+      # Action Cableは別のDB接続を使用するため、明示的にprimaryデータベースを使用
+      ActiveRecord::Base.connected_to(database: :primary) do
         access_token = Doorkeeper::AccessToken.by_token(token)
         return nil unless access_token && !access_token.expired? && !access_token.revoked?
 
@@ -46,8 +46,8 @@ module ApplicationCable
 
     def find_user_by_token(access_token)
       Rails.logger.info "🔍 Looking for user with resource_owner_id: #{access_token.resource_owner_id}"
-      # Action Cableは別のDB接続を使用するため、メインDB接続を明示的に使用
-      ActiveRecord::Base.connected_to(role: :writing, shard: :default) do
+      # Action Cableは別のDB接続を使用するため、明示的にprimaryデータベースを使用
+      ActiveRecord::Base.connected_to(database: :primary) do
         Actor.find_by(id: access_token.resource_owner_id)
       end
     end
