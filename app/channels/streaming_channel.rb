@@ -3,9 +3,9 @@
 class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
-    # Mastodon互換：Action Cableのconfirm_subscriptionメッセージを送信しない
-    # Mastodonクライアントはこのメッセージを理解せず、接続を閉じてしまう可能性がある
-    # 代わりに、receiveメソッドでsubscribeメッセージを受信するまで待機する
+    # Action Cableのsubscriptionを確認
+    confirm_subscription
+    Rails.logger.info "🔗 StreamingChannel subscription confirmed for user: #{current_user&.username}"
   end
 
   # Mastodon互換のメッセージ送信をオーバーライド
