@@ -102,10 +102,14 @@ module ApplicationCable
       # 遅延実行でチャンネル購読を実行
       ActionCable.server.event_loop.post do
         Rails.logger.info '🔗 Executing StreamingChannel subscription'
-        ActionCable.server.execute_command(self, {
-                                             'command' => 'subscribe',
-                                             'identifier' => '{"channel":"StreamingChannel"}'
-                                           })
+        begin
+          # StreamingChannelを直接インスタンス化
+          channel = StreamingChannel.new(self, '{"channel":"StreamingChannel"}')
+          channel.subscribe_to_channel
+          Rails.logger.info '🔗 StreamingChannel subscription completed'
+        rescue StandardError => e
+          Rails.logger.error "🔗 StreamingChannel subscription failed: #{e.message}"
+        end
       end
     end
   end
