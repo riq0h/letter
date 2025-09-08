@@ -35,15 +35,21 @@ module ApplicationCable
     end
 
     def verify_access_token(token)
-      access_token = Doorkeeper::AccessToken.by_token(token)
-      return nil unless access_token && !access_token.expired? && !access_token.revoked?
+      # Action Cableは別のDB接続を使用するため、メインDB接続を明示的に使用
+      ActiveRecord::Base.connected_to(role: :writing, shard: :default) do
+        access_token = Doorkeeper::AccessToken.by_token(token)
+        return nil unless access_token && !access_token.expired? && !access_token.revoked?
 
-      access_token
+        access_token
+      end
     end
 
     def find_user_by_token(access_token)
       Rails.logger.info "🔍 Looking for user with resource_owner_id: #{access_token.resource_owner_id}"
-      Actor.find_by(id: access_token.resource_owner_id)
+      # Action Cableは別のDB接続を使用するため、メインDB接続を明示的に使用
+      ActiveRecord::Base.connected_to(role: :writing, shard: :default) do
+        Actor.find_by(id: access_token.resource_owner_id)
+      end
     end
 
     def reject_with_log(message)
