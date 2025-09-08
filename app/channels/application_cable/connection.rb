@@ -6,6 +6,7 @@ module ApplicationCable
 
     def connect
       self.current_user = find_verified_user
+      Rails.logger.info "🔗 Action Cable connection established for user: #{current_user.username}"
     end
 
     private

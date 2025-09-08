@@ -28,7 +28,7 @@ module Api
         domain = Rails.application.config.activitypub.domain || request.host
         port = request.ssl? ? '' : ":#{request.port}"
 
-        "#{protocol}://#{domain}#{port}/cable"
+        "#{protocol}://#{domain}#{port}/api/v1/streaming"
       end
 
       def set_cors_headers
