@@ -9,7 +9,9 @@ module ApplicationCable
       Rails.logger.info "🔗 Action Cable connection established for user: #{current_user.username}"
 
       # Mastodonクライアント互換：自動的にStreamingChannelを購読
+      Rails.logger.info '🔗 About to call subscribe_to_streaming_channel'
       subscribe_to_streaming_channel
+      Rails.logger.info '🔗 Called subscribe_to_streaming_channel'
     end
 
     def disconnect
