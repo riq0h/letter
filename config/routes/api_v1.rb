@@ -84,8 +84,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # ストリーミング
-      get '/streaming', to: 'streaming#index'
+      # ストリーミング情報API
+      get '/streaming/info', to: 'streaming#index'
       
       # サーバ通知イベント
       namespace :streaming do
