@@ -54,7 +54,17 @@ module Api
       end
 
       def vapid_public_key
-        ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
+        raw_key = ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
+        return nil unless raw_key
+
+        # PEM形式のBase64をデコードしてWebPush用のURLsafeBase64に変換
+        pem_data = Base64.decode64(raw_key)
+        ec_key = OpenSSL::PKey::EC.new(pem_data)
+        public_key_uncompressed = ec_key.public_key.to_bn.to_s(2)
+
+        # 最初の1バイト（0x04）を除去して64バイトのVAPIDキーにする
+        vapid_key_64_bytes = public_key_uncompressed[1..]
+        Base64.urlsafe_encode64(vapid_key_64_bytes).tr('=', '')
       end
     end
   end
