@@ -3,9 +3,7 @@
 class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
-    # Action Cableのsubscriptionを確認
-    confirm_subscription
-    Rails.logger.info "🔗 StreamingChannel subscription confirmed for user: #{current_user&.username}"
+    Rails.logger.info '🔗 StreamingChannel ready for Mastodon client messages'
   end
 
   # Mastodon互換のメッセージ送信をオーバーライド
