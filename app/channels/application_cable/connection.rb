@@ -7,6 +7,9 @@ module ApplicationCable
     def connect
       self.current_user = find_verified_user
       Rails.logger.info "🔗 Action Cable connection established for user: #{current_user.username}"
+
+      # Mastodonクライアント互換：自動的にStreamingChannelを購読
+      subscribe_to_streaming_channel
     end
 
     def disconnect
@@ -89,6 +92,16 @@ module ApplicationCable
 
       Rails.logger.error '❌ No access token found in any location'
       nil
+    end
+
+    def subscribe_to_streaming_channel
+      # StreamingChannelに自動購読
+      Rails.logger.info "🔗 Auto-subscribing to StreamingChannel for user: #{current_user.username}"
+      # Action Cableの内部でチャンネル購読を実行
+      server.execute_command(self, {
+                               'command' => 'subscribe',
+                               'identifier' => '{"channel":"StreamingChannel"}'
+                             })
     end
   end
 end
