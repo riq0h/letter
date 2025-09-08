@@ -11,9 +11,10 @@ class StreamingChannel < ApplicationCable::Channel
   end
 
   # Mastodon互換のメッセージ送信をオーバーライド
-  def transmit(data, via: nil)
-    # Action Cableの標準フォーマットではなく、Mastodonフォーマットで送信
-    super
+  def transmit(data, _via = nil)
+    # Action CableラッピングをバイパスしてWebSocketに直接送信
+    connection.websocket.send(data.to_json)
+    Rails.logger.info "🔗 Direct WebSocket message sent: #{data.to_json}"
   end
 
   def unsubscribed
