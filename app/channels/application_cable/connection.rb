@@ -9,53 +9,47 @@ module ApplicationCable
       Rails.logger.info "🔗 Action Cable connection established for user: #{current_user.username}"
     end
 
+    def disconnect
+      Rails.logger.info "🔌 Action Cable connection closed for user: #{current_user&.username}"
+    end
+
     private
 
     def find_verified_user
-      # Mastodon互換のOAuth トークン取得
       token = extract_access_token
-      unless token
-        Rails.logger.error '❌ No token found, rejecting connection'
-        reject_unauthorized_connection
-        return
-      end
+      return reject_with_log('No token found') unless token
 
-      # Doorkeeper のアクセストークンを検証
-      access_token = Doorkeeper::AccessToken.by_token(token)
-      unless access_token
-        Rails.logger.error "❌ Invalid access token: #{token[0..10]}..."
-        reject_unauthorized_connection
-        return
-      end
+      access_token = verify_access_token(token)
+      return reject_with_log("Invalid access token: #{token[0..10]}...") unless access_token
 
-      # access_tokenが有効かどうか確認（期限切れや取り消しをチェック）
-      unless access_token && !access_token.expired? && !access_token.revoked?
-        Rails.logger.error "❌ Access token not acceptable (expired/revoked): #{token[0..10]}..."
-        reject_unauthorized_connection
-        return
-      end
+      user = find_user_by_token(access_token)
+      return reject_with_log("No user found for resource_owner_id: #{access_token.resource_owner_id}") unless user
 
-      # ユーザを取得
-      Rails.logger.info "🔍 Looking for user with resource_owner_id: #{access_token.resource_owner_id}"
-      user = Actor.find_by(id: access_token.resource_owner_id)
-      unless user
-        Rails.logger.error "❌ No user found for resource_owner_id: #{access_token.resource_owner_id}"
-        reject_unauthorized_connection
-        return
-      end
-
-      unless user.local?
-        Rails.logger.error "❌ User is not local: #{user.username}"
-        reject_unauthorized_connection
-        return
-      end
+      return reject_with_log("User is not local: #{user.username}") unless user.local?
 
       Rails.logger.info "✅ WebSocket authentication successful for user: #{user.username}"
       user
     rescue StandardError => e
       Rails.logger.error "❌ WebSocket authentication error: #{e.class}: #{e.message}"
-      Rails.logger.error "❌ Backtrace: #{e.backtrace[0..3].join(', ')}"
       reject_unauthorized_connection
+    end
+
+    def verify_access_token(token)
+      access_token = Doorkeeper::AccessToken.by_token(token)
+      return nil unless access_token && !access_token.expired? && !access_token.revoked?
+
+      access_token
+    end
+
+    def find_user_by_token(access_token)
+      Rails.logger.info "🔍 Looking for user with resource_owner_id: #{access_token.resource_owner_id}"
+      Actor.find_by(id: access_token.resource_owner_id)
+    end
+
+    def reject_with_log(message)
+      Rails.logger.error "❌ #{message}, rejecting connection"
+      reject_unauthorized_connection
+      nil
     end
 
     def extract_access_token

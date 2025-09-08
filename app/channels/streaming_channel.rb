@@ -3,7 +3,8 @@
 class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
-    # Mastodon互換：初期接続では何もしない（receive メソッドでストリーム購読を処理）
+    # Mastodon互換：接続確認メッセージを送信
+    transmit({ event: 'connected' })
   end
 
   def unsubscribed
