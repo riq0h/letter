@@ -18,6 +18,7 @@ Rails.application.routes.draw do
   get '/.well-known/nodeinfo', to: 'well_known#nodeinfo'
 
   # NodeInfo
+  get '/nodeinfo/2.0', to: 'nodeinfo#show'
   get '/nodeinfo/2.1', to: 'nodeinfo#show'
 
   # ActivityPubアクティビティエンドポイント
