@@ -105,15 +105,18 @@ module Api
           # 管理者アラートのネスト構造を処理
           admin_alerts = alerts_params[:admin] || {}
 
+          # まず全ての許可されたキーを定義
+          default_alerts.keys
+
+          # Strong Parametersで許可されたキーのみを取得
+          permitted_base_alerts = ActionController::Parameters.new(alerts_params).permit(*default_alerts.keys)
+
           # フラット構造に変換
-          flat_alerts = alerts_params.except(:admin).to_h
+          flat_alerts = permitted_base_alerts.to_h
           flat_alerts['admin.sign_up'] = admin_alerts[:sign_up] if admin_alerts.key?(:sign_up)
           flat_alerts['admin.report'] = admin_alerts[:report] if admin_alerts.key?(:report)
 
-          # Strong Parametersを適切に処理
-          permitted_keys = default_alerts.keys + ['admin.sign_up', 'admin.report']
-          permitted_alerts = ActionController::Parameters.new(flat_alerts).permit(*permitted_keys)
-          default_alerts.merge(permitted_alerts.to_h)
+          default_alerts.merge(flat_alerts)
         end
 
         def serialized_subscription(subscription)
