@@ -4,14 +4,17 @@ class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
     Rails.logger.info '🔗 StreamingChannel ready for Mastodon client messages'
-    # Mastodonでは接続時に特別なメッセージを送信しない
   end
 
   # Mastodon互換のメッセージ送信をオーバーライド
   def transmit(data, _via = nil)
-    # Action Cableの標準transmitを使用してJSON文字列として送信
-    super(data.to_json)
-    Rails.logger.info "🔗 Action Cable message sent: #{data.to_json}"
+    Rails.logger.info '🔗 Attempting direct WebSocket transmission'
+
+    return true if try_websocket_method(data)
+    return true if try_websocket_instance_var(data)
+    return true if try_websocket_send_async(data)
+
+    fallback_transmit(data)
   end
 
   def unsubscribed
@@ -98,5 +101,46 @@ class StreamingChannel < ApplicationCable::Channel
     return reject unless list
 
     stream_from "list:#{list_id}"
+  end
+
+  # WebSocket直接送信メソッド群
+  def try_websocket_method(data)
+    websocket = connection.send(:websocket)
+    return false unless websocket.respond_to?(:transmit)
+
+    websocket.transmit(data.to_json)
+    Rails.logger.info "🔗 Direct WebSocket (method) message sent: #{data.to_json}"
+    true
+  rescue StandardError => e
+    Rails.logger.warn "🔗 WebSocket method access failed: #{e.message}"
+    false
+  end
+
+  def try_websocket_instance_var(data)
+    websocket = connection.instance_variable_get(:@websocket)
+    return false unless websocket.respond_to?(:transmit)
+
+    websocket.transmit(data.to_json)
+    Rails.logger.info "🔗 Direct WebSocket (instance var) message sent: #{data.to_json}"
+    true
+  rescue StandardError => e
+    Rails.logger.warn "🔗 WebSocket instance variable access failed: #{e.message}"
+    false
+  end
+
+  def try_websocket_send_async(data)
+    connection.send_async(:websocket_transmit, data.to_json)
+    Rails.logger.info "🔗 Direct WebSocket (send_async) message sent: #{data.to_json}"
+    true
+  rescue StandardError => e
+    Rails.logger.warn "🔗 WebSocket send_async failed: #{e.message}"
+    false
+  end
+
+  def fallback_transmit(data)
+    Rails.logger.warn '🔗 All direct methods failed, using Action Cable transmit'
+    super(data.to_json)
+    Rails.logger.info "🔗 Fallback Action Cable message sent: #{data.to_json}"
+    false
   end
 end
