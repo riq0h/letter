@@ -216,13 +216,11 @@ FileUtils.chdir APP_ROOT do
   # データベースファイル確認・作成
   cache_db_file = "storage/cache_#{rails_env}.sqlite3"
   queue_db_file = "storage/queue_#{rails_env}.sqlite3"
-  cable_db_file = "storage/cable_#{rails_env}.sqlite3"
 
   # Solid関連データベースの作成
   [
     ["Cache", cache_db_file],
-    ["Queue", queue_db_file], 
-    ["Cable", cable_db_file]
+    ["Queue", queue_db_file]
   ].each do |name, db_file|
     unless File.exist?(db_file)
       print_warning "#{name}データベースファイルが見つかりません。作成します..."
@@ -277,24 +275,6 @@ FileUtils.chdir APP_ROOT do
     print_success "queue.ymlが既に存在します"
   end
   
-  unless File.exist?("config/cable.yml")
-    print_info "cable.ymlが存在しないため、Solid Cableをインストールします..."
-    system("#{env_cmd} bin/rails solid_cable:install 2>/dev/null")
-    
-    # development/test環境でもsolid_cableを使用するように修正
-    print_info "Rails 8対応のためにSolid Cable設定を修正中..."
-    
-    cable_yml_content = File.read("config/cable.yml")
-    cable_yml_content.gsub!(/development:\s*\n\s*adapter: async/, 
-      "development:\n  adapter: solid_cable\n  connects_to:\n    database:\n      writing: cable\n  polling_interval: 0.1.seconds\n  message_retention: 1.day")
-    cable_yml_content.gsub!(/test:\s*\n\s*adapter: test/, 
-      "test:\n  adapter: solid_cable\n  connects_to:\n    database:\n      writing: cable\n  polling_interval: 0.1.seconds\n  message_retention: 1.day")
-    File.write("config/cable.yml", cable_yml_content)
-    
-    print_success "Solid Cable設定をRails 8対応に修正しました"
-  else
-    print_success "cable.ymlが既に存在します"
-  end
 
   # Solid関連データベースのマイグレーション実行
   print_info "Solid関連データベースのマイグレーション..."
@@ -319,26 +299,16 @@ FileUtils.chdir APP_ROOT do
     end
   end
 
-  # Cable database schema
-  if File.exist?(cable_db_file)
-    cable_tables = `sqlite3 "#{cable_db_file}" ".tables" 2>/dev/null`.strip
-    if cable_tables.include?("solid_cable_messages")
-      print_success "Solid Cableテーブルが存在します"
-    else
-      print_success "Solid Cableテーブルはマイグレーションで作成されます"
-    end
-  end
 
   # 最終確認
   print_info "Solid関連テーブルの最終確認..."
   cache_ok = `sqlite3 "#{cache_db_file}" ".tables" 2>/dev/null`.include?("solid_cache_entries")
   queue_ok = `sqlite3 "#{queue_db_file}" ".tables" 2>/dev/null`.include?("solid_queue_jobs")
-  cable_ok = `sqlite3 "#{cable_db_file}" ".tables" 2>/dev/null`.include?("solid_cable_messages")
   
-  if cache_ok && queue_ok && cable_ok
+  if cache_ok && queue_ok
     print_success "すべてのSolid関連データベースが正常にセットアップされました"
   else
-    print_warning "一部のSolid関連データベースに問題があります (Cache:#{cache_ok} Queue:#{queue_ok} Cable:#{cable_ok})"
+    print_warning "一部のSolid関連データベースに問題があります (Cache:#{cache_ok} Queue:#{queue_ok})"
   end
 
   # production環境の場合はSECRET_KEY_BASEをチェック
@@ -545,58 +515,6 @@ FileUtils.chdir APP_ROOT do
       print_warning "Solid Cache確認がタイムアウトしました"
     end
 
-    # Solid Cableの動作確認
-    print_info "Solid Cableの動作確認中..."
-    begin
-      cable_check = `timeout 5 bin/rails runner "
-        adapter = ActionCable.server.config.cable&.[](:adapter) || 'unknown'
-        puts 'adapter:' + adapter.to_s
-        
-        if adapter.to_s == 'solid_cable'
-          begin
-            ActiveRecord::Base.establish_connection(:cable)
-            if ActiveRecord::Base.connection.table_exists?('solid_cable_messages')
-              message_count = ActiveRecord::Base.connection.execute('SELECT COUNT(*) FROM solid_cable_messages').first[0]
-              puts 'messages:' + message_count.to_s
-              puts 'status:ok'
-            else
-              puts 'status:no_table'
-            end
-          rescue => e
-            puts 'status:error:' + e.message
-          ensure
-            ActiveRecord::Base.establish_connection(:primary)
-          end
-        else
-          puts 'status:unused'
-        end
-      " 2>/dev/null`.strip
-
-      cable_lines = cable_check.split("\n")
-      adapter = cable_lines.find { |l| l.start_with?("adapter:") }&.sub("adapter:", "")
-      status = cable_lines.find { |l| l.start_with?("status:") }&.sub("status:", "")
-      
-      case status
-      when "ok"
-        message_count = cable_lines.find { |l| l.start_with?("messages:") }&.sub("messages:", "")
-        if message_count && message_count.to_i > 0
-          print_success "Solid Cable が正常動作中 (messages: #{message_count})"
-        else
-          print_success "Solid Cable が正常動作中"
-        end
-      when "no_table"
-        print_warning "Solid Cable テーブルが見つかりません"
-      when /^error:/
-        error_msg = status.sub("error:", "")
-        print_warning "Solid Cable 接続エラー: #{error_msg}"
-      when "unused"
-        print_info "Solid Cable は未使用 (adapter: #{adapter})"
-      else
-        print_warning "Solid Cable 確認結果が不明です"
-      end
-    rescue
-      print_warning "Solid Cable確認がタイムアウトしました"
-    end
 
     # 最終結果表示
     puts ""

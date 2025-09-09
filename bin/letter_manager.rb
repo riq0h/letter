@@ -437,14 +437,6 @@ def setup_new_installation
     print_warning 'Solid Cacheの動作確認に失敗しました'
   end
 
-  # Solid Cable確認
-  cable_ok = check_solid_cable_status
-  if cable_ok
-    print_success 'Solid Cableが正常に動作しています'
-  else
-    print_warning 'Solid Cableの動作確認に失敗しました'
-  end
-
   # 最終結果表示
   puts ''
   print_header 'セットアップ完了'
@@ -646,14 +638,6 @@ EOF")
     print_warning 'Solid Cacheの動作確認に失敗しました'
   end
 
-  # Solid Cable確認
-  cable_ok = check_solid_cable_status
-  if cable_ok
-    print_success 'Solid Cableが正常に動作しています'
-  else
-    print_warning 'Solid Cableの動作確認に失敗しました'
-  end
-
   puts ''
   print_header '起動完了'
   print_success 'letter が正常に起動しました'
@@ -712,10 +696,6 @@ def check_domain_config
     # Solid Cache確認
     cache_ok = check_solid_cache_status
     puts "  Solid Cache: #{cache_ok ? '正常' : 'エラー'}"
-
-    # Solid Cable確認
-    cable_ok = check_solid_cable_status
-    puts "  Solid Cable: #{cable_ok ? '正常' : 'エラー'}"
 
     # ローカルユーザ表示
     puts ''
@@ -2295,49 +2275,6 @@ rescue StandardError => e
   false
 end
 
-def check_solid_cable_status
-  # Solid Cableの動作確認
-
-  cable_check_code = <<~RUBY
-    begin
-      # Solid Cableアダプタの確認
-      adapter = ActionCable.server.config.cable&.[](:adapter) || 'unknown'
-    #{'  '}
-      if adapter.to_s == 'solid_cable'
-        # テーブル存在確認
-        ActiveRecord::Base.establish_connection(:cable)
-        if ActiveRecord::Base.connection.table_exists?('solid_cable_messages')
-          puts 'cable_ok'
-        else
-          puts 'cable_failed|Table not found'
-        end
-        ActiveRecord::Base.establish_connection(:primary)
-      else
-        puts 'cable_unused|Adapter not solid_cable'
-      end
-    rescue => e
-      puts "cable_error|\#{e.message}"
-    end
-  RUBY
-
-  result = run_rails_command(cable_check_code)
-
-  if result.strip == 'cable_ok'
-    true
-  elsif result.include?('cable_unused')
-    true # 未使用でも正常とみなす
-  else
-    error_line = result.lines.find { |l| l.include?('|') }
-    if error_line
-      _, error_msg = error_line.strip.split('|', 2)
-      Rails.logger.warn "Solid Cable check failed: #{error_msg}" if defined?(Rails)
-    end
-    false
-  end
-rescue StandardError => e
-  Rails.logger.warn "Solid Cable check error: #{e.message}" if defined?(Rails)
-  false
-end
 
 def check_solid_queue_in_puma_status
   # Solid Queue（Puma内）の動作確認

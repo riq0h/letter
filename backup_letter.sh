@@ -5,8 +5,8 @@ set -euo pipefail
 # WALモードのSQLiteデータベースを安全にバックアップし、オブジェクトストレージにアップロード
 
 # 設定項目
-INSTANCE_DIR="/home/example/letter"
-BACKUP_DIR="/home/example/letter/backup"
+INSTANCE_DIR="/home/letter/letter"
+BACKUP_DIR="/home/letter/letter/backup"
 BACKUP_LIFETIME_DAYS=7
 DATE_FORMAT="%Y%m%d_%H-%M-%S"
 WEB_CONTAINER="letter-web-1"
