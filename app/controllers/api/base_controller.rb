@@ -46,7 +46,10 @@ module Api
 
     # 現在のリクエストが必要なOAuthスコープを持っているかチェック
     def doorkeeper_authorize!(*scopes)
-      return false unless doorkeeper_token
+      unless doorkeeper_token
+        render json: { error: 'This action requires authentication' }, status: :unauthorized
+        return false
+      end
 
       # トークンが必要なスコープを持っているかチェック
       if scopes.any?

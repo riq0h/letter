@@ -87,13 +87,6 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # Action Cable configuration
-  config.action_cable.mount_path = '/api/v1/streaming'
-  config.action_cable.url = "wss://#{ENV.fetch('ACTIVITYPUB_DOMAIN')}/api/v1/streaming"
-  config.action_cable.allowed_request_origins = [
-    "https://#{ENV.fetch('ACTIVITYPUB_DOMAIN')}",
-    %r{https://.*}
-  ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.
   # config.hosts = [

@@ -34,8 +34,6 @@ Rails.application.routes.draw do
   # その他のシステム統合
   # ================================
 
-  # Action Cable (WebSocket) - Mastodon API互換エンドポイント
-  mount ActionCable.server => '/api/v1/streaming'
 
   # OAuth 2.0 Routes
   use_doorkeeper
@@ -44,9 +42,8 @@ Rails.application.routes.draw do
   # キャッチオールルート（最後に配置）
   # ================================
   
-  # 404エラー用のキャッチオールルート（Active StorageとAction Cableパスは除外）
+  # 404エラー用のキャッチオールルート（Active Storageパスは除外）
   match '*path', to: 'errors#not_found', via: :all, constraints: ->(req) { 
-    !req.path.start_with?('/rails/active_storage') && 
-    !req.path.start_with?('/api/v1/streaming')
+    !req.path.start_with?('/rails/active_storage')
   }
 end

@@ -28,7 +28,7 @@ Rails.application.routes.draw do
       post '/accounts/:id/note', to: 'accounts#note'
 
       # ステータス
-      resources :statuses, only: [:show, :create, :destroy, :update] do
+      resources :statuses, only: %i[show create destroy update] do
         member do
           get :context
           get :history
@@ -55,7 +55,7 @@ Rails.application.routes.draw do
           post :unfollow
         end
       end
-      
+
       # タイムライン
       get '/timelines/home', to: 'timelines#home'
       get '/timelines/public', to: 'timelines#public'
@@ -65,17 +65,17 @@ Rails.application.routes.draw do
       get '/instance', to: 'instance#show'
 
       # メディア
-      resources :media, only: [:create, :show, :update]
+      resources :media, only: %i[create show update]
 
       # ダイレクトメッセージ
-      resources :conversations, only: [:index, :show, :destroy] do
+      resources :conversations, only: %i[index show destroy] do
         member do
           post :read
         end
       end
 
       # 通知
-      resources :notifications, only: [:index, :show] do
+      resources :notifications, only: %i[index show] do
         collection do
           post :clear
         end
@@ -84,13 +84,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # ストリーミング情報API
-      get '/streaming/info', to: 'streaming#index'
-      
-      # サーバ通知イベント
-      namespace :streaming do
-        get '/stream', to: 'sse#stream'
-      end
+      # ストリーミングAPI
+      get '/streaming', to: 'streaming#index'
 
       # ドメインブロック
       get '/domain_blocks', to: 'domain_blocks#index'
@@ -110,11 +105,11 @@ Rails.application.routes.draw do
       get '/follow_requests', to: 'follow_requests#index'
       post '/follow_requests/:id/authorize', to: 'follow_requests#authorize'
       post '/follow_requests/:id/reject', to: 'follow_requests#reject'
-      
+
       # マーカー
       get '/markers', to: 'markers#index'
       post '/markers', to: 'markers#create'
-      
+
       # リスト
       get '/lists', to: 'lists#index'
       post '/lists', to: 'lists#create'
@@ -124,7 +119,7 @@ Rails.application.routes.draw do
       get '/lists/:id/accounts', to: 'lists#accounts'
       post '/lists/:id/accounts', to: 'lists#add_accounts'
       delete '/lists/:id/accounts', to: 'lists#remove_accounts'
-      
+
       # 注目タグ
       get '/featured_tags', to: 'featured_tags#index'
       post '/featured_tags', to: 'featured_tags#create'
@@ -133,45 +128,45 @@ Rails.application.routes.draw do
 
       # フォロー中のタグ
       get '/followed_tags', to: 'followed_tags#index'
-      
+
       # 投票
       resources :polls, only: [:show] do
         member do
           post :vote, path: 'votes'
         end
       end
-      
+
       # 予約投稿
-      resources :scheduled_statuses, only: [:index, :show, :update, :destroy]
-      
+      resources :scheduled_statuses, only: %i[index show update destroy]
+
       # Endorsements (stub)
       get '/endorsements', to: 'endorsements#index'
       post '/accounts/:id/pin', to: 'endorsements#create'
       delete '/accounts/:id/unpin', to: 'endorsements#destroy'
-      
+
       # レポート（スタブ）
       post '/reports', to: 'reports#create'
-      
+
       # サジェスト
       get '/suggestions', to: 'suggestions#index'
       delete '/suggestions/:id', to: 'suggestions#destroy'
-      
+
       # トレンド
       get '/trends', to: 'trends#index'
       get '/trends/tags', to: 'trends#tags'
       get '/trends/statuses', to: 'trends#statuses'
       get '/trends/links', to: 'trends#links'
-      
+
       # フィルター
       resources :filters
-      
+
       # 設定
       get '/preferences', to: 'preferences#show'
-      
+
       # お知らせ
       get '/announcements', to: 'announcements#index'
       post '/announcements/:id/dismiss', to: 'announcements#dismiss'
-      
+
       # プッシュ通知登録
       namespace :push do
         get '/subscription', to: 'subscription#show'
@@ -183,15 +178,15 @@ Rails.application.routes.draw do
       # Admin API
       namespace :admin do
         get '/dashboard', to: 'dashboard#show'
-        
-        resources :accounts, only: [:index, :show, :destroy] do
+
+        resources :accounts, only: %i[index show destroy] do
           member do
             post :enable
             post :suspend
           end
         end
-        
-        resources :reports, only: [:index, :show] do
+
+        resources :reports, only: %i[index show] do
           member do
             post :assign_to_self
             post :unassign

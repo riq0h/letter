@@ -330,26 +330,6 @@ RSpec.describe ActivityPubObject, type: :model do
     end
   end
 
-  describe 'broadcasting' do
-    let(:object) { create(:activity_pub_object) }
-
-    describe '#broadcast_status_update' do
-      it 'successfully calls StreamingDelivery to broadcast status update' do
-        expect(StreamingDelivery).to receive(:deliver_status_update).with(object)
-
-        object.send(:broadcast_status_update)
-      end
-    end
-
-    describe '#broadcast_status_delete' do
-      it 'successfully calls StreamingDelivery to broadcast status delete' do
-        expect(StreamingDelivery).to receive(:deliver_status_delete).with(object.id)
-
-        object.send(:broadcast_status_delete)
-      end
-    end
-  end
-
   describe 'type checking methods' do
     describe '#note?' do
       it 'returns true for Note objects' do
@@ -518,35 +498,20 @@ RSpec.describe ActivityPubObject, type: :model do
     end
 
     describe 'after_update callback' do
-      it 'triggers broadcast_status_update when content changes' do
+      it 'updates content successfully' do
         note_object = create(:activity_pub_object, object_type: 'Note', local: true, content: 'Original content')
 
-        # broadcast_status_updateが呼ばれることを確認
-        allow(note_object).to receive(:broadcast_status_update)
-
-        note_object.update!(content: 'Updated note content')
-
-        expect(note_object).to have_received(:broadcast_status_update)
+        expect do
+          note_object.update!(content: 'Updated note content')
+        end.to change { note_object.reload.content }.from('Original content').to('Updated note content')
       end
 
-      it 'triggers broadcast_status_update when visibility changes' do
+      it 'updates visibility successfully' do
         note_object = create(:activity_pub_object, object_type: 'Note', local: true, visibility: 'public')
 
-        allow(note_object).to receive(:broadcast_status_update)
-
-        note_object.update!(visibility: 'private')
-
-        expect(note_object).to have_received(:broadcast_status_update)
-      end
-
-      it 'does not trigger broadcast for non-Note objects' do
-        article_object = create(:activity_pub_object, object_type: 'Article', local: true)
-
-        allow(article_object).to receive(:broadcast_status_update)
-
-        article_object.update!(content: 'Updated article content')
-
-        expect(article_object).not_to have_received(:broadcast_status_update)
+        expect do
+          note_object.update!(visibility: 'private')
+        end.to change { note_object.reload.visibility }.from('public').to('private')
       end
     end
   end

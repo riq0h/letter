@@ -63,12 +63,9 @@ class ActivityPubObject < ApplicationRecord
   after_create :process_text_content, if: -> { content.present? }
   after_create :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
   after_create :distribute_to_relays, if: -> { local? && should_distribute_to_relays? }
-  after_create :broadcast_status_update, if: -> { object_type == 'Note' }
   after_update :process_text_content, if: -> { local? && saved_change_to_content? }
-  after_update :broadcast_status_update, if: -> { object_type == 'Note' && (saved_change_to_content? || saved_change_to_visibility?) }
   after_destroy :create_delete_activity, if: :local?
   after_destroy :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
-  after_destroy :broadcast_status_delete, if: -> { object_type == 'Note' }
   after_save :create_activity_if_needed, if: :local?
 
   # === URL生成メソッド ===
@@ -450,19 +447,5 @@ class ActivityPubObject < ApplicationRecord
     RelayDistributionService.new.distribute_to_relays(self)
   rescue StandardError => e
     Rails.logger.error "💥 Relay distribution error: #{e.message}"
-  end
-
-  # === Action Cableブロードキャスト ===
-
-  def broadcast_status_update
-    StreamingDelivery.deliver_status_update(self)
-  rescue StandardError => e
-    Rails.logger.error "💥 Streaming broadcast error: #{e.message}"
-  end
-
-  def broadcast_status_delete
-    StreamingDelivery.deliver_status_delete(id)
-  rescue StandardError => e
-    Rails.logger.error "💥 Streaming delete broadcast error: #{e.message}"
   end
 end

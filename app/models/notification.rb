@@ -39,7 +39,6 @@ class Notification < ApplicationRecord
 
   # コールバック
   after_create :send_push_notification
-  after_create :broadcast_notification
 
   # スコープ
   scope :unread, -> { where(read: false) }
@@ -167,11 +166,5 @@ class Notification < ApplicationRecord
       quote_post = QuotePost.find_by(object: status)
       WebPushDelivery.deliver_quote_notification(quote_post, id) if quote_post
     end
-  end
-
-  def broadcast_notification
-    StreamingDelivery.deliver_notification(self)
-  rescue StandardError => e
-    Rails.logger.error "💥 Notification broadcast error: #{e.message}"
   end
 end
