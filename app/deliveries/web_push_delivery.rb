@@ -218,6 +218,8 @@ class WebPushDelivery
 
     # WebPush送信の実行
     def perform_webpush_send(subscription, payload)
+      Rails.logger.info "📱 Sending WebPush notification to #{subscription.endpoint[0..50]}... for #{subscription.actor.username}"
+
       encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
 
       uri = URI.parse(subscription.endpoint)
@@ -238,7 +240,10 @@ class WebPushDelivery
 
       response = http.request(request)
 
-      return if (200...300).cover?(response.code.to_i)
+      if (200...300).cover?(response.code.to_i)
+        Rails.logger.info "✅ WebPush notification sent successfully (HTTP #{response.code}) for #{subscription.actor.username}"
+        return
+      end
 
       # 410 Gone は購読が無効になったことを示す
       if response.code.to_i == 410
@@ -247,6 +252,8 @@ class WebPushDelivery
         return
       end
 
+      Rails.logger.error "❌ WebPush notification failed (HTTP #{response.code}): #{response.message} for #{subscription.actor.username}"
+      Rails.logger.error "Response body: #{response.body}" if response.body.present?
       raise "HTTP #{response.code}: #{response.message}"
     end
 
