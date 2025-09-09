@@ -114,19 +114,18 @@ module ApplicationCable
     end
 
     def subscribe_to_streaming_channel
-      # StreamingChannelに自動購読
+      # StreamingChannelに自動購読（同期処理に変更）
       Rails.logger.info "🔗 Auto-subscribing to StreamingChannel for user: #{current_user.username}"
-      # 遅延実行でチャンネル購読を実行
-      ActionCable.server.event_loop.post do
-        Rails.logger.info '🔗 Executing StreamingChannel subscription'
-        begin
-          # StreamingChannelを直接インスタンス化
-          channel = StreamingChannel.new(self, '{"channel":"StreamingChannel"}')
-          channel.subscribe_to_channel
-          Rails.logger.info '🔗 StreamingChannel subscription completed'
-        rescue StandardError => e
-          Rails.logger.error "🔗 StreamingChannel subscription failed: #{e.message}"
-        end
+
+      begin
+        Rails.logger.info '🔗 Executing StreamingChannel subscription (synchronous)'
+        # StreamingChannelを直接インスタンス化
+        channel = StreamingChannel.new(self, '{"channel":"StreamingChannel"}')
+        channel.subscribe_to_channel
+        Rails.logger.info '🔗 StreamingChannel subscription completed (synchronous)'
+      rescue StandardError => e
+        Rails.logger.error "🔗 StreamingChannel subscription failed: #{e.message}"
+        Rails.logger.error e.backtrace.join("\n") if Rails.env.development?
       end
     end
   end
