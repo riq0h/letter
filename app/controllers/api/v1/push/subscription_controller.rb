@@ -39,6 +39,11 @@ module Api
           )
 
           if @subscription.save
+            # 古いsubscriptionを削除（最新の1つを除く）
+            current_account.web_push_subscriptions
+                           .where.not(id: @subscription.id)
+                           .destroy_all
+
             render json: serialized_subscription(@subscription), status: :created
           else
             render json: {
@@ -82,7 +87,7 @@ module Api
         private
 
         def set_subscription
-          @subscription = current_account.web_push_subscriptions.first
+          @subscription = current_account.web_push_subscriptions.order(created_at: :desc).first
         end
 
         def extract_subscription_params
