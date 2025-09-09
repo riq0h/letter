@@ -39,10 +39,6 @@ module Api
           )
 
           if @subscription.save
-            # 古いsubscriptionを削除（最新の1つを除く）
-            current_account.web_push_subscriptions
-                           .where.not(id: @subscription.id)
-                           .destroy_all
 
             render json: serialized_subscription(@subscription), status: :created
           else
