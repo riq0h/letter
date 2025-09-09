@@ -459,9 +459,9 @@ class ActivityPubObject < ApplicationRecord
 
     # パブリックタイムラインへの即座配信
     if visibility == 'public'
-      SSEConnectionManager.instance.broadcast_to_stream('public', 'update', serialized_status)
+      SseConnectionManager.instance.broadcast_to_stream('public', 'update', serialized_status)
 
-      SSEConnectionManager.instance.broadcast_to_stream('public:local', 'update', serialized_status) if local?
+      SseConnectionManager.instance.broadcast_to_stream('public:local', 'update', serialized_status) if local?
 
       # ハッシュタグストリーム配信
       broadcast_to_hashtag_streams(serialized_status)
@@ -557,10 +557,10 @@ class ActivityPubObject < ApplicationRecord
   def broadcast_to_hashtag_streams(serialized_status)
     tags.each do |tag|
       # グローバルハッシュタグ
-      SSEConnectionManager.instance.broadcast_to_hashtag(tag.name, 'update', serialized_status)
+      SseConnectionManager.instance.broadcast_to_hashtag(tag.name, 'update', serialized_status)
 
       # ローカルハッシュタグ（ローカル投稿のみ）
-      SSEConnectionManager.instance.broadcast_to_hashtag(tag.name, 'update', serialized_status, local_only: true) if local?
+      SseConnectionManager.instance.broadcast_to_hashtag(tag.name, 'update', serialized_status, local_only: true) if local?
     end
   end
 
@@ -569,19 +569,19 @@ class ActivityPubObject < ApplicationRecord
     follower_ids = actor.followers.local.pluck(:id)
 
     follower_ids.each do |follower_id|
-      SSEConnectionManager.instance.broadcast_to_user(follower_id, 'update', serialized_status)
+      SseConnectionManager.instance.broadcast_to_user(follower_id, 'update', serialized_status)
     end
 
     # 自分のホームタイムラインにも配信
     return unless actor.local?
 
-    SSEConnectionManager.instance.broadcast_to_user(actor_id, 'update', serialized_status)
+    SseConnectionManager.instance.broadcast_to_user(actor_id, 'update', serialized_status)
   end
 
   def broadcast_to_list_timelines(serialized_status)
-    # TODO: リスト機能が実装されたら追加
-    # ListMembership.where(actor_id: actor_id).includes(:list).each do |membership|
-    #   SSEConnectionManager.instance.broadcast_to_list(membership.list_id, 'update', serialized_status)
-    # end
+    # この投稿者をリストに含むすべてのリストに配信
+    ListMembership.where(actor_id: actor_id).includes(:list).find_each do |membership|
+      SseConnectionManager.instance.broadcast_to_list(membership.list_id, 'update', serialized_status)
+    end
   end
 end

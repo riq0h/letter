@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class SSEConnectionManager
+class SseConnectionManager
   include Singleton
 
   def initialize

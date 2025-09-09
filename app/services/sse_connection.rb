@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class SSEConnection
+class SseConnection
   attr_reader :user, :stream_type, :created_at
 
   def initialize(response_stream, user, stream_type)
@@ -67,7 +67,7 @@ class SSEConnection
       Rails.logger.debug { "Error closing SSE stream: #{e.message}" }
     ensure
       @closed = true
-      SSEConnectionManager.instance.unregister_connection(@user.id, @stream_type, self)
+      SseConnectionManager.instance.unregister_connection(@user.id, @stream_type, self)
       Rails.logger.info "🔌 SSE connection closed for #{@user.username}:#{@stream_type}"
     end
   end

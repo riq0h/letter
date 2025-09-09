@@ -30,10 +30,10 @@ module Api
         response.headers['X-Accel-Buffering'] = 'no'
 
         # SSE接続オブジェクトを作成
-        connection = SSEConnection.new(response.stream, current_user, params[:stream])
+        connection = SseConnection.new(response.stream, current_user, params[:stream])
 
         # 接続管理システムに登録
-        SSEConnectionManager.instance.register_connection(current_user.id, params[:stream], connection)
+        SseConnectionManager.instance.register_connection(current_user.id, params[:stream], connection)
 
         logger.info "🔗 Real-time SSE streaming started for #{current_user.username}: #{params[:stream]}"
 

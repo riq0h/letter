@@ -173,7 +173,7 @@ class Notification < ApplicationRecord
     serialized_notification = serialize_for_streaming
 
     # 即座にユーザーに通知配信
-    SSEConnectionManager.instance.broadcast_to_user(account_id, 'notification', serialized_notification)
+    SseConnectionManager.instance.broadcast_to_user(account_id, 'notification', serialized_notification)
 
     Rails.logger.info "📡 Notification #{id} (#{notification_type}) delivered to user #{account_id}"
   rescue StandardError => e
