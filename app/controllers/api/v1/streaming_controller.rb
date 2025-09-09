@@ -29,28 +29,34 @@ module Api
         response.headers['Connection'] = 'keep-alive'
         response.headers['X-Accel-Buffering'] = 'no'
 
-        logger.info "🔗 SSE streaming started for #{current_user.username}: #{params[:stream]}"
+        # SSE接続オブジェクトを作成
+        connection = SSEConnection.new(response.stream, current_user, params[:stream])
 
-        send_sse_heartbeat
-        last_event_id = params[:last_event_id].to_i
+        # 接続管理システムに登録
+        SSEConnectionManager.instance.register_connection(current_user.id, params[:stream], connection)
 
-        # ポーリングベースのSSE
-        loop do
-          events = fetch_events_since(last_event_id)
+        logger.info "🔗 Real-time SSE streaming started for #{current_user.username}: #{params[:stream]}"
 
-          events.each do |event|
-            send_sse_event(event[:event], event[:payload])
-            last_event_id = [last_event_id, event[:id]].max
+        begin
+          # ウェルカムメッセージ送信
+          connection.send_welcome_message
+
+          # 初期データ送信（最近の履歴）
+          send_initial_events(connection)
+
+          # Keep-alive（ハートビートのみ、データベースポーリング廃止）
+          loop do
+            connection.send_heartbeat
+            sleep 30 # 30秒間隔のハートビート
           end
-
-          sleep 5 # 5秒間隔
+        rescue IOError, Errno::EPIPE, Errno::ECONNRESET
+          logger.info "SSE client disconnected: #{current_user.username}"
+        rescue StandardError => e
+          logger.error "SSE streaming error: #{e.message}"
+          logger.error "Backtrace: #{e.backtrace[0..2].join(', ')}"
+        ensure
+          connection.close
         end
-      rescue IOError, Errno::EPIPE
-        logger.info "SSE client disconnected: #{current_user.username}"
-      rescue StandardError => e
-        logger.error "SSE streaming error: #{e.message}"
-      ensure
-        response.stream&.close
       end
 
       def serve_polling_response
@@ -177,13 +183,14 @@ module Api
         end
       end
 
-      def send_sse_event(event, payload)
-        response.stream.write "event: #{event}\n"
-        response.stream.write "data: #{payload}\n\n"
-      end
+      def send_initial_events(connection)
+        # 過去の投稿を少し送信（履歴として10件程度）
+        events = fetch_events_since(0).last(10)
+        events.each do |event|
+          connection.send_event(event[:event], event[:payload])
+        end
 
-      def send_sse_heartbeat
-        response.stream.write ":heartbeat\n\n"
+        logger.debug "📤 Sent #{events.size} initial events to #{current_user.username}:#{params[:stream]}"
       end
 
       def serialize_status(status)

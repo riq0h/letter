@@ -39,6 +39,7 @@ class Notification < ApplicationRecord
 
   # コールバック
   after_create :send_push_notification
+  after_create :deliver_to_streaming
 
   # スコープ
   scope :unread, -> { where(read: false) }
@@ -166,5 +167,50 @@ class Notification < ApplicationRecord
       quote_post = QuotePost.find_by(object: status)
       WebPushDelivery.deliver_quote_notification(quote_post, id) if quote_post
     end
+  end
+
+  def deliver_to_streaming
+    serialized_notification = serialize_for_streaming
+
+    # 即座にユーザーに通知配信
+    SSEConnectionManager.instance.broadcast_to_user(account_id, 'notification', serialized_notification)
+
+    Rails.logger.info "📡 Notification #{id} (#{notification_type}) delivered to user #{account_id}"
+  rescue StandardError => e
+    Rails.logger.error "💥 Notification streaming delivery error: #{e.message}"
+  end
+
+  def serialize_for_streaming
+    {
+      id: id.to_s,
+      type: notification_type,
+      created_at: created_at.iso8601,
+      account: serialize_account(from_account),
+      status: activity.is_a?(ActivityPubObject) ? serialize_activity_object : nil
+    }
+  end
+
+  def serialize_account(actor)
+    {
+      id: actor.id.to_s,
+      username: actor.username,
+      acct: actor.acct,
+      display_name: actor.display_name || actor.username,
+      avatar: actor.avatar_url || '',
+      url: actor.public_url || actor.ap_id
+    }
+  end
+
+  def serialize_activity_object
+    return nil unless activity.is_a?(ActivityPubObject)
+
+    status = activity
+    {
+      id: status.id.to_s,
+      content: status.content || '',
+      created_at: status.published_at&.iso8601,
+      account: serialize_account(status.actor),
+      visibility: status.visibility
+    }
   end
 end
