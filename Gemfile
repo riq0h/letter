@@ -34,7 +34,7 @@ gem 'jwt'
 gem 'rack-cors'
 
 # Solid
-gem 'solid_cable'
+# gem 'solid_cable'
 gem 'solid_cache'
 gem 'solid_queue'
 
