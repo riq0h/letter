@@ -26,11 +26,6 @@ development:
     <<: *default
     database: storage/queue_development.sqlite3
     application_name: letter
-  
-  cable:
-    <<: *default
-    database: storage/cable_development.sqlite3
-    application_name: letter
 
 test:
   primary:
@@ -49,11 +44,6 @@ test:
     <<: *default
     database: storage/queue_test.sqlite3
     application_name: letter
-  
-  cable:
-    <<: *default
-    database: storage/cable_test.sqlite3
-    application_name: letter
 
 production:
   primary:
@@ -71,18 +61,6 @@ production:
   queue:
     <<: *default
     database: storage/queue_production.sqlite3
-    application_name: letter
-    pragma:
-      journal_mode: :wal
-      synchronous: :normal
-      cache_size: 10000
-      foreign_keys: :on
-      temp_store: :memory
-      mmap_size: 268435456
-  
-  cable:
-    <<: *default
-    database: storage/cable_production.sqlite3
     application_name: letter
     pragma:
       journal_mode: :wal

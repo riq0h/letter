@@ -16,7 +16,6 @@ RCLONE_DESTINATION="r2:letter-backup"
 DATABASES=(
 	"storage/production.sqlite3:primary"
 	"storage/queue_production.sqlite3:queue"
-	"storage/cable_production.sqlite3:cable"
 	"storage/cache_production.sqlite3:cache"
 )
 
