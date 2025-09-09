@@ -11,10 +11,8 @@ module ApplicationCable
       # WebSocketサブプロトコル処理
       handle_websocket_subprotocol
 
-      # Mastodonクライアント互換：自動的にStreamingChannelを購読
-      Rails.logger.info '🔗 About to call subscribe_to_streaming_channel'
-      subscribe_to_streaming_channel
-      Rails.logger.info '🔗 Called subscribe_to_streaming_channel'
+      # Mastodon互換：クライアント主導の購読を待つ（自動購読を無効化）
+      Rails.logger.info '🔗 WebSocket connection ready, waiting for client subscription requests'
     end
 
     def disconnect
