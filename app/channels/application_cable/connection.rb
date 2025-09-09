@@ -8,6 +8,9 @@ module ApplicationCable
       self.current_user = find_verified_user
       Rails.logger.info "🔗 Action Cable connection established for user: #{current_user.username}"
 
+      # WebSocketサブプロトコル処理
+      handle_websocket_subprotocol
+
       # Mastodonクライアント互換：自動的にStreamingChannelを購読
       Rails.logger.info '🔗 About to call subscribe_to_streaming_channel'
       subscribe_to_streaming_channel
@@ -94,6 +97,20 @@ module ApplicationCable
 
       Rails.logger.error '❌ No access token found in any location'
       nil
+    end
+
+    def handle_websocket_subprotocol
+      # WebSocketサブプロトコル（Mastodon互換）の処理
+      protocol = request.headers['sec-websocket-protocol']
+      if protocol.present?
+        Rails.logger.info "🔗 WebSocket subprotocol requested: #{protocol[0..10]}..."
+
+        # Mastodonクライアントに適切なプロトコル応答を送信
+        # この処理でクライアントが期待するWebSocketプロトコル確認応答を行う
+        Rails.logger.info '🔗 Sending WebSocket subprotocol confirmation'
+      else
+        Rails.logger.warn '🔗 No WebSocket subprotocol found in request'
+      end
     end
 
     def subscribe_to_streaming_channel

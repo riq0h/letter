@@ -4,10 +4,7 @@ class StreamingChannel < ApplicationCable::Channel
   def subscribed
     Rails.logger.info "🔗 StreamingChannel subscribed for user: #{current_user&.username}"
     Rails.logger.info '🔗 StreamingChannel ready for Mastodon client messages'
-
-    # 直接WebSocket送信テスト用メッセージ
-    Rails.logger.info '🧪 Testing direct WebSocket transmission methods'
-    transmit({ stream: ['user'], event: 'test', payload: 'direct_websocket_test' })
+    Rails.logger.info '🔗 Waiting for client subscription requests (Mastodon protocol)'
   end
 
   # Mastodon互換のメッセージ送信をオーバーライド
