@@ -240,6 +240,13 @@ class WebPushDelivery
 
       return if (200...300).cover?(response.code.to_i)
 
+      # 410 Gone は購読が無効になったことを示す
+      if response.code.to_i == 410
+        Rails.logger.warn "📱 Push subscription expired (HTTP 410) for #{subscription.actor.username}, removing subscription"
+        subscription.destroy
+        return
+      end
+
       raise "HTTP #{response.code}: #{response.message}"
     end
 
@@ -348,6 +355,9 @@ class WebPushDelivery
 
       if (400..499).cover?(response.code.to_i) && [408, 429].exclude?(response.code.to_i)
         Rails.logger.warn "📱 Invalid push subscription: #{response.code}"
+        subscription.destroy
+      elsif response.code.to_i == 410
+        Rails.logger.warn "📱 Push subscription expired (HTTP 410) for #{subscription.actor.username}, removing subscription"
         subscription.destroy
       elsif !(200...300).cover?(response.code.to_i)
         raise "HTTP #{response.code}: #{response.message}"
