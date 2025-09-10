@@ -15,9 +15,9 @@ module Api
 
       # GET /api/v1/notifications
       def index
-        Rails.logger.info "🔍 Notification request params: #{params.to_h}"
+        Rails.logger.info "🔍 Notification request - max_id: #{params[:max_id]}, limit: #{params[:limit]}"
         Rails.logger.info "🔍 exclude_types: #{params[:exclude_types]} (class: #{params[:exclude_types].class})"
-        Rails.logger.info "🔍 max_id: #{params[:max_id]}, limit: #{params[:limit]}"
+        Rails.logger.info "🔍 types: #{params[:types]} (class: #{params[:types].class})"
 
         @notifications = filtered_notifications
                          .recent
