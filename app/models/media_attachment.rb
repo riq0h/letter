@@ -117,9 +117,16 @@ class MediaAttachment < ApplicationRecord
   end
 
   def preview_url
-    if video? && file.attached?
-      # 動画の場合は1秒目のフレームを取得（libvipsを使用）
-      generate_video_preview_url
+    if video?
+      if file.attached?
+        # ローカル動画の場合は1秒目のフレームを取得
+        generate_video_preview_url
+      elsif remote_url.present?
+        # 外部動画の場合も1秒目のフレームを取得
+        generate_remote_video_preview_url
+      else
+        default_preview_icon_url
+      end
     elsif file.attached?
       # 画像の場合はそのまま表示
       if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
@@ -164,6 +171,18 @@ class MediaAttachment < ApplicationRecord
     default_preview_icon_url
   end
 
+  def generate_remote_video_preview_url
+    return default_preview_icon_url if remote_url.blank?
+
+    # 外部動画のサムネイルをキャッシュ
+    Rails.cache.fetch("remote_video_preview_#{id}", expires_in: 1.week) do
+      extract_remote_video_frame_as_data_url || default_preview_icon_url
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to generate remote video preview for #{id}: #{e.message}"
+    default_preview_icon_url
+  end
+
   def extract_video_frame_as_data_url
     require 'tempfile'
     require 'open3'
@@ -202,6 +221,42 @@ class MediaAttachment < ApplicationRecord
     end
   ensure
     input_file&.unlink
+    output_file&.unlink
+  end
+
+  def extract_remote_video_frame_as_data_url
+    require 'tempfile'
+    require 'open3'
+    require 'base64'
+    require 'net/http'
+    require 'uri'
+
+    # 出力サムネイルファイル
+    output_file = Tempfile.new(['remote_thumbnail', '.jpg'])
+    output_file.close
+
+    # FFmpegで直接リモートURLから1フレーム抽出
+    cmd = [
+      'ffmpeg',
+      '-i', remote_url,
+      '-ss', '00:00:01',
+      '-vframes', '1',
+      '-q:v', '2',
+      '-y',
+      output_file.path
+    ]
+
+    _, stderr, status = Open3.capture3(*cmd)
+
+    if status.success? && File.exist?(output_file.path) && File.size(output_file.path).positive?
+      # Base64エンコードしてdata URLとして返す
+      image_data = File.binread(output_file.path)
+      "data:image/jpeg;base64,#{Base64.strict_encode64(image_data)}"
+    else
+      Rails.logger.error "Remote FFmpeg failed for #{remote_url}: #{stderr}"
+      nil
+    end
+  ensure
     output_file&.unlink
   end
 
