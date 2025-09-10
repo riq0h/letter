@@ -5,9 +5,6 @@ module Api
     class StreamingController < Api::BaseController
       include ActionController::Live
 
-      # active_model_serializersを無効にして、ログのノイズを防ぐ
-      serialization_scope nil
-
       before_action :doorkeeper_authorize!
       before_action :set_cors_headers
 
