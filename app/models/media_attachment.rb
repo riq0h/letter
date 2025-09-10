@@ -117,21 +117,78 @@ class MediaAttachment < ApplicationRecord
   end
 
   def preview_url
-    # Active Storageファイルが添付されている場合
-    if file.attached?
-      # Cloudflare R2のカスタムドメインを使用
+    if video? && file.attached?
+      # 動画の場合は1秒目のフレームを取得（libvipsを使用）
+      generate_video_preview_url
+    elsif file.attached?
+      # 画像の場合はそのまま表示
       if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
         "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{file.blob.key}"
       else
         Rails.application.routes.url_helpers.url_for(file)
       end
     elsif image? && remote_url.present?
-      # リモートファイルの場合
+      # リモート画像の場合
       remote_url
     else
       # デフォルトのプレビューアイコン
       default_preview_icon_url
     end
+  end
+
+  private
+
+  def generate_video_preview_url
+    return default_preview_icon_url unless file.attached?
+
+    # FFmpegで1秒目のフレームを抽出してBase64エンコード
+    Rails.cache.fetch("video_preview_#{id}", expires_in: 1.week) do
+      extract_video_frame_as_data_url || default_preview_icon_url
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to generate video preview for #{id}: #{e.message}"
+    default_preview_icon_url
+  end
+
+  def extract_video_frame_as_data_url
+    require 'tempfile'
+    require 'open3'
+    require 'base64'
+
+    # 入力動画ファイル
+    input_file = Tempfile.new(['input_video', File.extname(file_name)])
+    input_file.binmode
+    input_file.write(file.download)
+    input_file.close
+
+    # 出力サムネイルファイル
+    output_file = Tempfile.new(['thumbnail', '.jpg'])
+    output_file.close
+
+    # FFmpeg コマンド
+    cmd = [
+      'ffmpeg',
+      '-i', input_file.path,
+      '-ss', '00:00:01',
+      '-vframes', '1',
+      '-q:v', '2',
+      '-y',
+      output_file.path
+    ]
+
+    _, stderr, status = Open3.capture3(*cmd)
+
+    if status.success? && File.exist?(output_file.path) && File.size(output_file.path).positive?
+      # Base64エンコードしてdata URLとして返す
+      image_data = File.binread(output_file.path)
+      "data:image/jpeg;base64,#{Base64.strict_encode64(image_data)}"
+    else
+      Rails.logger.error "FFmpeg failed: #{stderr}"
+      nil
+    end
+  ensure
+    input_file&.unlink
+    output_file&.unlink
   end
 
   # Active Storageファイルまたはリモートファイルの公開URL
@@ -218,8 +275,6 @@ class MediaAttachment < ApplicationRecord
       doc[:summary] = description if description.present?
     end
   end
-
-  private
 
   def set_defaults
     self.processed = false if processed.nil?

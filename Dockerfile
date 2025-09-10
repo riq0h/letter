@@ -26,6 +26,10 @@ RUN apt-get update -qq && \
     libpng-dev \
     libjpeg-dev \
     libwebp-dev \
+    libavformat-dev \
+    libavcodec-dev \
+    libavutil-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # 作業ディレクトリを設定
@@ -72,6 +76,10 @@ RUN apt-get update -qq && \
     libpng16-16 \
     libjpeg62-turbo \
     libwebp7 \
+    libavformat59 \
+    libavcodec59 \
+    libavutil57 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # 作業ディレクトリを設定

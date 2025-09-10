@@ -15,10 +15,6 @@ module Api
 
       # GET /api/v1/notifications
       def index
-        Rails.logger.info "🔍 Notification request - max_id: #{params[:max_id]}, limit: #{params[:limit]}"
-        Rails.logger.info "🔍 exclude_types: #{params[:exclude_types]} (class: #{params[:exclude_types].class})"
-        Rails.logger.info "🔍 types: #{params[:types]} (class: #{params[:types].class})"
-
         @notifications = filtered_notifications
                          .recent
                          .then { |n| apply_pagination(n) }
@@ -275,7 +271,6 @@ module Api
         end
 
         response.headers['Link'] = links.join(', ') if links.any?
-        Rails.logger.info "🔗 Link header set: #{response.headers['Link']}"
       end
     end
   end
