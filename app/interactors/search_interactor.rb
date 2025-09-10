@@ -158,7 +158,8 @@ class SearchInteractor
       since_time: parse_time(params[:since]),
       until_time: parse_time(params[:until]),
       limit: status_limit,
-      offset: params[:offset].to_i
+      offset: params[:offset].to_i,
+      current_user: current_user
     )
 
     results = search_query_obj.search

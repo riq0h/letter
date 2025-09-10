@@ -154,7 +154,11 @@ class ActivityPubContentProcessor
     target_actor = find_actor(username, domain)
     return unless target_actor
 
+    # 重複を防ぐためにトランザクション内で処理
     object.mentions.find_or_create_by(actor: target_actor)
+  rescue ActiveRecord::RecordNotUnique
+    # UNIQUE制約違反の場合は既存のレコードを返す
+    object.mentions.find_by(actor: target_actor)
   end
 
   def create_hashtag(tag_name)

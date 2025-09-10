@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 class SearchQuery
-  attr_accessor :query, :since_time, :until_time, :limit, :offset
+  include SearchOperators
+
+  attr_accessor :query, :since_time, :until_time, :limit, :offset, :current_user
 
   def initialize(attributes = {})
     @query = attributes[:query]
@@ -9,12 +11,16 @@ class SearchQuery
     @until_time = attributes[:until_time]
     @limit = attributes[:limit] || 30
     @offset = attributes[:offset] || 0
+    @current_user = attributes[:current_user]
   end
 
   def search
     return [] if query.blank?
 
-    if since_time.present? || until_time.present?
+    # from:me 等の検索演算子を処理
+    if search_operators?
+      search_with_operators
+    elsif since_time.present? || until_time.present?
       search_with_time_range
     else
       search_full_text_only
