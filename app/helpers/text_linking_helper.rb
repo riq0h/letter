@@ -49,6 +49,10 @@ module TextLinkingHelper
       return false unless %w[http https].include?(uri.scheme)
       return false if uri.host.blank?
 
+      # Blueskyドメインは除外
+      bluesky_domains = ['bsky.app', 'bsky.social', 'bsky.brid.gy']
+      return false if bluesky_domains.any? { |domain| uri.host&.include?(domain) }
+
       # ActivityPubのユーザリンク（メンション）は除外
       # /users/username や /@username 形式のパスを除外
       return false if /^\/(users\/|@)/.match?(uri.path)
