@@ -136,6 +136,20 @@ class MediaAttachment < ApplicationRecord
     end
   end
 
+  # Active Storageファイルまたはリモートファイルの公開URL
+  def url
+    if file.attached?
+      # Cloudflare R2のカスタムドメインを使用
+      if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
+        "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{file.blob.key}"
+      else
+        Rails.application.routes.url_helpers.url_for(file)
+      end
+    else
+      remote_url
+    end
+  end
+
   private
 
   def generate_video_preview_url
@@ -189,20 +203,6 @@ class MediaAttachment < ApplicationRecord
   ensure
     input_file&.unlink
     output_file&.unlink
-  end
-
-  # Active Storageファイルまたはリモートファイルの公開URL
-  def url
-    if file.attached?
-      # Cloudflare R2のカスタムドメインを使用
-      if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
-        "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{file.blob.key}"
-      else
-        Rails.application.routes.url_helpers.url_for(file)
-      end
-    else
-      remote_url
-    end
   end
 
   # キャッシュされたリモート画像のURLを取得（キャッシュが有効な場合）
