@@ -47,7 +47,13 @@ class ActivityPubContentProcessor
   end
 
   def public_url
-    return object.ap_id if object.ap_id.present? && !object.local?
+    if object.ap_id.present? && !object.local?
+      # bsky.brid.gyの場合はBlueskyの実際のURLに変換
+      return convert_bsky_bridge_url(object.ap_id) if object.ap_id.include?('bsky.brid.gy')
+
+      return object.ap_id
+    end
+
     return nil unless object.actor&.username
 
     # クライアント向けにはAPI形式のURLを返す（ブラウザアクセス時はコントローラでリダイレクト）
@@ -61,6 +67,46 @@ class ActivityPubContentProcessor
   private
 
   attr_reader :object
+
+  def convert_bsky_bridge_url(bridge_url)
+    # bsky.brid.gyのブリッジURLを実際のBlueskyURLに変換
+    post_id = extract_bluesky_post_id(bridge_url)
+    return bridge_url unless post_id
+
+    # ActorからBlueskyハンドルを取得
+    bluesky_handle = extract_bluesky_handle_from_actor
+    return bridge_url unless bluesky_handle
+
+    # BlueskyのURLを構築
+    "https://bsky.app/profile/#{bluesky_handle}/post/#{post_id}"
+  rescue StandardError => e
+    Rails.logger.warn "Failed to convert bsky.brid.gy URL #{bridge_url}: #{e.message}"
+    bridge_url
+  end
+
+  def extract_bluesky_post_id(bridge_url)
+    # URLの最後の部分（post ID）を抽出
+    match = bridge_url.match(/\/app\.bsky\.feed\.post\/([^\/?#]+)/)
+    match&.[](1)
+  end
+
+  def extract_bluesky_handle_from_actor
+    # bsky.brid.gyのActorからBlueskyハンドルを取得
+    actor = object.actor
+    return nil unless actor
+
+    # まずusernameを試す
+    username = actor.username
+    if username&.exclude?('did:plc:')
+      # usernameがDID形式でない場合は、それをBlueskyハンドルとして使用
+      return username
+    end
+
+    # preferredUsernameがあれば使用
+    return actor.preferred_username if actor.respond_to?(:preferred_username) && actor.preferred_username.present?
+
+    nil
+  end
 
   delegate :content, :summary, :sensitive?, to: :object
 

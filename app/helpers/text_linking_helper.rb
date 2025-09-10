@@ -19,7 +19,7 @@ module TextLinkingHelper
   def extract_urls_from_content(content)
     return [] if content.blank?
 
-    # <a href="URL">形式のURLを抽出（これが最も正確）
+    # <a href="URL">形式のURLを抽出
     # ただし、ハッシュタグリンク（/tags/やclassにhashtag含む）は除外
     urls = []
     content.scan(/<a[^>]+href=["']([^"']+)["'][^>]*>/i) do |match|
