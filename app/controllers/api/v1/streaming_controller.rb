@@ -4,7 +4,6 @@ module Api
   module V1
     class StreamingController < Api::BaseController
       include ActionController::Live
-      include StatusSerializationHelper
 
       # active_model_serializersを無効にして、ログのノイズを防ぐ
       serialization_scope nil
