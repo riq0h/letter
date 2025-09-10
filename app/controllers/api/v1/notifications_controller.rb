@@ -20,7 +20,12 @@ module Api
                          .then { |n| apply_pagination(n) }
                          .limit(limit_param)
 
-        render json: @notifications.map { |notification| notification_json(notification) }
+        # ActivityPubObjectsを一括取得してN+1を回避
+        activity_pub_objects = preload_activity_pub_objects(@notifications)
+
+        render json: @notifications.map { |notification|
+          notification_json_with_preloaded(notification, activity_pub_objects)
+        }
       end
 
       # GET /api/v1/notifications/:id
@@ -56,9 +61,7 @@ module Api
       end
 
       def base_notifications
-        current_user.notifications
-                    .includes(:from_account)
-                    .includes(activity: %i[actor media_attachments])
+        current_user.notifications.includes(:from_account)
       end
 
       def filter_by_types(notifications)
@@ -81,6 +84,33 @@ module Api
 
       def limit_param
         [params.fetch(:limit, 40).to_i, 80].min
+      end
+
+      def preload_activity_pub_objects(notifications)
+        # ActivityPubObjectのIDを収集
+        object_ids = notifications.filter_map do |notification|
+          notification.activity_id if notification.activity_type == 'ActivityPubObject'
+        end
+
+        return {} if object_ids.empty?
+
+        # 一括取得してハッシュ化
+        ActivityPubObject.where(id: object_ids)
+                         .includes(:actor, :media_attachments)
+                         .index_by(&:id)
+      end
+
+      def notification_json_with_preloaded(notification, activity_pub_objects)
+        # 既存のnotification_jsonメソッドを使用するが、activityを事前読み込みデータで置換
+        json = notification_json(notification)
+
+        # ActivityPubObjectの場合は事前読み込みデータを使用
+        if notification.activity_type == 'ActivityPubObject' && activity_pub_objects[notification.activity_id]
+          preloaded_activity = activity_pub_objects[notification.activity_id]
+          json[:status] = build_status_json(preloaded_activity) if status_notification?(notification)
+        end
+
+        json
       end
 
       def notification_json(notification)
