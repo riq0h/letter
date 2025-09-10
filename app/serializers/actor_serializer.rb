@@ -26,8 +26,7 @@ class ActorSerializer
     actor_url = "#{base_url}/users/#{actor.username}"
 
     {
-      '@context' => [
-        Rails.application.config.activitypub.context_url,
+      '@context' => Rails.application.config.activitypub.context_url + [
         'https://w3id.org/security/v1',
         {
           'schema' => 'http://schema.org#',
