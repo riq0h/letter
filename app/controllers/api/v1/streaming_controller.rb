@@ -6,6 +6,9 @@ module Api
       include ActionController::Live
       include StatusSerializationHelper
 
+      # active_model_serializersを無効にして、ログのノイズを防ぐ
+      serialization_scope nil
+
       before_action :doorkeeper_authorize!
       before_action :set_cors_headers
 
@@ -61,6 +64,12 @@ module Api
       end
 
       def serve_polling_response
+        # ポーリングレスポンスも認証が必要
+        unless current_user
+          render json: { error: 'Authentication required for streaming' }, status: :unauthorized
+          return
+        end
+
         events = fetch_events_since(params[:since_id].to_i)
         render json: events
       end
