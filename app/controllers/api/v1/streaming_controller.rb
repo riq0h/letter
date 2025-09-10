@@ -4,6 +4,7 @@ module Api
   module V1
     class StreamingController < Api::BaseController
       include ActionController::Live
+      include StatusSerializationHelper
 
       before_action :doorkeeper_authorize!
       before_action :set_cors_headers
@@ -29,33 +30,42 @@ module Api
         response.headers['Connection'] = 'keep-alive'
         response.headers['X-Accel-Buffering'] = 'no'
 
-        # SSE接続オブジェクトを作成
-        connection = SseConnection.new(response.stream, current_user, params[:stream])
-
-        # 接続管理システムに登録
-        SseConnectionManager.instance.register_connection(current_user.id, params[:stream], connection)
-
-        logger.info "🔗 Real-time SSE streaming started for #{current_user.username}: #{params[:stream]}"
-
         begin
-          # ウェルカムメッセージ送信
-          connection.send_welcome_message
+          # SSE接続オブジェクトを作成
+          connection = SseConnection.new(response.stream, current_user, params[:stream])
 
-          # 初期データ送信（最近の履歴）
-          send_initial_events(connection)
+          # 接続管理システムに登録
+          SseConnectionManager.instance.register_connection(current_user.id, params[:stream], connection)
 
-          # Keep-alive（ハートビートのみ、データベースポーリング廃止）
-          loop do
-            connection.send_heartbeat
-            sleep 30 # 30秒間隔のハートビート
+          logger.info "🔗 Real-time SSE streaming started for #{current_user.username}: #{params[:stream]}"
+
+          begin
+            # ウェルカムメッセージ送信
+            connection.send_welcome_message
+
+            # 初期データ送信（最近の履歴）
+            send_initial_events(connection)
+
+            # Keep-alive（ハートビートのみ、データベースポーリング廃止）
+            loop do
+              connection.send_heartbeat
+              sleep 30 # 30秒間隔のハートビート
+            end
+          rescue IOError, Errno::EPIPE, Errno::ECONNRESET
+            logger.info "SSE client disconnected: #{current_user.username}"
+          rescue StandardError => e
+            logger.error "SSE streaming error: #{e.message}"
+            logger.error "Backtrace: #{e.backtrace[0..2].join(', ')}"
+          ensure
+            connection&.close
           end
-        rescue IOError, Errno::EPIPE, Errno::ECONNRESET
-          logger.info "SSE client disconnected: #{current_user.username}"
         rescue StandardError => e
-          logger.error "SSE streaming error: #{e.message}"
+          logger.error "SSE initialization error: #{e.message}"
           logger.error "Backtrace: #{e.backtrace[0..2].join(', ')}"
-        ensure
-          connection.close
+
+          # フォールバック: ポーリング方式
+          serve_polling_response
+          nil
         end
       end
 
