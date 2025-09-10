@@ -16,6 +16,6 @@ class Marker < ApplicationRecord
 
   def increment_version!
     self.version = (version || 0) + 1
-    touch
+    touch if persisted?
   end
 end

@@ -58,8 +58,16 @@ module Api
       def save_marker(timeline, last_read_id)
         marker = Marker.find_or_initialize_for_actor_and_timeline(current_user, timeline)
         marker.last_read_id = last_read_id
-        marker.increment_version!
+
+        if marker.new_record?
+          marker.version = 1
+        else
+          marker.increment_version!
+        end
         marker.save!
+      rescue ActiveRecord::ActiveRecordError => e
+        Rails.logger.error "Failed to save marker for #{timeline}: #{e.message}"
+        raise
       end
 
       def get_marker(timeline)
