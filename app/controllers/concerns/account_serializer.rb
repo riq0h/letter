@@ -118,11 +118,11 @@ module AccountSerializer
   end
 
   def account_statuses_count(account)
-    account.objects.where(object_type: 'Note').count
+    account.statuses_count || 0
   end
 
   def account_last_status_at(account)
-    account.objects.where(object_type: 'Note').maximum(:published_at)&.to_date&.iso8601
+    account.last_posted_at&.to_date&.iso8601
   end
 
   def self_account_attributes(account)

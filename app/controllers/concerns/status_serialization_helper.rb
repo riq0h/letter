@@ -97,10 +97,6 @@ module StatusSerializationHelper
     in_reply_to.actor.id.to_s
   end
 
-  def replies_count(status)
-    ActivityPubObject.where(in_reply_to_ap_id: status.ap_id).count
-  end
-
   def favourited_by_current_user?(status)
     return false unless current_user
 
