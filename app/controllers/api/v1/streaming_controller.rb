@@ -6,8 +6,7 @@ module Api
       include ActionController::Live
       include StatusSerializationHelper
 
-      before_action :check_websocket_request
-      before_action :doorkeeper_authorize!, unless: :websocket_request?
+      before_action :doorkeeper_authorize!
       before_action :set_cors_headers
 
       def index
@@ -19,18 +18,6 @@ module Api
       end
 
       private
-
-      def check_websocket_request
-        return unless websocket_request?
-
-        render json: {
-          error: 'WebSocket streaming not supported. Use EventSource with ?stream=user parameter.'
-        }, status: :not_implemented
-      end
-
-      def websocket_request?
-        request.headers['Upgrade']&.downcase == 'websocket'
-      end
 
       def sse_request?
         request.headers['Accept']&.include?('text/event-stream') ||
