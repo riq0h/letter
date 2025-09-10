@@ -92,22 +92,32 @@ class MediaAttachmentCreationService
   end
 
   def extract_image_metadata(file)
-    require 'mini_magick'
-    image = MiniMagick::Image.read(file.read)
+    require 'vips'
+
+    # ファイルの内容を一時的に保存
+    temp_file = Tempfile.new(['image', File.extname(file.original_filename)])
+    temp_file.binmode
+    temp_file.write(file.read)
+    temp_file.close
     file.rewind
+
+    # libvipsで画像を読み込み
+    image = Vips::Image.new_from_file(temp_file.path)
 
     {
       width: image.width,
       height: image.height,
-      blurhash: generate_blurhash(image)
+      blurhash: generate_blurhash_from_vips(image)
     }
   rescue StandardError => e
-    Rails.logger.warn "Failed to extract image metadata: #{e.message}"
+    Rails.logger.warn "Failed to extract image metadata with libvips: #{e.message}"
     {}
+  ensure
+    temp_file&.unlink
   end
 
   def extract_video_metadata(file)
-    require 'mini_magick'
+    require 'vips'
 
     # 一時ファイルに保存
     temp_file = Tempfile.new(['video', File.extname(file.original_filename)])
@@ -116,33 +126,46 @@ class MediaAttachmentCreationService
     temp_file.close
     file.rewind
 
-    # ImageMagickでビデオの最初のフレーム（[0]）を取得
-    image = MiniMagick::Image.new("#{temp_file.path}[0]")
+    # libvipsでビデオの最初のフレームを取得
+    # n=-1 は最初のフレームを意味する
+    image = Vips::Image.new_from_file("#{temp_file.path}[n=-1]")
 
     {
       width: image.width,
       height: image.height,
-      blurhash: generate_blurhash(image)
+      blurhash: generate_blurhash_from_vips(image)
     }
   rescue StandardError => e
-    Rails.logger.warn "Failed to extract video metadata: #{e.message}"
+    Rails.logger.warn "Failed to extract video metadata with libvips: #{e.message}"
     { width: 0, height: 0, blurhash: nil }
   ensure
     temp_file&.unlink
   end
 
-  def generate_blurhash(image)
+  def generate_blurhash_from_vips(image)
     require 'blurhash'
 
-    pixels = image.get_pixels
-    width = image.width
-    height = image.height
+    # libvipsの画像をRGB形式に変換し、適切なサイズにリサイズ
+    # Blurhashは小さい画像で十分なので、最大128x128にリサイズ
+    max_size = 128
+    if image.width > max_size || image.height > max_size
+      scale = [max_size.to_f / image.width, max_size.to_f / image.height].min
+      image = image.resize(scale)
+    end
 
-    pixel_data = pixels.flatten.map(&:to_i)
+    # RGB形式に変換（アルファチャンネルがある場合は削除）
+    image = image.colourspace('srgb') unless image.interpretation == :srgb
+    image = image.extract_band(0, n: 3) if image.bands > 3
 
-    Blurhash.encode(width, height, pixel_data, x_components: 4, y_components: 4)
+    # ピクセルデータを取得
+    pixel_data = image.write_to_memory
+
+    # バイトデータを整数配列に変換
+    pixels = pixel_data.unpack('C*')
+
+    Blurhash.encode(image.width, image.height, pixels, x_components: 4, y_components: 4)
   rescue StandardError => e
-    Rails.logger.warn "Failed to generate blurhash: #{e.message}"
+    Rails.logger.warn "Failed to generate blurhash with libvips: #{e.message}"
     'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
   end
 end

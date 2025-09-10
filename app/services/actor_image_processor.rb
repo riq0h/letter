@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'image_processing/mini_magick'
+require 'vips'
 
 class ActorImageProcessor
   AVATAR_SIZE = 400
@@ -89,14 +89,42 @@ class ActorImageProcessor
   def process_avatar_image(io)
     io.rewind
 
-    pipeline = ImageProcessing::MiniMagick.source(io)
+    # 一時ファイルに保存
+    temp_input = Tempfile.new(['avatar_input', '.tmp'])
+    temp_input.binmode
+    temp_input.write(io.read)
+    temp_input.close
+    io.rewind
 
-    processed = pipeline
-                .resize_to_fill(AVATAR_SIZE, AVATAR_SIZE)
-                .convert('png')
-                .call
+    # libvipsで画像を読み込み
+    image = Vips::Image.new_from_file(temp_input.path)
 
-    File.open(processed.path, 'rb')
+    # リサイズ（crop to fill）
+    # まず適切な倍率でリサイズしてから中央をクロップ
+    scale = [AVATAR_SIZE.to_f / image.width, AVATAR_SIZE.to_f / image.height].max
+    resized = image.resize(scale)
+
+    # 中央から正方形をクロップ
+    left = [(resized.width - AVATAR_SIZE) / 2, 0].max
+    top = [(resized.height - AVATAR_SIZE) / 2, 0].max
+    cropped = resized.extract_area(left, top, AVATAR_SIZE, AVATAR_SIZE)
+
+    # 出力用一時ファイル
+    temp_output = Tempfile.new(['avatar_output', '.png'])
+    temp_output.close
+
+    # PNGとして保存
+    cropped.write_to_file(temp_output.path)
+
+    File.open(temp_output.path, 'rb')
+  rescue StandardError => e
+    Rails.logger.warn "Failed to process avatar image with libvips: #{e.message}"
+    # 元の画像をそのまま返す
+    io.rewind
+    io
+  ensure
+    temp_input&.unlink
+    temp_output&.unlink
   end
 
   def distribute_profile_update_after_image_change(image_type)

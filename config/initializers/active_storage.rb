@@ -7,5 +7,5 @@ if ENV['S3_ENABLED'] == 'true'
 end
 
 # 画像の自動リサイズを無効化
-Rails.application.config.active_storage.variant_processor = :mini_magick
+Rails.application.config.active_storage.variant_processor = :vips
 Rails.application.config.active_storage.analyzers = []

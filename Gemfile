@@ -48,7 +48,6 @@ gem 'blurhash'
 gem 'foreman'
 gem 'kaminari'
 gem 'marcel'
-gem 'mini_magick'
 gem 'nanoid'
 
 group :development, :test do

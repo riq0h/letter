@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'mini_magick'
 require 'blurhash'
 
 module Api
