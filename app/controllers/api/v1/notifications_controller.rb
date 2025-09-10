@@ -162,8 +162,8 @@ module Api
         {
           followers_count: actor.followers_count || 0,
           following_count: actor.following_count || 0,
-          statuses_count: actor.objects.where(object_type: 'Note').count,
-          last_status_at: actor.objects.where(object_type: 'Note').maximum(:published_at)&.iso8601
+          statuses_count: actor.posts_count || 0,
+          last_status_at: nil # N+1回避のため一時的に無効化
         }
       end
 
