@@ -172,7 +172,7 @@ class Notification < ApplicationRecord
   def deliver_to_streaming
     serialized_notification = serialize_for_streaming
 
-    # 即座にユーザーに通知配信
+    # 即座にユーザに通知配信
     SseConnectionManager.instance.broadcast_to_user(account_id, 'notification', serialized_notification)
 
     Rails.logger.info "📡 Notification #{id} (#{notification_type}) delivered to user #{account_id}"

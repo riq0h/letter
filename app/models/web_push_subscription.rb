@@ -55,6 +55,38 @@ class WebPushSubscription < ApplicationRecord
     alerts[notification_type.to_s] == true
   end
 
+  def policy
+    data_hash['policy'] || 'all'
+  end
+
+  def policy=(new_policy)
+    valid_policies = %w[all followed follower none]
+    policy_value = valid_policies.include?(new_policy.to_s) ? new_policy.to_s : 'all'
+
+    current_data = data_hash
+    current_data['policy'] = policy_value
+    self.data_hash = current_data
+  end
+
+  def should_receive_notification_from?(from_actor, target_actor, notification_type)
+    # アラート設定をまずチェック
+    return false unless should_send_alert?(notification_type)
+
+    # ポリシーに基づいて判定
+    case policy
+    when 'none'
+      false
+    when 'followed'
+      # 通知を受ける人がフォローしている相手からのみ
+      Follow.exists?(actor: target_actor, target_actor: from_actor, accepted: true)
+    when 'follower'
+      # フォロワーからのみ
+      Follow.exists?(actor: from_actor, target_actor: target_actor, accepted: true)
+    else
+      true # デフォルトは 'all' または未知の値の場合
+    end
+  end
+
   private
 
   def default_icon

@@ -26,7 +26,7 @@ RSpec.describe Api::V1::StreamingController, type: :controller do
       end
 
       it 'returns user timeline events' do
-        # ユーザーの投稿を作成
+        # ユーザの投稿を作成
         create(:activity_pub_object, actor: user, object_type: 'Note', visibility: 'public')
 
         get :index, params: { stream: 'user', since_id: 0 }

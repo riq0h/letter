@@ -6,8 +6,13 @@ class WebPushDelivery
   def self.deliver_to_actor(actor, notification_type, title, body, options = {})
     return unless actor&.web_push_subscriptions&.any?
 
+    from_actor = options[:from_actor]
+
     actor.web_push_subscriptions.active.find_each do |subscription|
       next unless subscription.should_send_alert?(notification_type)
+
+      # ポリシーベースのフィルタリング（from_actorが指定されている場合のみ）
+      next if from_actor && !subscription.should_receive_notification_from?(from_actor, actor, notification_type)
 
       SendWebPushNotificationJob.perform_later(subscription.id, notification_type, title, body, options)
     end
@@ -53,7 +58,9 @@ class WebPushDelivery
       'favourite',
       "#{favourite.actor.display_name_or_username}さんがいいねしました",
       strip_tags(favourite.object.content || ''),
-      build_notification_options(notification_id, favourite.object.ap_id, favourite.actor.avatar_url)
+      build_notification_options(notification_id, favourite.object.ap_id, favourite.actor.avatar_url).merge(
+        from_actor: favourite.actor
+      )
     )
   end
 
@@ -65,7 +72,9 @@ class WebPushDelivery
       'reblog',
       "#{reblog.actor.display_name_or_username}さんがリブログしました",
       strip_tags(reblog.object.content || ''),
-      build_notification_options(notification_id, reblog.object.ap_id, reblog.actor.avatar_url)
+      build_notification_options(notification_id, reblog.object.ap_id, reblog.actor.avatar_url).merge(
+        from_actor: reblog.actor
+      )
     )
   end
 
