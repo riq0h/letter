@@ -55,10 +55,10 @@ module AccountSerializer
 
   def count_attributes(account)
     {
-      followers_count: account.followers.count,
-      following_count: account.followed_actors.count,
-      statuses_count: account_statuses_count(account),
-      last_status_at: account_last_status_at(account)
+      followers_count: account.followers_count || 0,
+      following_count: account.following_count || 0,
+      statuses_count: account.posts_count || 0,
+      last_status_at: nil # N+1回避のため一時的に無効化
     }
   end
 
