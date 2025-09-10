@@ -117,29 +117,71 @@ class MediaAttachmentCreationService
   end
 
   def extract_video_metadata(file)
-    require 'vips'
+    require 'tempfile'
+    require 'open3'
 
-    # 一時ファイルに保存
+    with_temp_video_file(file) do |temp_file_path|
+      extract_video_info_with_ffprobe(temp_file_path)
+    end
+  rescue StandardError => e
+    Rails.logger.warn "Failed to extract video metadata: #{e.message}"
+    { width: 0, height: 0, blurhash: nil }
+  end
+
+  def with_temp_video_file(file)
     temp_file = Tempfile.new(['video', File.extname(file.original_filename)])
     temp_file.binmode
     temp_file.write(file.read)
     temp_file.close
     file.rewind
 
-    # libvipsでビデオの最初のフレームを取得
-    # n=-1 は最初のフレームを意味する
-    image = Vips::Image.new_from_file("#{temp_file.path}[n=-1]")
-
-    {
-      width: image.width,
-      height: image.height,
-      blurhash: generate_blurhash_from_vips(image)
-    }
-  rescue StandardError => e
-    Rails.logger.warn "Failed to extract video metadata with libvips: #{e.message}"
-    { width: 0, height: 0, blurhash: nil }
+    yield(temp_file.path)
   ensure
     temp_file&.unlink
+  end
+
+  def extract_video_info_with_ffprobe(file_path)
+    cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', file_path]
+    stdout, stderr, status = Open3.capture3(*cmd)
+
+    if status.success?
+      parse_video_info(stdout, file_path)
+    else
+      Rails.logger.warn "Failed to extract video metadata with ffprobe: #{stderr}"
+      { width: 0, height: 0, blurhash: nil }
+    end
+  end
+
+  def parse_video_info(json_output, file_path)
+    require 'json'
+
+    info = JSON.parse(json_output)
+    video_stream = info['streams'].find { |stream| stream['codec_type'] == 'video' }
+
+    return { width: 0, height: 0, blurhash: nil } unless video_stream
+
+    width = video_stream['width'].to_i
+    height = video_stream['height'].to_i
+    blurhash = extract_blurhash_from_video(file_path)
+
+    { width: width, height: height, blurhash: blurhash }
+  end
+
+  def extract_blurhash_from_video(file_path)
+    require 'vips'
+
+    thumb_file = Tempfile.new(['thumb', '.jpg'])
+    thumb_file.close
+
+    thumb_cmd = ['ffmpeg', '-i', file_path, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', '-y', thumb_file.path]
+    _, _, thumb_status = Open3.capture3(*thumb_cmd)
+
+    if thumb_status.success? && File.exist?(thumb_file.path)
+      image = Vips::Image.new_from_file(thumb_file.path)
+      generate_blurhash_from_vips(image)
+    end
+  ensure
+    thumb_file&.unlink
   end
 
   def generate_blurhash_from_vips(image)

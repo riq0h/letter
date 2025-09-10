@@ -228,8 +228,6 @@ class MediaAttachment < ApplicationRecord
     require 'tempfile'
     require 'open3'
     require 'base64'
-    require 'net/http'
-    require 'uri'
 
     # 出力サムネイルファイル
     output_file = Tempfile.new(['remote_thumbnail', '.jpg'])
