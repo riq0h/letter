@@ -56,7 +56,9 @@ module Api
       end
 
       def base_notifications
-        current_user.notifications.includes(:from_account)
+        current_user.notifications
+                    .includes(:from_account)
+                    .includes(activity: %i[actor media_attachments])
       end
 
       def filter_by_types(notifications)
