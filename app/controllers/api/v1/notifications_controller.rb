@@ -15,6 +15,10 @@ module Api
 
       # GET /api/v1/notifications
       def index
+        Rails.logger.info "🔍 Notification request params: #{params.to_h}"
+        Rails.logger.info "🔍 exclude_types: #{params[:exclude_types]} (class: #{params[:exclude_types].class})"
+        Rails.logger.info "🔍 max_id: #{params[:max_id]}, limit: #{params[:limit]}"
+
         @notifications = filtered_notifications
                          .recent
                          .then { |n| apply_pagination(n) }
@@ -239,11 +243,8 @@ module Api
 
       def apply_pagination(notifications)
         notifications = notifications.where(notifications: { id: ...(params[:max_id]) }) if params[:max_id].present?
-
         notifications = notifications.where('notifications.id > ?', params[:since_id]) if params[:since_id].present?
-
         notifications = notifications.where('notifications.id > ?', params[:min_id]) if params[:min_id].present?
-
         notifications
       end
     end
