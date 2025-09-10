@@ -22,8 +22,7 @@ RUN apt-get update -qq && \
     nodejs \
     npm \
     pkg-config \
-    imagemagick \
-    libmagickwand-dev \
+    libvips-dev \
     libpng-dev \
     libjpeg-dev \
     libwebp-dev \
@@ -69,7 +68,7 @@ RUN apt-get update -qq && \
     openssl \
     ncurses-bin \
     inotify-tools \
-    imagemagick \
+    libvips42 \
     libpng16-16 \
     libjpeg62-turbo \
     libwebp7 \
