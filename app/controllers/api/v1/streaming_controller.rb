@@ -4,6 +4,7 @@ module Api
   module V1
     class StreamingController < Api::BaseController
       include ActionController::Live
+      include StatusSerializationHelper
 
       before_action :doorkeeper_authorize!
       before_action :set_cors_headers
@@ -194,7 +195,7 @@ module Api
       end
 
       def serialize_status(status)
-        StatusSerializer.new(status, current_user: current_user).as_json
+        serialized_status(status)
       end
 
       def serialize_notification(notification)
