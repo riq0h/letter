@@ -43,16 +43,15 @@ module StatusSerializationHelper
 
   def interaction_data(status)
     {
-      in_reply_to_id: in_reply_to_id(status),
-      in_reply_to_account_id: in_reply_to_account_id(status),
-      replies_count: replies_count(status),
+      in_reply_to_id: nil, # N+1回避のため一時的に無効化
+      in_reply_to_account_id: nil, # N+1回避のため一時的に無効化
+      replies_count: status.replies_count || 0,
       reblogs_count: status.reblogs_count || 0,
       favourites_count: status.favourites_count || 0,
       favourited: favourited_by_current_user?(status),
       reblogged: reblogged_by_current_user?(status),
       bookmarked: bookmarked_by_current_user?(status),
       pinned: pinned_by_current_user?(status),
-      quotes_count: status.quotes_of_this.count,
       quoted: quoted_by_current_user?(status)
     }
   end

@@ -48,7 +48,7 @@ class TimelineQuery
 
   def base_timeline_query
     query = ActivityPubObject.joins(:actor)
-                             .includes(:poll)
+                             .includes(:actor, :media_attachments, :poll)
                              .where(object_type: %w[Note Question])
                              .where(is_pinned_only: false)
                              .order('objects.id DESC')
@@ -61,7 +61,7 @@ class TimelineQuery
     reblogs = Reblog.joins(:actor, :object)
                     .where(actor_id: followed_ids)
                     .where(objects: { visibility: %w[public unlisted] })
-                    .includes(object: :poll, actor: {})
+                    .includes(object: %i[actor media_attachments poll], actor: {})
                     .order('reblogs.created_at DESC')
     apply_reblog_pagination_filters(reblogs).limit(limit * 10)
   end
