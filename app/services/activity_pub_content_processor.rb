@@ -135,8 +135,6 @@ class ActivityPubContentProcessor
     return if urls.empty?
 
     urls.each do |url|
-      next if excluded_from_preview?(url)
-
       existing_preview = LinkPreview.find_by(url: url)
       next if existing_preview
 
@@ -149,20 +147,6 @@ class ActivityPubContentProcessor
 
     doc = Nokogiri::HTML.fragment(content)
     doc.css('a[href]').pluck('href').grep(/\Ahttps?:\/\//).uniq
-  end
-
-  def excluded_from_preview?(url)
-    # プレビューリンク生成から除外するドメインリスト
-    excluded_domains = [
-      'bsky.app',
-      'bsky.social',
-      'bsky.brid.gy'
-    ]
-
-    uri = URI.parse(url)
-    excluded_domains.any? { |domain| uri.host&.include?(domain) }
-  rescue URI::InvalidURIError
-    false
   end
 
   def create_mention(username, domain)
