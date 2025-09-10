@@ -27,6 +27,9 @@ module Api
         # ActivityPubObjectsを一括取得してN+1を回避
         activity_pub_objects = preload_activity_pub_objects(@notifications)
 
+        # Linkヘッダーを設定（Mastodon互換）
+        add_pagination_headers(@notifications)
+
         render json: @notifications.map { |notification|
           notification_json_with_preloaded(notification, activity_pub_objects)
         }
@@ -246,6 +249,33 @@ module Api
         notifications = notifications.where('notifications.id > ?', params[:since_id]) if params[:since_id].present?
         notifications = notifications.where('notifications.id > ?', params[:min_id]) if params[:min_id].present?
         notifications
+      end
+
+      def add_pagination_headers(notifications)
+        return if notifications.empty?
+
+        links = []
+
+        # 最新のIDと最古のIDを取得
+        newest_id = notifications.first.id
+        oldest_id = notifications.last.id
+
+        # next (より古い通知)
+        if notifications.count >= limit_param
+          next_url = api_v1_notifications_url(max_id: oldest_id, limit: limit_param)
+          next_url += "&exclude_types[]=#{params[:exclude_types].join('&exclude_types[]=')}" if params[:exclude_types].present?
+          links << "<#{next_url}>; rel=\"next\""
+        end
+
+        # prev (より新しい通知)
+        if params[:max_id].present?
+          prev_url = api_v1_notifications_url(min_id: newest_id, limit: limit_param)
+          prev_url += "&exclude_types[]=#{params[:exclude_types].join('&exclude_types[]=')}" if params[:exclude_types].present?
+          links << "<#{prev_url}>; rel=\"prev\""
+        end
+
+        response.headers['Link'] = links.join(', ') if links.any?
+        Rails.logger.info "🔗 Link header set: #{response.headers['Link']}"
       end
     end
   end
