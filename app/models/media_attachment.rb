@@ -174,6 +174,9 @@ class MediaAttachment < ApplicationRecord
   def generate_remote_video_preview_url
     return default_preview_icon_url if remote_url.blank?
 
+    # Bluesky動画はデフォルトアイコンを使用
+    return default_preview_icon_url if remote_url.include?('bsky.network/xrpc/')
+
     # 外部動画のサムネイルをキャッシュ
     Rails.cache.fetch("remote_video_preview_#{id}", expires_in: 1.week) do
       extract_remote_video_frame_as_data_url || default_preview_icon_url
