@@ -51,8 +51,8 @@ class ActorImageProcessor
   end
 
   def avatar_url
-    # ローカルユーザの場合はActiveStorageから取得
-    if actor.local? && actor.avatar.attached?
+    # アバターが添付されている場合はActiveStorageから取得（ローカル・外部問わず）
+    if actor.avatar.attached?
       # Cloudflare R2のカスタムドメインを使用
       if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
         "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{actor.avatar.blob.key}"
@@ -60,14 +60,14 @@ class ActorImageProcessor
         Rails.application.routes.url_helpers.url_for(actor.avatar)
       end
     else
-      # 外部ユーザの場合はraw_dataから取得
+      # アバターが添付されていない場合のみraw_dataから取得
       actor.extract_remote_image_url('icon')
     end
   end
 
   def header_url
-    # ローカルユーザの場合はActiveStorageから取得
-    if actor.local? && actor.header.attached?
+    # ヘッダーが添付されている場合はActiveStorageから取得（ローカル・外部問わず）
+    if actor.header.attached?
       # Cloudflare R2のカスタムドメインを使用
       if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
         "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{actor.header.blob.key}"
@@ -75,7 +75,7 @@ class ActorImageProcessor
         Rails.application.routes.url_helpers.url_for(actor.header)
       end
     else
-      # 外部ユーザの場合はraw_dataから取得
+      # ヘッダーが添付されていない場合のみraw_dataから取得
       actor.extract_remote_image_url('image')
     end
   rescue StandardError
