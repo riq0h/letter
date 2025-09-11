@@ -57,6 +57,9 @@ module Api
           statuses = query.with_includes.ordered.limit(limit_param).call
         end
 
+        # リプライ先情報をプリロード
+        preload_reply_to_data(statuses)
+
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }
       end

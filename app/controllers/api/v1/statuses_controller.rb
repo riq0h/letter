@@ -36,6 +36,10 @@ module Api
         ancestors = build_ancestors(@status)
         descendants = build_descendants(@status)
 
+        # リプライ先情報をプリロード
+        all_statuses = ancestors + descendants
+        preload_reply_to_data(all_statuses)
+
         render json: {
           ancestors: ancestors.map { |status| serialized_status(status) },
           descendants: descendants.map { |status| serialized_status(status) }

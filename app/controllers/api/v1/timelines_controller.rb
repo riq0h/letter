@@ -18,6 +18,10 @@ module Api
         timeline_query = TimelineQuery.new(current_user, timeline_params)
         timeline_items = timeline_query.build_home_timeline
 
+        # リプライ先情報をプリロード
+        statuses = timeline_items.filter_map { |item| item.is_a?(Reblog) ? item.object : item }
+        preload_reply_to_data(statuses)
+
         @paginated_items = timeline_items
         render json: timeline_items.map { |item| serialize_timeline_item(item) }
       end
@@ -27,6 +31,9 @@ module Api
         timeline_query = TimelineQuery.new(current_user, timeline_params)
         statuses = timeline_query.build_public_timeline
 
+        # リプライ先情報をプリロード
+        preload_reply_to_data(statuses)
+
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }
       end
@@ -35,6 +42,9 @@ module Api
       def tag
         timeline_query = TimelineQuery.new(current_user, timeline_params)
         statuses = timeline_query.build_hashtag_timeline(params[:hashtag])
+
+        # リプライ先情報をプリロード
+        preload_reply_to_data(statuses)
 
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }

@@ -43,8 +43,8 @@ module StatusSerializationHelper
 
   def interaction_data(status)
     {
-      in_reply_to_id: nil, # N+1回避のため一時的に無効化
-      in_reply_to_account_id: nil, # N+1回避のため一時的に無効化
+      in_reply_to_id: in_reply_to_id(status),
+      in_reply_to_account_id: in_reply_to_account_id(status),
       replies_count: status.replies_count || 0,
       reblogs_count: status.reblogs_count || 0,
       favourites_count: status.favourites_count || 0,
@@ -84,6 +84,13 @@ module StatusSerializationHelper
   def in_reply_to_id(status)
     return nil if status.in_reply_to_ap_id.blank?
 
+    # キャッシュされたリプライ先情報があれば使用
+    if defined?(@reply_to_cache) && @reply_to_cache
+      reply_info = @reply_to_cache[status.in_reply_to_ap_id]
+      return reply_info&.dig(:id)&.to_s
+    end
+
+    # フォールバック: 個別クエリ
     in_reply_to = ActivityPubObject.find_by(ap_id: status.in_reply_to_ap_id)
     in_reply_to&.id&.to_s
   end
@@ -91,6 +98,13 @@ module StatusSerializationHelper
   def in_reply_to_account_id(status)
     return nil if status.in_reply_to_ap_id.blank?
 
+    # キャッシュされたリプライ先情報があれば使用
+    if defined?(@reply_to_cache) && @reply_to_cache
+      reply_info = @reply_to_cache[status.in_reply_to_ap_id]
+      return reply_info&.dig(:actor_id)&.to_s
+    end
+
+    # フォールバック: 個別クエリ
     in_reply_to = ActivityPubObject.find_by(ap_id: status.in_reply_to_ap_id)
     return nil unless in_reply_to&.actor
 
@@ -198,6 +212,26 @@ module StatusSerializationHelper
       embed_url: '',
       blurhash: nil
     }
+  end
+
+  # リプライ先情報をバルクで取得してキャッシュ
+  def preload_reply_to_data(statuses)
+    # リプライ先AP IDを収集
+    reply_to_ap_ids = statuses.filter_map(&:in_reply_to_ap_id).uniq
+    return unless reply_to_ap_ids.any?
+
+    # 一度のクエリでリプライ先の情報を取得
+    reply_objects = ActivityPubObject.where(ap_id: reply_to_ap_ids)
+                                     .includes(:actor)
+                                     .index_by(&:ap_id)
+
+    # キャッシュ用のハッシュを構築
+    @reply_to_cache = reply_objects.transform_values do |obj|
+      {
+        id: obj.id,
+        actor_id: obj.actor&.id
+      }
+    end
   end
 
   # moshidon互換性のためのヘルパーメソッド
