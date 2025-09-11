@@ -2929,7 +2929,6 @@ def perform_mastodon_import(dump_path, mastodon_username, actor, media_domain)
             
             obj = ActivityPubObject.new(
               id: post_id,
-              ap_id: "https://\#{ENV['DOMAIN'] || 'localhost'}/objects/\#{post_id}",
               actor: actor,
               object_type: 'Note',
               content: content,
@@ -2939,6 +2938,7 @@ def perform_mastodon_import(dump_path, mastodon_username, actor, media_domain)
               created_at: created_at,
               updated_at: Time.current
             )
+            # ap_idは自動生成される（set_ap_id_for_localコールバックにより）
             obj.save!(validate: false)
             should_process_image = true
           end
