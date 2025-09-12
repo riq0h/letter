@@ -25,8 +25,11 @@ module Api
 
           return render_validation_error('Missing required subscription data') if subscription_params.nil?
 
-          @subscription = WebPushSubscription.find_or_initialize_by(
+          WebPushSubscription.where(access_token_id: doorkeeper_token.id).destroy_all
+
+          @subscription = WebPushSubscription.new(
             actor: current_account,
+            access_token_id: doorkeeper_token.id,
             endpoint: subscription_params[:endpoint]
           )
 
@@ -84,7 +87,7 @@ module Api
         private
 
         def set_subscription
-          @subscription = current_account.web_push_subscriptions.order(created_at: :desc).first
+          @subscription = WebPushSubscription.find_by(access_token_id: doorkeeper_token.id)
         end
 
         def extract_subscription_params

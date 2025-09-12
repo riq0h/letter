@@ -4,6 +4,7 @@ class WebPushSubscription < ApplicationRecord
   include PushPayloadBuilder
 
   belongs_to :actor
+  belongs_to :access_token, class_name: 'Doorkeeper::AccessToken', optional: true
 
   validates :endpoint, presence: true, uniqueness: true
   validates :p256dh_key, presence: true
