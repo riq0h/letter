@@ -25,7 +25,8 @@ module Api
 
           return render_validation_error('Missing required subscription data') if subscription_params.nil?
 
-          @subscription = current_account.web_push_subscriptions.find_or_initialize_by(
+          @subscription = WebPushSubscription.find_or_initialize_by(
+            actor: current_account,
             endpoint: subscription_params[:endpoint]
           )
 
@@ -103,19 +104,23 @@ module Api
           alerts_params = params.dig(:data, :alerts) || {}
           default_alerts = WebPushSubscription.new.default_alerts
 
+          # Phanpy互換性のためのキー変換
+          converted_alerts = {}
+          alerts_params.each do |key, value|
+            case key.to_s
+            when 'followRequest'
+              converted_alerts['follow_request'] = value
+            else
+              converted_alerts[key.to_s] = value
+            end
+          end
+
           # 管理者アラートのネスト構造を処理
           admin_alerts = alerts_params[:admin] || {}
+          converted_alerts['admin.sign_up'] = admin_alerts[:sign_up] if admin_alerts.key?(:sign_up)
+          converted_alerts['admin.report'] = admin_alerts[:report] if admin_alerts.key?(:report)
 
-          # Strong Parametersで許可されたキーのみを取得
-          alerts_parameters = alerts_params.is_a?(ActionController::Parameters) ? alerts_params : ActionController::Parameters.new(alerts_params)
-          permitted_base_alerts = alerts_parameters.permit(*default_alerts.keys)
-
-          # フラット構造に変換
-          flat_alerts = permitted_base_alerts.to_h
-          flat_alerts['admin.sign_up'] = admin_alerts[:sign_up] if admin_alerts.key?(:sign_up)
-          flat_alerts['admin.report'] = admin_alerts[:report] if admin_alerts.key?(:report)
-
-          default_alerts.merge(flat_alerts)
+          default_alerts.merge(converted_alerts)
         end
 
         def serialized_subscription(subscription)

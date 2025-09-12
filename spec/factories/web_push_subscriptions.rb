@@ -14,7 +14,6 @@ FactoryBot.define do
 
     trait :with_alerts do
       after(:create) do |subscription|
-        # すべてのアラートタイプを有効にする
         subscription.alerts = {
           'mention' => true,
           'follow' => true,
@@ -23,7 +22,10 @@ FactoryBot.define do
           'poll' => true,
           'status' => true,
           'update' => true,
-          'follow_request' => true
+          'follow_request' => true,
+          'quote' => true,
+          'admin.sign_up' => false,
+          'admin.report' => false
         }
         subscription.save!
       end

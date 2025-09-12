@@ -5,7 +5,7 @@ class WebPushSubscription < ApplicationRecord
 
   belongs_to :actor
 
-  validates :endpoint, presence: true, uniqueness: { scope: :actor_id }
+  validates :endpoint, presence: true, uniqueness: true
   validates :p256dh_key, presence: true
   validates :auth_key, presence: true
 
