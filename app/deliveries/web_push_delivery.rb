@@ -9,6 +9,13 @@ class WebPushDelivery
     from_actor = options[:from_actor]
 
     actor.web_push_subscriptions.active.find_each do |subscription|
+      # 期限切れチェック
+      if subscription.expired?
+        Rails.logger.info "🧹 Removing expired WebPush subscription for #{actor.username}"
+        subscription.destroy
+        next
+      end
+
       next unless subscription.should_send_alert?(notification_type)
 
       # ポリシーベースのフィルタリング（from_actorが指定されている場合のみ）
@@ -196,7 +203,7 @@ class WebPushDelivery
         p256dh: subscription.p256dh_key,
         auth: subscription.auth_key,
         vapid: build_vapid_options,
-        ttl: 3600 * 24,
+        ttl: 3600 * 24 * 30,
         urgency: 'normal'
       }
 
@@ -238,7 +245,7 @@ class WebPushDelivery
       request = Net::HTTP::Post.new(uri.request_uri)
       request['Content-Type'] = 'application/octet-stream'
       request['Content-Encoding'] = 'aes128gcm'
-      request['TTL'] = '86400'
+      request['TTL'] = '2592000'
       request['Urgency'] = 'normal'
 
       # VAPID認証ヘッダーを追加
@@ -362,7 +369,7 @@ class WebPushDelivery
       request = Net::HTTP::Post.new(uri.path)
       request['Content-Type'] = 'application/octet-stream'
       request['Content-Encoding'] = 'aes128gcm'
-      request['TTL'] = '86400'
+      request['TTL'] = '2592000'
       request['Urgency'] = 'normal'
       headers.each { |key, value| request[key] = value }
       request.body = encrypted_payload

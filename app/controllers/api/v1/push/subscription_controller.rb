@@ -124,7 +124,9 @@ module Api
             endpoint: subscription.endpoint,
             alerts: subscription.alerts,
             server_key: vapid_public_key,
-            policy: subscription.data_hash['policy'] || 'all'
+            policy: subscription.data_hash['policy'] || 'all',
+            expires_at: subscription.expires_at.iso8601,
+            days_until_expiry: subscription.days_until_expiry
           }
         end
 

@@ -9,7 +9,8 @@ class WebPushSubscription < ApplicationRecord
   validates :p256dh_key, presence: true
   validates :auth_key, presence: true
 
-  scope :active, -> { where.not(endpoint: nil) }
+  scope :active, -> { where.not(endpoint: nil).where('created_at > ?', subscription_expiry_threshold) }
+  scope :expired, -> { where(created_at: ..subscription_expiry_threshold) }
 
   def data_hash
     JSON.parse(data || '{}')
@@ -84,6 +85,39 @@ class WebPushSubscription < ApplicationRecord
       Follow.exists?(actor: from_actor, target_actor: target_actor, accepted: true)
     else
       true # デフォルトは 'all' または未知の値の場合
+    end
+  end
+
+  def expired?
+    created_at <= self.class.subscription_expiry_threshold
+  end
+
+  def expires_at
+    created_at + self.class.subscription_expiry_duration
+  end
+
+  def days_until_expiry
+    return 0 if expired?
+
+    ((expires_at - Time.current) / 1.day).ceil
+  end
+
+  class << self
+    def subscription_expiry_duration
+      365.days
+    end
+
+    def subscription_expiry_threshold
+      subscription_expiry_duration.ago
+    end
+
+    def cleanup_expired_subscriptions!
+      expired_count = expired.count
+      if expired_count.positive?
+        Rails.logger.info "🧹 Cleaning up #{expired_count} expired WebPush subscriptions"
+        expired.delete_all
+      end
+      expired_count
     end
   end
 
