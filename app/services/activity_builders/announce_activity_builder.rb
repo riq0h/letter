@@ -43,7 +43,7 @@ module ActivityBuilders
     end
 
     def should_add_mention?(target_object)
-      target_object&.actor && !target_object.actor.local?
+      target_object&.actor
     end
 
     def build_mention_tag(actor)
