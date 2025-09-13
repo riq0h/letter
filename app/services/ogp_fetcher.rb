@@ -54,9 +54,11 @@ class OgpFetcher
   end
 
   def extract_description(doc)
-    doc.at_css('meta[property="og:description"]')&.[]('content') ||
-      doc.at_css('meta[name="twitter:description"]')&.[]('content') ||
-      doc.at_css('meta[name="description"]')&.[]('content')
+    description = doc.at_css('meta[property="og:description"]')&.[]('content') ||
+                  doc.at_css('meta[name="twitter:description"]')&.[]('content') ||
+                  doc.at_css('meta[name="description"]')&.[]('content')
+
+    description&.truncate(500)
   end
 
   def extract_image(doc, base_url)
