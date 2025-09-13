@@ -19,23 +19,29 @@ module TextLinkingHelper
   def extract_urls_from_content(content)
     return [] if content.blank?
 
-    # <a href="URL">形式のURLを抽出
-    # ただし、ハッシュタグリンク（/tags/やclassにhashtag含む）は除外
     urls = []
+
+    # まずプレーンテキストのURLを抽出（ローカル投稿など、未処理のテキスト用）
+    # これがないとWeb UIでローカル投稿のプレビューが表示されない
+    content.scan(/(https?:\/\/[^\s<>"']+)/i) do |url|
+      url_text = url[0]
+      urls << url_text
+    end
+
+    # HTMLリンク化済みの場合も <a href="URL">形式のURLを抽出（API側との互換性）
+    # ただし、ハッシュタグリンク（/tags/やclassにhashtag含む）は除外
     content.scan(/<a[^>]+href=["']([^"']+)["'][^>]*>/i) do |match|
       href = match[0]
       full_tag = ::Regexp.last_match(0) # マッチした全体のタグ
 
       # ハッシュタグリンクの場合はスキップ
       # /tags/ で始まるパス、または class属性に hashtag が含まれる場合
-      urls << href unless href.start_with?('/tags/') || full_tag.include?('hashtag')
-    end
-
-    # プレーンテキストのURLも追加抽出（aタグに含まれていないもの）
-    content.scan(/(https?:\/\/[^\s<>"']+)/i) do |url|
-      url_text = url[0]
-      # すでにaタグのhref属性に含まれていない場合のみ追加
-      urls << url_text unless urls.any? { |existing_url| existing_url.include?(url_text) || url_text.include?(existing_url) }
+      if !(href.start_with?('/tags/') || full_tag.include?('hashtag')) && urls.none? do |existing_url|
+        existing_url.include?(href) || href.include?(existing_url)
+      end
+        # プレーンテキストで既に見つからなかった場合のみ追加（重複回避）
+        urls << href
+      end
     end
 
     urls.uniq.select { |url| valid_preview_url?(url) }
