@@ -145,8 +145,7 @@ class ActivityPubContentProcessor
   def extract_urls_from_content(content)
     return [] if content.blank?
 
-    doc = Nokogiri::HTML.fragment(content)
-    doc.css('a[href]').pluck('href').grep(/\Ahttps?:\/\//).uniq
+    super
   end
 
   def create_mention(username, domain)
