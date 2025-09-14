@@ -60,9 +60,12 @@ class ActorImageProcessor
         Rails.application.routes.url_helpers.url_for(actor.avatar)
       end
     else
-      # アバターが添付されていない場合のみraw_dataから取得
-      actor.extract_remote_image_url('icon')
+      # アバターが添付されていない場合はraw_dataから取得を試み、失敗時はデフォルトアイコンを使用
+      remote_avatar_url = actor.extract_remote_image_url('icon')
+      remote_avatar_url.presence || default_avatar_url
     end
+  rescue StandardError
+    default_avatar_url
   end
 
   def header_url
@@ -85,6 +88,10 @@ class ActorImageProcessor
   private
 
   attr_reader :actor
+
+  def default_avatar_url
+    "#{Rails.application.config.activitypub.base_url}/icon.png"
+  end
 
   def process_avatar_image(io)
     io.rewind
