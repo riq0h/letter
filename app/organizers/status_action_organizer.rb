@@ -171,9 +171,20 @@ class StatusActionOrganizer
 
   # アクティビティ配信の実行
   def queue_activity_delivery(activity)
-    return if @status.actor.inbox_url.blank?
+    target_inboxes = []
 
-    SendActivityJob.perform_later(activity.id, [@status.actor.inbox_url])
-    Rails.logger.info "📤 Queued activity delivery for activity #{activity.id}"
+    # 投稿者が自分と異なり、ローカルでない場合のみ投稿者のinboxを追加
+    target_inboxes << @status.actor.inbox_url if @status.actor != @actor && !@status.actor.local? && @status.actor.inbox_url.present?
+
+    # フォロワーへの配信（Announce/Like共通）
+    if activity.activity_type == 'Announce' && @status.visibility == 'public'
+      follower_inboxes = @actor.followers.where(local: false).pluck(:inbox_url)
+      target_inboxes.concat(follower_inboxes)
+    end
+
+    return if target_inboxes.empty?
+
+    SendActivityJob.perform_later(activity.id, target_inboxes.uniq)
+    Rails.logger.info "📤 Queued activity delivery for activity #{activity.id} to #{target_inboxes.uniq.count} inboxes"
   end
 end

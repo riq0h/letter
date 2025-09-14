@@ -57,8 +57,7 @@ module StatusActivityHandlers
       activity_type: 'Announce',
       target_ap_id: status.ap_id,
       published_at: Time.current,
-      local: true,
-      processed: true
+      local: true
     )
   end
 
