@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'vips'
+require 'net/http'
 
 class ActorImageProcessor
   AVATAR_SIZE = 400
@@ -60,9 +61,13 @@ class ActorImageProcessor
         Rails.application.routes.url_helpers.url_for(actor.avatar)
       end
     else
-      # アバターが添付されていない場合はraw_dataから取得を試み、失敗時はデフォルトアイコンを使用
+      # アバターが添付されていない場合はraw_dataから取得を試み、可用性をチェック
       remote_avatar_url = actor.extract_remote_image_url('icon')
-      remote_avatar_url.presence || default_avatar_url
+      if remote_avatar_url.present? && remote_image_accessible?(remote_avatar_url)
+        remote_avatar_url
+      else
+        default_avatar_url
+      end
     end
   rescue StandardError
     default_avatar_url
@@ -141,5 +146,25 @@ class ActorImageProcessor
     ActorActivityDistributor.new(actor).distribute_profile_update_for_image_change
   rescue StandardError => e
     Rails.logger.error "Failed to distribute profile update after #{image_type} change: #{e.message}"
+  end
+
+  # リモート画像の可用性をチェック（HEADリクエストで軽量チェック）
+  def remote_image_accessible?(url)
+    return false if url.blank?
+
+    uri = URI(url)
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true if uri.scheme == 'https'
+    http.open_timeout = 3
+    http.read_timeout = 5
+
+    request = Net::HTTP::Head.new(uri)
+    request['User-Agent'] = 'letter/0.0.1'
+
+    response = http.request(request)
+    response.code.to_i == 200
+  rescue StandardError => e
+    Rails.logger.warn "Failed to check remote image accessibility for #{url}: #{e.message}"
+    false
   end
 end
