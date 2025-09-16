@@ -184,7 +184,8 @@ class ActorImageProcessor
     request['User-Agent'] = 'letter/0.0.1'
 
     response = http.request(request)
-    response.code.to_i == 200
+    # 2xx (成功) または 3xx (リダイレクト) を有効とみなす
+    (200..399).cover?(response.code.to_i)
   rescue StandardError => e
     Rails.logger.warn "Failed to check remote image accessibility for #{url}: #{e.message}"
     false
