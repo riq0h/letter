@@ -284,8 +284,8 @@ class Actor < ApplicationRecord
   end
 
   # Active Storage画像URLの取得
-  def avatar_url
-    ActorImageProcessor.new(self).avatar_url
+  def avatar_url(skip_accessibility_check: false)
+    ActorImageProcessor.new(self).avatar_url(skip_accessibility_check: skip_accessibility_check)
   end
 
   def header_url

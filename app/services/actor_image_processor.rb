@@ -2,6 +2,7 @@
 
 require 'vips'
 require 'net/http'
+require 'digest/sha256'
 
 class ActorImageProcessor
   AVATAR_SIZE = 400
@@ -51,7 +52,7 @@ class ActorImageProcessor
     distribute_profile_update_after_image_change('header')
   end
 
-  def avatar_url
+  def avatar_url(skip_accessibility_check: false)
     # アバターが添付されている場合はActiveStorageから取得（ローカル・外部問わず）
     if actor.avatar.attached?
       # Cloudflare R2のカスタムドメインを使用
@@ -63,8 +64,13 @@ class ActorImageProcessor
     else
       # アバターが添付されていない場合はraw_dataから取得を試み、可用性をチェック
       remote_avatar_url = actor.extract_remote_image_url('icon')
-      if remote_avatar_url.present? && remote_image_accessible?(remote_avatar_url)
-        remote_avatar_url
+      if remote_avatar_url.present?
+        # キャッシュされた可用性結果をチェック
+        if skip_accessibility_check || remote_image_accessible_cached?(remote_avatar_url)
+          remote_avatar_url
+        else
+          default_avatar_url
+        end
       else
         default_avatar_url
       end
@@ -148,7 +154,23 @@ class ActorImageProcessor
     Rails.logger.error "Failed to distribute profile update after #{image_type} change: #{e.message}"
   end
 
-  # リモート画像の可用性をチェック（HEADリクエストで軽量チェック）
+  # キャッシュされた可用性チェック
+  def remote_image_accessible_cached?(url)
+    return false if url.blank?
+
+    cache_key = "avatar_accessibility:#{Digest::SHA256.hexdigest(url)}"
+
+    # キャッシュから結果を取得（24時間キャッシュ）
+    cached_result = Rails.cache.read(cache_key)
+    return cached_result unless cached_result.nil?
+
+    # キャッシュされていない場合は実際にチェックしてキャッシュ
+    accessible = remote_image_accessible?(url)
+    Rails.cache.write(cache_key, accessible, expires_in: 24.hours)
+    accessible
+  end
+
+  # リモート画像の可用性をチェック
   def remote_image_accessible?(url)
     return false if url.blank?
 

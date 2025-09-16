@@ -75,8 +75,7 @@ class RemoteImageCacheService
   def fetch_remote_image(uri)
     Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', read_timeout: 10, open_timeout: 5) do |http|
       request = Net::HTTP::Get.new(uri)
-      request['User-Agent'] =
-        "Letter/1.0 (ActivityPub; +#{ENV.fetch('ACTIVITYPUB_PROTOCOL', 'https')}://#{ENV.fetch('ACTIVITYPUB_DOMAIN', 'localhost')})"
+      request['User-Agent'] = 'letter/0.0.1'
 
       response = http.request(request)
       return nil unless response.is_a?(Net::HTTPSuccess)
