@@ -2,7 +2,7 @@
 
 require 'vips'
 require 'net/http'
-require 'digest/sha256'
+require 'digest'
 
 class ActorImageProcessor
   AVATAR_SIZE = 400
