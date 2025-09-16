@@ -103,7 +103,7 @@ class SearchInteractor
     return [] if search_query.blank?
     return [] unless domain_query?
 
-    remote_resolver.search_domain_accounts(search_query)
+    remote_resolver.search_domain_accounts(search_query, offset: params[:offset].to_i, limit: account_limit)
   end
 
   def resolve_remote_statuses

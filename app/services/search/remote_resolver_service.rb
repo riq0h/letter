@@ -29,7 +29,7 @@ module Search
       end
     end
 
-    def search_domain_accounts(domain)
+    def search_domain_accounts(domain, offset: 0, limit: 20)
       return [] unless domain_query?(domain)
 
       accounts = []
@@ -38,16 +38,17 @@ module Search
       existing_accounts = Actor.where(domain: domain)
                                .where(local: false)
                                .order(updated_at: :desc)
-                               .limit(10)
+                               .offset(offset)
+                               .limit([limit, 40].min)
       accounts.concat(existing_accounts)
 
-      # リモートドメインから新しいアクターを発見
-      if accounts.length < 20
+      # 最初のページでアカウント数が少ない場合のみリモートから発見を試行
+      if offset.zero? && accounts.length < limit
         remote_accounts = discover_remote_domain_accounts(domain)
         accounts.concat(remote_accounts)
       end
 
-      accounts.uniq(&:id).take(20)
+      accounts.uniq(&:id).take(limit)
     end
 
     def discover_remote_domain_accounts(domain)
