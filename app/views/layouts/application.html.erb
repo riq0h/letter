@@ -33,7 +33,9 @@
     <link rel="alternate" type="application/atom+xml" title="<%= blog_title %>" href="/local.atom">
 
     <!-- Webフォント -->
-    <link href="https://fonts.bunny.net/css?family=noto-sans-jp:300,400,600" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+    <link rel="preload" href="https://fonts.bunny.net/css?family=noto-sans-jp:300,400,600&display=swap" as="style">
+    <link href="https://fonts.bunny.net/css?family=noto-sans-jp:300,400,600&display=swap" rel="stylesheet" />
     
     <!-- ファビコン -->
     <link rel="icon" href="/favicon.ico" sizes="any">
