@@ -1,5 +1,15 @@
-<% content_for :title, "投稿詳細 | #{blog_title}" %>
-<% content_for :description, "General Letter Publication System based on ActivityPub" %>
+<% 
+  # 投稿本文を適切にOGP用に処理
+  post_description = strip_tags(@post.content_plaintext.presence || @post.content).strip
+  post_description = post_description.truncate(160, separator: ' ', omission: '...')
+  
+  # 添付画像がある場合は最初の画像をOGP画像として使用
+  og_image = @post.media_attachments.first&.url || @actor.avatar_url || "#{request.base_url}/icon.png"
+%>
+
+<% content_for :title, "#{@actor.display_name.presence || @actor.username} - #{strip_tags(@post.content_plaintext.presence || @post.content).truncate(50, separator: ' ', omission: '...')}" %>
+<% content_for :description, post_description %>
+<% content_for :og_image, og_image %>
 
 <h1 class="sr-only">投稿詳細</h1>
 

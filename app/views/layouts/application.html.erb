@@ -16,7 +16,11 @@
     <meta property="og:site_name" content="letter">
     
     <!-- Twitterカード -->
-    <meta name="twitter:card" content="summary">
+    <% 
+      # 画像がある場合は large_image カードを使用
+      twitter_card_type = content_for(:og_image) && !content_for(:og_image).include?('icon.png') ? 'summary_large_image' : 'summary'
+    %>
+    <meta name="twitter:card" content="<%= twitter_card_type %>">
     <meta name="twitter:title" content="<%= content_for(:title) || "letter" %>">
     <meta name="twitter:description" content="<%= content_for(:description) || "General Letter Publication System based on ActivityPub" %>">
     <meta name="twitter:image" content="<%= content_for(:og_image) || "#{request.base_url}/icon.png" %>">
