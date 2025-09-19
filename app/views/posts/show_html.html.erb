@@ -7,7 +7,7 @@
   og_image = @post.media_attachments.first&.url || @actor.avatar_url || "#{request.base_url}/icon.png"
 %>
 
-<% content_for :title, "#{@actor.display_name.presence || @actor.username} - #{strip_tags(@post.content_plaintext.presence || @post.content).truncate(50, separator: ' ', omission: '...')}" %>
+<% content_for :title, "投稿詳細 | #{blog_title}" %>
 <% content_for :description, post_description %>
 <% content_for :og_image, og_image %>
 
