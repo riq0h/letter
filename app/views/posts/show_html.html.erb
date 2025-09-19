@@ -1,10 +1,11 @@
 <% 
   # 投稿本文を適切にOGP用に処理
   post_description = strip_tags(@post.content_plaintext.presence || @post.content).strip
-  post_description = post_description.truncate(160, separator: ' ', omission: '...')
+  post_description = post_description.truncate(500, separator: ' ', omission: '...')
   
   # 添付画像がある場合は最初の画像をOGP画像として使用
-  og_image = @post.media_attachments.first&.url || @actor.avatar_url || "#{request.base_url}/icon.png"
+  first_image = @post.media_attachments.images.first
+  og_image = first_image&.url || @actor.avatar_url || "#{request.base_url}/icon.png"
 %>
 
 <% content_for :title, "投稿詳細 | #{blog_title}" %>
