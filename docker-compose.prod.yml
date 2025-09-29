@@ -37,7 +37,7 @@ services:
       - uploads:/app/public/uploads
       - assets:/app/app/assets/builds
       - public_assets:/app/public/assets
-      - database:/app/db
+      - database_files:/app/db/storage
       - tmp:/app/tmp
       
     # 本番環境用リソース制限
@@ -82,7 +82,7 @@ volumes:
     driver: local
   public_assets:
     driver: local
-  database:
+  database_files:
     driver: local
   tmp:
     driver: local
