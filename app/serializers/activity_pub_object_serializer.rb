@@ -12,8 +12,7 @@ class ActivityPubObjectSerializer
     data = clean_null_values(data)
 
     data = add_poll_data(data) if @object.poll.present?
-
-    data
+    add_fep044f_context(data)
   end
 
   private
@@ -49,7 +48,8 @@ class ActivityPubObjectSerializer
       'likes' => likes_collection_data,
       'shares' => shares_collection_data,
       'source' => source_data,
-      'replies' => replies_collection_data
+      'replies' => replies_collection_data,
+      'interactionPolicy' => build_interaction_policy
     }.tap do |data|
       add_quote_data(data) if object.quoted?
     end
@@ -151,5 +151,38 @@ class ActivityPubObjectSerializer
     data['quoteUrl'] = quote_post.quoted_object.ap_id
     data['_misskey_quote'] = quote_post.quoted_object.ap_id
     data['quoteUri'] = quote_post.quoted_object.ap_id # Fedibird互換
+  end
+
+  def build_interaction_policy
+    {
+      'canQuote' => {
+        'automaticApproval' => ['https://www.w3.org/ns/activitystreams#Public']
+      }
+    }
+  end
+
+  def add_fep044f_context(data)
+    # FEP-044f用のJSON-LDコンテキストを追加
+    context = [
+      'https://www.w3.org/ns/activitystreams',
+      {
+        'gts' => 'https://gotosocial.org/ns#',
+        'interactionPolicy' => {
+          '@id' => 'gts:interactionPolicy',
+          '@type' => '@id'
+        },
+        'canQuote' => {
+          '@id' => 'gts:canQuote',
+          '@type' => '@id'
+        },
+        'automaticApproval' => {
+          '@id' => 'gts:automaticApproval',
+          '@type' => '@id'
+        }
+      }
+    ]
+
+    data['@context'] = context
+    data
   end
 end
