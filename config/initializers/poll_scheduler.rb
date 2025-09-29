@@ -2,29 +2,48 @@
 
 # 投票期限チェックの定期実行設定
 Rails.application.configure do
-  # 開発環境と本番環境で定期実行を設定
   config.after_initialize do
-    # Solid Queue Recurring Jobsが利用可能な場合に設定
-    if defined?(SolidQueue::RecurringJob)
+    # Solid Queueが利用可能で、本番環境またはテスト環境の場合
+    if defined?(SolidQueue) && (Rails.env.production? || Rails.env.development?)
       begin
-        # テーブルが存在するかチェック
-        if ActiveRecord::Base.connection.table_exists?('solid_queue_recurring_jobs')
-          # 既存のジョブがあるかチェック
-          existing_job = SolidQueue::RecurringJob.where(key: 'poll_expiration').first
-          
-          unless existing_job
-            SolidQueue::RecurringJob.create!(
-              key: 'poll_expiration',
-              class_name: 'PollExpirationJob',
-              cron: '*/10 * * * *',  # 10分ごと
-              priority: 5
-            )
-            Rails.logger.info "🗳️  Poll expiration job scheduled to run every 10 minutes"
-          end
-        end
+        # PollExpirationJobを10分後にスケジュール
+        schedule_next_poll_expiration_job
+        Rails.logger.info "🗳️  Poll expiration job scheduled"
       rescue => e
-        Rails.logger.warn "Failed to create recurring poll expiration job: #{e.message}"
+        Rails.logger.warn "Failed to schedule poll expiration job: #{e.message}"
       end
     end
   end
+
+  # 次のPollExpirationJobをスケジュールするメソッド
+  def schedule_next_poll_expiration_job
+    # 既にスケジュールされているPollExpirationJobがあるかチェック
+    existing_scheduled = SolidQueue::Job
+                        .where(class_name: 'PollExpirationJob')
+                        .where('scheduled_at > ?', Time.current)
+                        .exists?
+
+    unless existing_scheduled
+      # 10分後にPollExpirationJobを実行
+      PollExpirationJob.set(wait: 10.minutes).perform_later
+      Rails.logger.debug "🗳️  Next poll expiration job scheduled for #{10.minutes.from_now}"
+    end
+  end
+end
+
+# グローバルにアクセス可能なスケジューラーメソッドを定義
+def schedule_next_poll_expiration_job
+  return unless defined?(SolidQueue)
+
+  existing_scheduled = SolidQueue::Job
+                      .where(class_name: 'PollExpirationJob')
+                      .where('scheduled_at > ?', Time.current)
+                      .exists?
+
+  unless existing_scheduled
+    PollExpirationJob.set(wait: 10.minutes).perform_later
+    Rails.logger.debug "🗳️  Next poll expiration job scheduled for #{10.minutes.from_now}"
+  end
+rescue StandardError => e
+  Rails.logger.error "Failed to schedule next poll expiration job: #{e.message}"
 end

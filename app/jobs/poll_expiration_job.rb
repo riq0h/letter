@@ -24,6 +24,9 @@ class PollExpirationJob < ApplicationJob
     end
 
     Rails.logger.info "🗳️  Processed #{expired_polls.count} expired polls"
+
+    # 次回のPollExpirationJobをスケジュール
+    schedule_next_execution
   end
 
   private
@@ -127,5 +130,20 @@ class PollExpirationJob < ApplicationJob
       'Accept' => 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
       'User-Agent' => 'letter/0.1 (ActivityPub)'
     }
+  end
+
+  def schedule_next_execution
+    # 既にスケジュールされているPollExpirationJobがあるかチェック
+    existing_scheduled = SolidQueue::Job
+                         .where(class_name: 'PollExpirationJob')
+                         .exists?(['scheduled_at > ?', Time.current])
+
+    unless existing_scheduled
+      # 10分後にPollExpirationJobを実行
+      self.class.set(wait: 10.minutes).perform_later
+      Rails.logger.debug { "🗳️  Next poll expiration job scheduled for #{10.minutes.from_now}" }
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to schedule next poll expiration job: #{e.message}"
   end
 end
