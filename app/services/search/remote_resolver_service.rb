@@ -218,7 +218,7 @@ module Search
 
         request = Net::HTTP::Get.new(uri.path)
         request['Accept'] = 'application/json'
-        request['User-Agent'] = 'letter/0.1 (ActivityPub)'
+        request['User-Agent'] = InstanceConfig.user_agent(:activitypub)
 
         response = http.request(request)
         return [] unless response.code == '200'

@@ -66,7 +66,7 @@ class ActorFetcher
       actor_uri,
       headers: {
         'Accept' => 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-        'User-Agent' => 'letter/0.1 (ActivityPub)'
+        'User-Agent' => InstanceConfig.user_agent(:activitypub)
       },
       timeout: @timeout,
       follow_redirects: true

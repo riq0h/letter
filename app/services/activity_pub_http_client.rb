@@ -5,7 +5,7 @@ require 'net/http'
 class ActivityPubHttpClient
   include HTTParty
 
-  USER_AGENT = 'letter/0.1'
+  USER_AGENT = InstanceConfig.user_agent(:activitypub)
   ACCEPT_HEADERS = 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
   DEFAULT_TIMEOUT = 10
 

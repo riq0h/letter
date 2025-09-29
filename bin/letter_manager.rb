@@ -3135,7 +3135,7 @@ def try_upload_media(r2_url, media_info, actor)
     http.read_timeout = 30
 
     request = Net::HTTP::Get.new(uri.request_uri)
-    request['User-Agent'] = 'letter/0.1 (Mastodon Import)'
+    request['User-Agent'] = InstanceConfig.user_agent(:import)
 
     response = http.request(request)
 
@@ -3146,7 +3146,7 @@ def try_upload_media(r2_url, media_info, actor)
       http.use_ssl = (redirect_uri.scheme == 'https')
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       request = Net::HTTP::Get.new(redirect_uri.request_uri)
-      request['User-Agent'] = 'letter/0.1 (Mastodon Import)'
+      request['User-Agent'] = InstanceConfig.user_agent(:import)
       response = http.request(request)
     end
 

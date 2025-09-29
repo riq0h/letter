@@ -90,4 +90,24 @@ class InstanceConfig < ApplicationRecord
       false
     end
   end
+
+  # User-Agent configuration methods
+  def self.user_agent(context = :default)
+    base_agent = 'letter'
+
+    case context
+    when :activitypub
+      "#{base_agent} (ActivityPub)"
+    when :web
+      "Mozilla/5.0 (compatible; #{base_agent}; +https://github.com/riq0h/letter)"
+    when :import
+      "#{base_agent} (Mastodon Import)"
+    else
+      base_agent
+    end
+  end
+
+  # Application constants
+  APPLICATION_NAME = 'letter'
+  REPOSITORY_URL = 'https://github.com/riq0h/letter'
 end

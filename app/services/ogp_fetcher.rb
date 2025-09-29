@@ -7,7 +7,7 @@ class OgpFetcher
   include HTTParty
 
   default_timeout 10
-  headers 'User-Agent' => 'Mozilla/5.0 (compatible; letter/0.1; +https://github.com/riq0h/letter)'
+  headers 'User-Agent' => InstanceConfig.user_agent(:web)
 
   def self.fetch(url)
     new.fetch(url)

@@ -181,7 +181,7 @@ class HttpSignatureVerifier
   def build_actor_request(uri)
     request = Net::HTTP::Get.new(uri.path)
     request['Accept'] = 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-    request['User-Agent'] = 'letter/0.1 (ActivityPub)'
+    request['User-Agent'] = InstanceConfig.user_agent(:activitypub)
     request
   end
 

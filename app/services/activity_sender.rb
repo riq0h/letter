@@ -41,7 +41,7 @@ class ActivitySender
     digest = generate_digest(body)
     {
       'Content-Type' => 'application/activity+json',
-      'User-Agent' => 'letter/0.1 (ActivityPub)',
+      'User-Agent' => InstanceConfig.user_agent(:activitypub),
       'Date' => date,
       'Host' => URI(target_inbox).host,
       'Digest' => digest,

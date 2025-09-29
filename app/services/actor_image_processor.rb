@@ -181,7 +181,7 @@ class ActorImageProcessor
     http.read_timeout = 5
 
     request = Net::HTTP::Head.new(uri)
-    request['User-Agent'] = 'letter/0.0.1'
+    request['User-Agent'] = InstanceConfig.user_agent
 
     response = http.request(request)
     # 2xx (成功) または 3xx (リダイレクト) を有効とみなす
