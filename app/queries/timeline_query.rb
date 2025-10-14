@@ -74,7 +74,7 @@ class TimelineQuery
   end
 
   def apply_reblog_pagination_filters(query)
-    query = query.where(reblogs: { object_id: ...(params[:max_id]) }) if params[:max_id].present?
+    query = query.where(object_id: ...params[:max_id].to_i) if params[:max_id].present?
     query = query.where('reblogs.object_id > ?', params[:since_id]) if params[:since_id].present? && params[:min_id].blank?
     query = query.where('reblogs.object_id > ?', params[:min_id]) if params[:min_id].present?
     query
