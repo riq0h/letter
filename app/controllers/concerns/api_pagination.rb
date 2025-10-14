@@ -42,13 +42,13 @@ module ApiPagination
         record.id
       when Reblog
         # リブログの場合は一貫性のためリブログ対象オブジェクトのIDを使用
-        record.object_id
+        record[:object_id]
       when Hash
         # objectキーを持つハッシュのタイムラインアイテムを処理
         if record[:object].is_a?(ActivityPubObject)
           record[:object].id
         elsif record[:object].is_a?(Reblog)
-          record[:object].object_id
+          record[:object][:object_id]
         end
       else
         record.id if record.respond_to?(:id)
