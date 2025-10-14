@@ -83,7 +83,7 @@ class MergedTimeline
         timestamp: reblog.created_at,
         is_reblog: true,
         status_id: reblog.object.id,
-        sort_id: reblog.object_id
+        sort_id: reblog[:object_id]
       }
     end
 
