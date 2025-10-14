@@ -60,7 +60,7 @@ class MergedTimeline
     merged_items = []
 
     all_items = build_timeline_items(status_array, reblog_array)
-    all_items.sort_by! { |item| -item[:sort_id] }
+    all_items.sort_by! { |item| item[:sort_id] }.reverse!
 
     process_timeline_items(all_items, seen_status_ids, merged_items)
     merged_items
