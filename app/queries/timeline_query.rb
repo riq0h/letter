@@ -62,7 +62,7 @@ class TimelineQuery
                     .where(actor_id: followed_ids)
                     .where(objects: { visibility: %w[public unlisted] })
                     .includes(object: %i[actor media_attachments poll], actor: {})
-                    .order('reblogs.created_at DESC')
+                    .order('reblogs.object_id DESC')
     apply_reblog_pagination_filters(reblogs).limit(limit * 10)
   end
 
