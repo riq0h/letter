@@ -60,7 +60,7 @@ class MergedTimeline
     merged_items = []
 
     all_items = build_timeline_items(status_array, reblog_array)
-    all_items.sort_by! { |item| -item[:timestamp].to_f }
+    all_items.sort_by! { |item| -item[:sort_id] }
 
     process_timeline_items(all_items, seen_status_ids, merged_items)
     merged_items
@@ -72,7 +72,8 @@ class MergedTimeline
         item: status,
         timestamp: status.published_at,
         is_reblog: false,
-        status_id: status.id
+        status_id: status.id,
+        sort_id: status.id
       }
     end
 
@@ -81,7 +82,8 @@ class MergedTimeline
         item: reblog,
         timestamp: reblog.created_at,
         is_reblog: true,
-        status_id: reblog.object.id
+        status_id: reblog.object.id,
+        sort_id: reblog.object_id
       }
     end
 
