@@ -58,5 +58,8 @@ module Letter
     
     # アプリケーション名を設定
     config.application_name = "letter"
+
+    # X-Frame-Optionsをコントローラーレベルで制御できるようにする
+    config.action_dispatch.default_headers.delete('X-Frame-Options')
   end
 end

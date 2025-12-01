@@ -2,6 +2,7 @@
 
 class PostsController < ApplicationController
   before_action :set_post, only: %i[show_html embed]
+  skip_before_action :set_x_frame_options, only: :embed
 
   # GET /users/{username}/posts/{id}
   # ActivityPubリクエストかフロントエンドリダイレクトかを判定
@@ -34,8 +35,6 @@ class PostsController < ApplicationController
     @media_attachments = @post.media_attachments.includes(:actor)
 
     expires_in 3.minutes, public: true
-    response.headers.delete('X-Frame-Options')
-
     render layout: 'embedded'
   end
 

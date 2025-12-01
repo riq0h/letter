@@ -6,6 +6,7 @@ class ApplicationController < ActionController::Base
 
   protect_from_forgery with: :exception, unless: -> { activitypub_request? || api_request? }
   before_action :set_locale
+  before_action :set_x_frame_options
 
   # 認証ヘルパーメソッドをビューでも使用可能にする
   helper_method :current_user, :user_signed_in?, :blog_title, :blog_footer
@@ -81,5 +82,9 @@ class ApplicationController < ActionController::Base
   # 一貫したbase_url取得（環境変数制御下）
   def activitypub_base_url
     Rails.application.config.activitypub.base_url
+  end
+
+  def set_x_frame_options
+    response.headers['X-Frame-Options'] = 'DENY'
   end
 end
