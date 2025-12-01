@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class PostsController < ApplicationController
-  before_action :set_post, only: [:show_html, :embed]
+  before_action :set_post, only: %i[show_html embed]
 
   # GET /users/{username}/posts/{id}
   # ActivityPubリクエストかフロントエンドリダイレクトかを判定
