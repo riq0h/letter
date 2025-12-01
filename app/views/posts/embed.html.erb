@@ -41,7 +41,7 @@
                     target: "_blank",
                     rel: "noopener" do %>
           <time datetime="<%= @post.published_at.iso8601 %>">
-            <%= l(@post.published_at, format: :short) %>
+            <%= l(@post.published_at, format: :long) %>
           </time>
         <% end %>
       </div>
