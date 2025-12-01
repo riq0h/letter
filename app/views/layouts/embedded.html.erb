@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="robots" content="noindex">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <!-- Webフォント -->
+    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+    <link href="https://fonts.bunny.net/css?family=noto-sans-jp:300,400,600&display=swap" rel="stylesheet" />
+
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 8px;
+        background: transparent;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-weight: 400;
+      }
+
+      /* 埋め込みモード専用スタイル */
+      .embed-container {
+        max-width: 100%;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body class="embed">
+    <div class="embed-container">
+      <%= yield %>
+    </div>
+
+    <script>
+      (function() {
+        let lastHeight = 0;
+
+        function notifyHeight() {
+          const height = Math.max(
+            document.documentElement.scrollHeight,
+            document.documentElement.offsetHeight,
+            document.body.scrollHeight,
+            document.body.offsetHeight
+          );
+
+          // 高さが変わった場合のみ通知
+          if (height !== lastHeight) {
+            lastHeight = height;
+            window.parent.postMessage({
+              type: 'setHeight',
+              height: height
+            }, '*');
+          }
+        }
+
+        // 複数のタイミングで高さをチェック
+        window.addEventListener('load', notifyHeight);
+        document.addEventListener('DOMContentLoaded', notifyHeight);
+
+        // 画像やメディアの読み込み監視
+        const mediaElements = document.querySelectorAll('img, video, iframe');
+        mediaElements.forEach(function(el) {
+          el.addEventListener('load', notifyHeight);
+          el.addEventListener('error', notifyHeight);
+        });
+
+        // MutationObserver でDOM変更を監視
+        const observer = new MutationObserver(notifyHeight);
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true
+        });
+
+        // ResizeObserver で要素サイズ変更を監視
+        if ('ResizeObserver' in window) {
+          const resizeObserver = new ResizeObserver(notifyHeight);
+          resizeObserver.observe(document.body);
+        }
+
+        // 親からのリクエストに応答
+        window.addEventListener('message', function(e) {
+          if (e.data && e.data.type === 'setHeight') {
+            notifyHeight();
+          }
+        });
+
+        // 定期的にチェック（念のため、最初の数秒間のみ）
+        let checkCount = 0;
+        const intervalId = setInterval(function() {
+          notifyHeight();
+          checkCount++;
+          if (checkCount >= 10) {
+            clearInterval(intervalId);
+          }
+        }, 500);
+      })();
+    </script>
+  </body>
+</html>

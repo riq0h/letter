@@ -1,0 +1,89 @@
+<article class="p-4 border border-gray-300 bg-white">
+  <!-- 記事ヘッダー -->
+  <header class="mb-3">
+    <div class="flex items-start space-x-3 mb-3">
+      <!-- ユーザアバター -->
+      <%= link_to profile_url(@actor.username),
+                  class: "h-10 w-10 bg-gray-500 flex items-center justify-center overflow-hidden flex-shrink-0",
+                  target: "_blank",
+                  rel: "noopener" do %>
+        <% if @actor.avatar_url.present? %>
+          <img src="<%= @actor.avatar_url %>"
+               alt="<%= @actor.display_name.presence || @actor.username %>"
+               class="w-full h-full object-cover"
+               loading="lazy">
+        <% else %>
+          <span class="text-white font-medium text-sm">
+            <%= @actor.display_name&.first&.upcase || @actor.username.first.upcase %>
+          </span>
+        <% end %>
+      <% end %>
+
+      <!-- ユーザ名とユーザID -->
+      <div class="min-w-0 flex-1">
+        <div class="text-base text-gray-900" style="font-weight: 300;">
+          <%= link_to profile_url(@actor.username),
+                      class: "hover:text-gray-600 transition-colors",
+                      target: "_blank",
+                      rel: "noopener" do %>
+            <%= parse_content_for_frontend(@actor.display_name.presence || @actor.username).html_safe %>
+          <% end %>
+        </div>
+        <div class="text-xs text-gray-500">
+          @<%= @actor.username %><%= @actor.domain.present? ? "@#{@actor.domain}" : "" %>
+        </div>
+      </div>
+
+      <!-- 投稿日時 -->
+      <div class="text-xs text-gray-500 text-right flex-shrink-0" style="font-weight: 300;">
+        <%= link_to post_html_url(username: @actor.username, id: @post.id),
+                    class: "hover:text-gray-700 transition-colors",
+                    target: "_blank",
+                    rel: "noopener" do %>
+          <time datetime="<%= @post.published_at.iso8601 %>">
+            <%= l(@post.published_at, format: :short) %>
+          </time>
+        <% end %>
+      </div>
+    </div>
+  </header>
+
+  <!-- 記事本文 -->
+  <div class="text-gray-800 leading-relaxed mb-3 text-sm">
+    <%
+      final_content = parse_content_for_frontend(@post.content)
+    %>
+    <div class="whitespace-pre-wrap break-words"><%= final_content.html_safe %></div>
+  </div>
+
+  <!-- リンクプレビュー -->
+  <%= render 'shared/post_card_link_preview',
+             content: @post.content %>
+
+  <!-- メディア添付 -->
+  <% if @post.media_attachments.any? %>
+    <div class="mb-3">
+      <% @post.media_attachments.each do |media| %>
+        <div class="mb-2">
+          <% if media.image? %>
+            <img src="<%= media.url %>" alt="<%= media.description %>"
+                 class="w-full border border-gray-200"
+                 loading="lazy">
+          <% elsif media.video? %>
+            <video class="w-full border border-gray-200" controls preload="metadata">
+              <source src="<%= media.url %>" type="<%= media.content_type %>">
+              お使いのブラウザは動画の再生に対応していません。
+            </video>
+          <% else %>
+            <div class="flex items-center p-3 bg-gray-50 border border-gray-200">
+              <svg class="h-5 w-5 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span class="text-xs text-gray-600"><%= media.file_name %></span>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</article>

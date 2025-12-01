@@ -13,6 +13,8 @@ Rails.application.routes.draw do
   get '/@:username', to: 'profiles#show', as: :profile
   # 個別投稿表示
   get '/@:username/:id', to: 'posts#show_html', as: :post_html
+  # 投稿埋め込み
+  get '/@:username/:id/embed', to: 'posts#embed', as: :embed_post
 
   # API形式URLからフロントエンド形式URLへのリダイレクト
   get '/users/:username/posts/:id', to: 'posts#redirect_to_frontend', as: :post_redirect

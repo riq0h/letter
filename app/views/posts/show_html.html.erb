@@ -61,12 +61,23 @@
 
   <!-- 記事本文 -->
   <div class="text-gray-800 leading-relaxed mb-4">
-    <% 
+    <%
       # 最適化された処理：メンションは投稿時/受信時に既にリンク化済み
       # URLリンク化 + 絵文字HTML変換を一括処理
       final_content = parse_content_for_frontend(@post.content)
     %>
     <div class="whitespace-pre-wrap break-words"><%= final_content.html_safe %></div>
+  </div>
+
+  <!-- 埋め込みボタン -->
+  <div class="mb-4">
+    <button type="button"
+            data-controller="clipboard"
+            data-clipboard-text-value="<%= embed_code(@post).gsub('"', '&quot;') %>"
+            data-action="click->clipboard#copy"
+            class="text-sm text-gray-600 hover:text-gray-800 underline cursor-pointer">
+      埋め込みコードをコピー
+    </button>
   </div>
 
   <!-- リンクプレビュー -->

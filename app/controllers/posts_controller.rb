@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class PostsController < ApplicationController
-  before_action :set_post, only: [:show_html]
+  before_action :set_post, only: [:show_html, :embed]
 
   # GET /users/{username}/posts/{id}
   # ActivityPubリクエストかフロントエンドリダイレクトかを判定
@@ -25,6 +25,18 @@ class PostsController < ApplicationController
     @media_attachments = @post.media_attachments.includes(:actor)
 
     setup_meta_tags
+  end
+
+  # GET /@{username}/{id}/embed
+  # 埋め込み用
+  def embed
+    @actor = @post.actor
+    @media_attachments = @post.media_attachments.includes(:actor)
+
+    expires_in 3.minutes, public: true
+    response.headers.delete('X-Frame-Options')
+
+    render layout: 'embedded'
   end
 
   private
