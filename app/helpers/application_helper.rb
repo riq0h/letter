@@ -9,18 +9,15 @@ module ApplicationHelper
   end
 
   def embed_code(post)
-    embed_url = embed_post_url(
-      username: post.actor.username,
-      id: post.id
-    )
+    embed_url = embed_post_url(username: post.actor.username, id: post.id)
+    post_url = post_html_url(username: post.actor.username, id: post.id)
+    script_url = "#{root_url}embed.js"
 
-    <<~HTML
+    <<~HTML.strip
       <blockquote class="letter-embed" data-embed-url="#{embed_url}">
-        <a href="#{post_html_url(username: post.actor.username, id: post.id)}">
-          @#{post.actor.username}の投稿を見る
-        </a>
+        <a href="#{post_url}">@#{post.actor.username}の投稿を見る</a>
       </blockquote>
-      <script async src="#{root_url}embed.js"></script>
+      <script async src="#{script_url}"></script>
     HTML
   end
 
