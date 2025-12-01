@@ -11,11 +11,7 @@ module ApplicationHelper
   def embed_code(post)
     embed_url = embed_post_url(username: post.actor.username, id: post.id)
     post_url = post_html_url(username: post.actor.username, id: post.id)
-
-    # embed.jsのファイル変更時刻をバージョンとして使用（キャッシュ対策）
-    embed_js_path = Rails.public_path.join('embed.js')
-    version = File.exist?(embed_js_path) ? File.mtime(embed_js_path).to_i : Time.current.to_i
-    script_url = "#{root_url}embed.js?v=#{version}"
+    script_url = "#{root_url}embed.js"
 
     <<~HTML.strip
       <div class="letter-embed" data-embed-url="#{embed_url}">
