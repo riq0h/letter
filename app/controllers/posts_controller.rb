@@ -2,7 +2,7 @@
 
 class PostsController < ApplicationController
   before_action :set_post, only: %i[show_html embed]
-  skip_before_action :set_x_frame_options, only: :embed
+  skip_after_action :set_x_frame_options, only: :embed
 
   # GET /users/{username}/posts/{id}
   # ActivityPubリクエストかフロントエンドリダイレクトかを判定

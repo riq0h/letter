@@ -6,7 +6,7 @@ class ApplicationController < ActionController::Base
 
   protect_from_forgery with: :exception, unless: -> { activitypub_request? || api_request? }
   before_action :set_locale
-  before_action :set_x_frame_options
+  after_action :set_x_frame_options
 
   # 認証ヘルパーメソッドをビューでも使用可能にする
   helper_method :current_user, :user_signed_in?, :blog_title, :blog_footer
