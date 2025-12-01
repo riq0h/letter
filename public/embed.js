@@ -35,11 +35,16 @@
         }, '*');
       };
 
+      // blockquoteの中身をクリアしてiframeだけを残す
+      blockquote.innerHTML = '';
       blockquote.appendChild(iframe);
 
-      // フォールバックリンクを非表示
-      const fallback = blockquote.querySelector('a');
-      if (fallback) fallback.style.display = 'none';
+      // blockquoteのスタイルをリセット
+      blockquote.style.margin = '0';
+      blockquote.style.padding = '0';
+      blockquote.style.border = 'none';
+      blockquote.style.background = 'none';
+      blockquote.style.overflow = 'visible';
     });
   }
 
