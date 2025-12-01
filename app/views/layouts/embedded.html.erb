@@ -15,18 +15,23 @@
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
 
     <style>
-      body {
+      html, body {
         margin: 0;
-        padding: 8px;
+        padding: 0;
         background: <%= background_color %>;
         font-family: 'Noto Sans JP', sans-serif;
         font-weight: 400;
+        overflow: hidden;
+      }
+
+      body {
+        padding: 8px;
       }
 
       /* 埋め込みモード専用スタイル */
       .embed-container {
         max-width: 100%;
-        overflow: hidden;
+        overflow: visible;
       }
     </style>
   </head>

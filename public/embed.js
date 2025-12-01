@@ -9,8 +9,8 @@
 
   function init() {
     // 埋め込み要素を探す
-    document.querySelectorAll('blockquote.letter-embed').forEach(function(blockquote) {
-      const embedUrl = blockquote.getAttribute('data-embed-url');
+    document.querySelectorAll('div.letter-embed').forEach(function(container) {
+      const embedUrl = container.getAttribute('data-embed-url');
       if (!embedUrl) return;
 
       const id = generateId();
@@ -21,10 +21,10 @@
       iframe.height = '400';  // 初期高さ
       iframe.style.border = 'none';
       iframe.style.overflow = 'hidden';
-      iframe.style.minHeight = '200px';
-      iframe.style.maxHeight = '10000px';
+      iframe.style.display = 'block';
       iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox';
       iframe.setAttribute('loading', 'lazy');
+      iframe.setAttribute('scrolling', 'no');
 
       embeds.set(id, iframe);
 
@@ -35,16 +35,16 @@
         }, '*');
       };
 
-      // blockquoteの中身をクリアしてiframeだけを残す
-      blockquote.innerHTML = '';
-      blockquote.appendChild(iframe);
+      // コンテナの中身をクリアしてiframeだけを残す
+      container.innerHTML = '';
+      container.appendChild(iframe);
 
-      // blockquoteのスタイルをリセット
-      blockquote.style.margin = '0';
-      blockquote.style.padding = '0';
-      blockquote.style.border = 'none';
-      blockquote.style.background = 'none';
-      blockquote.style.overflow = 'visible';
+      // コンテナのスタイルをリセット
+      container.style.margin = '0';
+      container.style.padding = '0';
+      container.style.border = 'none';
+      container.style.background = 'none';
+      container.style.overflow = 'hidden';
     });
   }
 

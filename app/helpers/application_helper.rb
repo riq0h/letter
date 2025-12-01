@@ -14,9 +14,9 @@ module ApplicationHelper
     script_url = "#{root_url}embed.js"
 
     <<~HTML.strip
-      <blockquote class="letter-embed" data-embed-url="#{embed_url}">
+      <div class="letter-embed" data-embed-url="#{embed_url}">
         <a href="#{post_url}">@#{post.actor.username}の投稿を見る</a>
-      </blockquote>
+      </div>
       <script async src="#{script_url}"></script>
     HTML
   end
