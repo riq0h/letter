@@ -87,6 +87,13 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
+  # カスタムデフォルトヘッダー（X-Frame-Optionsは個別に設定）
+  config.action_dispatch.default_headers = {
+    'X-Content-Type-Options' => 'nosniff',
+    'X-XSS-Protection' => '1; mode=block',
+    'Referrer-Policy' => 'strict-origin-when-cross-origin',
+    'X-Permitted-Cross-Domain-Policies' => 'none'
+  }
 
   # Enable DNS rebinding protection and other `Host` header attacks.
   # config.hosts = [
