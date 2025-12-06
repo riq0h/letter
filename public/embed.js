@@ -17,7 +17,7 @@
 
       iframe.src = embedUrl;
       iframe.width = '100%';
-      iframe.height = '400'; // 初期高さ
+      iframe.height = '400';
       iframe.style.border = 'none';
       iframe.style.overflow = 'hidden';
       iframe.style.display = 'block';
