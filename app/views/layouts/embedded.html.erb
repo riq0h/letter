@@ -43,7 +43,7 @@
 
         function notifyHeight() {
           const article = document.querySelector('article');
-          const height = article ? article.offsetHeight : Math.max(
+          const height = article ? article.offsetHeight + 1 : Math.max(
             document.documentElement.scrollHeight,
             document.documentElement.offsetHeight,
             document.body.scrollHeight,
