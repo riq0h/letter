@@ -42,14 +42,14 @@
         let lastHeight = 0;
 
         function notifyHeight() {
-          const height = Math.max(
+          const article = document.querySelector('article');
+          const height = article ? article.offsetHeight : Math.max(
             document.documentElement.scrollHeight,
             document.documentElement.offsetHeight,
             document.body.scrollHeight,
             document.body.offsetHeight
           );
 
-          // 高さが変わった場合のみ通知
           if (height !== lastHeight) {
             lastHeight = height;
             window.parent.postMessage({
