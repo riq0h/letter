@@ -24,6 +24,7 @@ class PollCreationService
 
     if poll.save
       Rails.logger.info "📊 Poll created with #{poll.options.count} options"
+      schedule_expiration_job(poll)
       poll
     else
       Rails.logger.error "Failed to create poll: #{poll.errors.full_messages.join(', ')}"
@@ -32,6 +33,13 @@ class PollCreationService
   end
 
   private
+
+  def schedule_expiration_job(poll)
+    PollExpirationNotifyJob.set(wait_until: poll.expires_at).perform_later(poll.id)
+    Rails.logger.debug { "🗳️  Poll expiration job scheduled for #{poll.expires_at}" }
+  rescue StandardError => e
+    Rails.logger.error "Failed to schedule poll expiration job: #{e.message}"
+  end
 
   def valid_params?
     return false if @poll_params.blank?

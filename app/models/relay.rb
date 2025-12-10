@@ -4,7 +4,7 @@ class Relay < ApplicationRecord
   validates :inbox_url, presence: true, uniqueness: true, format: { with: URI::DEFAULT_PARSER.make_regexp(%w[http https]) }
   validates :state, inclusion: { in: %w[idle pending accepted rejected] }
 
-  has_many :activity_pub_objects, dependent: :nullify
+  has_many :activity_pub_objects, dependent: :nullify_async
 
   scope :enabled, -> { where(state: 'accepted') }
   scope :pending, -> { where(state: 'pending') }
