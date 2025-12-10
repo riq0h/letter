@@ -2409,31 +2409,6 @@ def main_loop
   end
 end
 
-# ==============================================
-  begin
-    # メディアをダウンロード
-    uri = URI.parse(media_url)
-    response = Net::HTTP.get_response(uri)
-    return nil unless response.code == '200'
-
-    # 一時ファイルに保存
-    temp_file = Tempfile.new(['media', File.extname(filename)])
-    temp_file.binmode
-    temp_file.write(response.body)
-    temp_file.rewind
-
-    # MediaAttachmentCreationServiceを使用してアップロード
-    media_service = MediaAttachmentCreationService.new(user: nil)
-    media_attachment = media_service.create_from_file(temp_file)
-
-    temp_file.close
-    temp_file.unlink
-
-    media_attachment&.file&.url
-  rescue StandardError => e
-    nil
-  end
-end
 
 def process_follow_csv
   print_header 'CSVファイルからフォロー処理'
