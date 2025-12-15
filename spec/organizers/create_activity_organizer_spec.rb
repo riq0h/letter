@@ -22,7 +22,7 @@ RSpec.describe CreateActivityOrganizer do
 
       expect(result).to be_success
       expect(result.object).to be_a(ActivityPubObject)
-      expect(result.object.content).to eq('Hello world!')
+      expect(result.object.content).to eq('<p>Hello world!</p>')
     end
 
     it 'returns failure for invalid object' do
@@ -72,7 +72,7 @@ RSpec.describe CreateActivityOrganizer do
       expect(object.ap_id).to eq('https://example.com/posts/123')
       expect(object.actor).to eq(sender)
       expect(object.object_type).to eq('Note')
-      expect(object.content).to eq('Hello world!')
+      expect(object.content).to eq('<p>Hello world!</p>')
       expect(object.local).to be(false)
     end
 
@@ -128,6 +128,31 @@ RSpec.describe CreateActivityOrganizer do
       expect(poll.object).to eq(result.object)
       expect(poll.options.count).to eq(2)
       expect(poll.multiple).to be(false)
+    end
+
+    it 'schedules expiration job for polls' do
+      expires_at = 1.day.from_now
+      poll_activity = {
+        'type' => 'Create',
+        'object' => {
+          'id' => 'https://example.com/polls/2',
+          'type' => 'Question',
+          'content' => 'What is your favorite color?',
+          'oneOf' => [
+            { 'name' => 'Red' },
+            { 'name' => 'Blue' }
+          ],
+          'endTime' => expires_at.iso8601
+        }
+      }
+
+      allow(PollExpirationNotifyJob).to receive(:set).with(wait_until: be_within(1.second).of(expires_at)).and_return(PollExpirationNotifyJob)
+      expect(PollExpirationNotifyJob).to receive(:perform_later)
+
+      organizer = described_class.new(poll_activity, sender)
+      result = organizer.call
+
+      expect(result).to be_success
     end
 
     it 'processes custom emojis correctly' do
