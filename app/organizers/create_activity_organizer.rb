@@ -287,6 +287,8 @@ class CreateActivityOrganizer
       voters_count: object_data['votersCount'] || 0
     )
 
+    schedule_poll_expiration_job(poll)
+
     Rails.logger.info "📊 Poll created with #{options.count} options for object #{object.id}, poll ID: #{poll.id}"
     poll
   rescue StandardError => e
@@ -322,6 +324,15 @@ class CreateActivityOrganizer
     Rails.logger.info "🗳️ Vote processed for poll #{target_object.poll.id}: #{choice_name}"
   rescue StandardError => e
     Rails.logger.error "Failed to process vote: #{e.message}"
+  end
+
+  def schedule_poll_expiration_job(poll)
+    return unless poll.expires_at
+
+    PollExpirationNotifyJob.set(wait_until: poll.expires_at).perform_later(poll.id)
+    Rails.logger.debug { "🗳️  Poll expiration job scheduled for #{poll.expires_at}" }
+  rescue StandardError => e
+    Rails.logger.error "Failed to schedule poll expiration job: #{e.message}"
   end
 
   def handle_quote_post(object, object_data)
