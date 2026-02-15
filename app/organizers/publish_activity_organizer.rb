@@ -3,22 +3,12 @@
 # Activityの作成と配信を管理するOrganizer
 # 複数のステップ（Activity作成、配信先決定、ジョブ投入）を統括
 class PublishActivityOrganizer
-  class Result
-    attr_reader :success, :activity, :error
+  class Result < OrganizerResult
+    attr_reader :activity
 
     def initialize(success:, activity: nil, error: nil)
-      @success = success
       @activity = activity
-      @error = error
-      freeze
-    end
-
-    def success?
-      success
-    end
-
-    def failure?
-      !success
+      super(success: success, error: error)
     end
   end
 
@@ -155,9 +145,7 @@ class PublishActivityOrganizer
 
   # Activity IDの生成
   def generate_activity_id
-    timestamp = Time.current.to_i
-    random_id = SecureRandom.hex(16)
-    "#{@actor.ap_id}##{@activity_type.downcase}-#{timestamp}-#{random_id}"
+    ApIdGeneration.generate_ap_id
   end
 
   # 新規Noteオブジェクトの作成

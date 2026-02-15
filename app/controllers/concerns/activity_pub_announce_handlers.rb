@@ -25,8 +25,7 @@ module ActivityPubAnnounceHandlers
   end
 
   def extract_announce_object_id
-    object = @activity['object']
-    object.is_a?(Hash) ? object['id'] : object
+    extract_activity_object_id(@activity['object'])
   end
 
   def create_or_update_announce(target_object)
@@ -62,6 +61,8 @@ module ActivityPubAnnounceHandlers
 
       log_announce_creation(reblog, announce_activity, target_object)
     end
+  rescue ActiveRecord::RecordNotUnique
+    Rails.logger.info '📢 Announce already exists (concurrent request)'
   end
 
   def create_reblog_record(target_object)

@@ -24,7 +24,7 @@ class FeaturedController < ApplicationController
     end
 
     featured_collection = {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => "#{activitypub_base_url}/users/#{@actor.username}/collections/featured",
       'type' => 'OrderedCollection',
       'totalItems' => ordered_items.size,

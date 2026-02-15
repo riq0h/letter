@@ -20,8 +20,7 @@ module ActivityPubLikeHandlers
   end
 
   def extract_like_object_id
-    object = @activity['object']
-    object.is_a?(Hash) ? object['id'] : object
+    extract_activity_object_id(@activity['object'])
   end
 
   def create_or_update_like(target_object)
@@ -57,6 +56,8 @@ module ActivityPubLikeHandlers
 
       log_like_creation(like_activity, favourite, target_object)
     end
+  rescue ActiveRecord::RecordNotUnique
+    Rails.logger.info '❤️ Like already exists (concurrent request)'
   end
 
   def create_like_activity_record(target_object)

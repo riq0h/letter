@@ -1,13 +1,26 @@
 # frozen_string_literal: true
 
 class MediaAttachmentCreationService
+  include BlobStorage
+
   def initialize(user:, description: nil, processing_status: nil)
     @user = user
     @description = description
     @processing_status = processing_status
   end
 
+  # 許可されるMIMEタイプ
+  ALLOWED_IMAGE_TYPES = %w[image/jpeg image/png image/gif image/webp image/heic image/heif image/avif].freeze
+  ALLOWED_VIDEO_TYPES = %w[video/mp4 video/webm video/quicktime video/ogg].freeze
+  ALLOWED_AUDIO_TYPES = %w[audio/mpeg audio/ogg audio/wav audio/flac audio/aac audio/mp4].freeze
+  ALLOWED_MIME_TYPES = (ALLOWED_IMAGE_TYPES + ALLOWED_VIDEO_TYPES + ALLOWED_AUDIO_TYPES).freeze
+
+  # ファイルサイズ制限（MediaAttachmentモデルの定数を参照）
+  MAX_IMAGE_SIZE = MediaAttachment::MAX_IMAGE_SIZE
+  MAX_VIDEO_SIZE = MediaAttachment::MAX_VIDEO_SIZE
+
   def create_from_file(file)
+    validate_file!(file)
     file_info = extract_file_info(file)
     metadata = extract_file_metadata(file, file_info[:media_type])
 
@@ -18,9 +31,34 @@ class MediaAttachmentCreationService
 
   attr_reader :user, :description, :processing_status
 
+  def validate_file!(file)
+    # マジックバイトによるMIMEタイプ検出
+    detected_type = Marcel::MimeType.for(file)
+    file.rewind
+
+    # マジックバイトで検出できない場合はクライアント提供のcontent_typeにフォールバック
+    effective_type = if detected_type == 'application/octet-stream'
+                       file.content_type || detected_type
+                     else
+                       detected_type
+                     end
+
+    raise ArgumentError, "File type not allowed: #{effective_type}" unless ALLOWED_MIME_TYPES.include?(effective_type)
+
+    # ファイルサイズ制限
+    max_size = effective_type.start_with?('video/') ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE
+    return unless file.size > max_size
+
+    raise ArgumentError, "File too large: #{file.size} bytes (max: #{max_size} bytes)"
+  end
+
   def extract_file_info(file)
-    filename = file.original_filename
-    content_type = file.content_type || detect_content_type(filename)
+    filename = File.basename(file.original_filename.tr("\x00", '')).gsub(/[^\w.\-]/, '_')
+    # マジックバイトベースのMIMEタイプ検出を優先
+    content_type = Marcel::MimeType.for(file)
+    file.rewind
+    # 検出できなかった場合のフォールバック
+    content_type = file.content_type || detect_content_type(filename) if content_type == 'application/octet-stream'
     {
       filename: filename,
       content_type: content_type,
@@ -55,19 +93,8 @@ class MediaAttachmentCreationService
     media_attachment = user.media_attachments.build(attrs)
 
     # S3が有効な場合はimg/フォルダに格納
-    if ENV['S3_ENABLED'] == 'true'
-      custom_key = "img/#{SecureRandom.hex(16)}"
-      blob = ActiveStorage::Blob.create_and_upload!(
-        io: file,
-        filename: file.original_filename,
-        content_type: file.content_type,
-        service_name: :cloudflare_r2,
-        key: custom_key
-      )
-      media_attachment.file.attach(blob)
-    else
-      media_attachment.file.attach(file)
-    end
+    blob = create_storage_blob(io: file, filename: file.original_filename, content_type: file.content_type, folder: 'img')
+    media_attachment.file.attach(blob)
 
     media_attachment
   end

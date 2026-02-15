@@ -6,7 +6,7 @@ module SearchHashtagSerializer
   def serialized_hashtag(hashtag)
     {
       name: hashtag.name,
-      url: "#{request.base_url}/tags/#{hashtag.name}",
+      url: "#{Rails.application.config.activitypub.base_url}/tags/#{hashtag.name}",
       history: build_hashtag_history(hashtag)
     }
   end

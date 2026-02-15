@@ -242,21 +242,22 @@ class SearchInteractor
   end
 
   def account_limit
-    return 0 if %w[statuses hashtags].include?(search_type)
-
-    [params[:limit].to_i, 40].min.positive? ? [params[:limit].to_i, 40].min : 20
+    search_limit_for(%w[statuses hashtags])
   end
 
   def status_limit
-    return 0 if %w[accounts hashtags].include?(search_type)
-
-    [params[:limit].to_i, 40].min.positive? ? [params[:limit].to_i, 40].min : 20
+    search_limit_for(%w[accounts hashtags])
   end
 
   def hashtag_limit
-    return 0 if %w[accounts statuses].include?(search_type)
+    search_limit_for(%w[accounts statuses])
+  end
 
-    [params[:limit].to_i, 40].min.positive? ? [params[:limit].to_i, 40].min : 20
+  def search_limit_for(excluded_types)
+    return 0 if excluded_types.include?(search_type)
+
+    clamped = [params[:limit].to_i, 40].min
+    clamped.positive? ? clamped : 20
   end
 
   def parse_time(time_param)

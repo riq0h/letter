@@ -3,22 +3,12 @@
 # スケジュール済みステータスの公開処理を統括するOrganizer
 # ステータス作成、メディア添付、投票作成、スケジュール削除を段階的に実行
 class PublishScheduledStatusOrganizer
-  class Result
-    attr_reader :success, :status, :error
+  class Result < OrganizerResult
+    attr_reader :status
 
     def initialize(success:, status: nil, error: nil)
-      @success = success
       @status = status
-      @error = error
-      freeze
-    end
-
-    def success?
-      success
-    end
-
-    def failure?
-      !success
+      super(success: success, error: error)
     end
   end
 
@@ -103,8 +93,7 @@ class PublishScheduledStatusOrganizer
 
   # ActivityPub IDの生成
   def generate_ap_id
-    base_url = Rails.application.config.activitypub.base_url
-    "#{base_url}/users/#{@actor.username}/statuses/#{SecureRandom.hex(8)}"
+    ApIdGeneration.generate_ap_id
   end
 
   # メディア添付処理

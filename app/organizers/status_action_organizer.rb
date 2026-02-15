@@ -3,22 +3,12 @@
 # ステータスアクション（いいね・リブログ処理）を統括するOrganizer
 # アクティビティ作成と配信を統合的に管理
 class StatusActionOrganizer
-  class Result
-    attr_reader :success, :activity, :error
+  class Result < OrganizerResult
+    attr_reader :activity
 
     def initialize(success:, activity: nil, error: nil)
-      @success = success
       @activity = activity
-      @error = error
-      freeze
-    end
-
-    def success?
-      success
-    end
-
-    def failure?
-      !success
+      super(success: success, error: error)
     end
   end
 
@@ -148,7 +138,7 @@ class StatusActionOrganizer
 
   # ActivityPub IDの生成
   def generate_ap_id
-    "#{Rails.application.config.activitypub.base_url}/#{Letter::Snowflake.generate}"
+    ApIdGeneration.generate_ap_id
   end
 
   # Likeアクティビティの検索
@@ -178,7 +168,8 @@ class StatusActionOrganizer
 
     # フォロワーへの配信（Announce/Like共通）
     if activity.activity_type == 'Announce' && @status.visibility == 'public'
-      follower_inboxes = @actor.followers.where(local: false).pluck(:inbox_url)
+      follower_inboxes = @actor.followers.where(local: false).pluck(:shared_inbox_url, :inbox_url)
+                               .filter_map { |shared, inbox| shared.presence || inbox }
       target_inboxes.concat(follower_inboxes)
     end
 

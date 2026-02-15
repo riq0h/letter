@@ -32,7 +32,7 @@ RSpec.describe ProfilesController, type: :controller do
         expect(response.status).to eq(200)
         expect(response.content_type).to include('application/activity+json')
 
-        json_response = response.parsed_body
+        json_response = JSON.parse(response.body)
         expect(json_response['type']).to eq('Person')
         expect(json_response['preferredUsername']).to eq(actor.username)
         expect(json_response['id']).to eq(actor.ap_id)
@@ -75,7 +75,7 @@ RSpec.describe ProfilesController, type: :controller do
         get :redirect_to_frontend, params: { username: 'nonexistent' }
 
         expect(response.status).to eq(404)
-        json_response = response.parsed_body
+        json_response = JSON.parse(response.body)
         expect(json_response['error']).to eq('Actor not found')
       end
     end

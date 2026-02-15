@@ -4,6 +4,8 @@ require 'net/http'
 
 class ActivityPubHttpClient
   include HTTParty
+  include SsrfProtection
+  include ActivityPubUtilityHelpers
 
   USER_AGENT = InstanceConfig.user_agent(:activitypub)
   ACCEPT_HEADERS = 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
@@ -14,10 +16,11 @@ class ActivityPubHttpClient
   end
 
   def fetch_object(uri, timeout: DEFAULT_TIMEOUT, signing_actor: nil)
+    return nil unless validate_url_for_ssrf!(uri)
     # HTTP署名が明示的に指定されている場合は署名付きで送信
     return fetch_with_signature(uri, signing_actor, timeout) if signing_actor
 
-    domain = extract_domain(uri)
+    domain = extract_domain_from_uri(uri)
 
     # 学習済みの署名必須ドメインの場合は最初から署名付きで送信
     return fetch_with_learned_signature(uri, domain, timeout) if signature_required_for_domain?(domain)
@@ -52,17 +55,28 @@ class ActivityPubHttpClient
   end
 
   # 署名なしリクエスト試行
-  def attempt_unsigned_request(uri, timeout)
-    HTTParty.get(
+  def attempt_unsigned_request(uri, timeout, redirect_depth: 0)
+    return nil if redirect_depth >= MAX_REDIRECT_DEPTH
+
+    response = HTTParty.get(
       uri,
       headers: {
         'Accept' => ACCEPT_HEADERS,
         'User-Agent' => USER_AGENT,
-        'Date' => Time.now.httpdate
+        'Date' => Time.current.httpdate
       },
       timeout: timeout,
-      follow_redirects: true
+      follow_redirects: false
     )
+
+    if [301, 302, 307, 308].include?(response.code) && response.headers['location']
+      redirect_uri = response.headers['location']
+      return nil unless validate_url_for_ssrf!(redirect_uri)
+
+      attempt_unsigned_request(redirect_uri, timeout, redirect_depth: redirect_depth + 1)
+    else
+      response
+    end
   end
 
   # 署名要求のハンドリング
@@ -71,13 +85,6 @@ class ActivityPubHttpClient
     learn_signature_requirement(domain)
     signing_actor = Actor.find_by(local: true)
     fetch_with_signature(uri, signing_actor, timeout) if signing_actor
-  end
-
-  # ドメイン抽出
-  def extract_domain(uri)
-    URI.parse(uri).host
-  rescue URI::InvalidURIError
-    nil
   end
 
   # 署名が必要なドメインかチェック
@@ -99,9 +106,9 @@ class ActivityPubHttpClient
 
   # レスポンスがHTTP署名を要求しているかチェック
   def requires_signature?(response)
-    # 認証・認可エラー（401, 403, 404, 500）
-    # threads.netは500を返すため追加
-    return true if [401, 403, 404, 500].include?(response.code.to_i)
+    # 認証・認可エラー（401, 403）のみ署名要求として扱う
+    # 404はリソース不在、500はサーバエラーであり署名とは無関係
+    return true if [401, 403].include?(response.code.to_i)
 
     # WWW-Authenticate ヘッダーで署名を要求している場合
     auth_header = response.headers['WWW-Authenticate']
@@ -131,8 +138,11 @@ class ActivityPubHttpClient
     false
   end
 
-  def fetch_with_signature(uri, signing_actor, timeout)
-    date = Time.now.httpdate
+  def fetch_with_signature(uri, signing_actor, timeout, redirect_depth: 0)
+    return nil unless validate_url_for_ssrf!(uri)
+    return nil if redirect_depth >= MAX_REDIRECT_DEPTH
+
+    date = Time.current.httpdate
     uri_obj = URI(uri)
 
     headers = {
@@ -153,7 +163,7 @@ class ActivityPubHttpClient
     if [301, 302, 307, 308].include?(response.code) && response.headers['location']
       redirect_uri = response.headers['location']
       Rails.logger.info "🔀 Following redirect to: #{redirect_uri}"
-      return fetch_with_signature(redirect_uri, signing_actor, timeout)
+      return fetch_with_signature(redirect_uri, signing_actor, timeout, redirect_depth: redirect_depth + 1)
     end
 
     return nil unless response.success?

@@ -53,19 +53,6 @@ module Api
            .limit(limit)
       end
 
-      def generate_trending_statuses(limit)
-        # リモート投稿から人気の高いものを返す（ローカル投稿は除外）
-        # いいねやリブログが多い投稿を基準とする
-        ActivityPubObject.where(object_type: 'Note', local: false)
-                         .includes(:poll)
-                         .joins('LEFT JOIN favourites ON favourites.object_id = objects.id')
-                         .joins('LEFT JOIN reblogs ON reblogs.object_id = objects.id')
-                         .where('objects.published_at > ?', 7.days.ago)
-                         .group('objects.id')
-                         .order(Arel.sql('COUNT(favourites.id) + COUNT(reblogs.id) DESC, objects.published_at DESC'))
-                         .limit(limit)
-      end
-
       # AccountSerializer から継承されたメソッドを使用
     end
   end

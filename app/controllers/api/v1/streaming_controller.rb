@@ -5,6 +5,7 @@ module Api
     class StreamingController < Api::BaseController
       include ActionController::Live
       include StatusSerializationHelper
+      include NotificationSerializer
 
       before_action :doorkeeper_authorize!
       before_action :set_cors_headers
@@ -46,10 +47,13 @@ module Api
             # 初期データ送信（最近の履歴）
             send_initial_events(connection)
 
-            # Keep-alive（ハートビートのみ、データベースポーリング廃止）
+            # Keep-alive（ハートビートのみ、最大10分で再接続を促す）
+            max_duration = 10.minutes
+            started_at = Time.current
             loop do
               connection.send_heartbeat
               sleep 30 # 30秒間隔のハートビート
+              break if Time.current - started_at > max_duration
             end
           rescue IOError, Errno::EPIPE, Errno::ECONNRESET
             logger.info "SSE client disconnected: #{current_user.username}"
@@ -72,7 +76,7 @@ module Api
       def serve_polling_response
         # ポーリングレスポンスも認証が必要
         unless current_user
-          render json: { error: 'Authentication required for streaming' }, status: :unauthorized
+          render_authentication_required
           return
         end
 
@@ -200,8 +204,8 @@ module Api
       end
 
       def send_initial_events(connection)
-        # 過去の投稿を少し送信（履歴として10件程度）
-        events = fetch_events_since(0).last(10)
+        # 過去の投稿を少し送信（最新10件）
+        events = fetch_recent_events(10)
         events.each do |event|
           connection.send_event(event[:event], event[:payload])
         end
@@ -209,12 +213,32 @@ module Api
         logger.debug "📤 Sent #{events.size} initial events to #{current_user.username}:#{params[:stream]}"
       end
 
+      def fetch_recent_events(limit)
+        case params[:stream]
+        when 'user'
+          current_user.objects
+                      .where(object_type: 'Note')
+                      .includes(:actor, :media_attachments)
+                      .recent.limit(limit)
+                      .map { |post| { id: post.id, event: 'update', payload: serialize_status(post).to_json } }
+        when 'public', 'public:local'
+          scope = ActivityPubObject.joins(:actor)
+                                   .where(visibility: 'public', object_type: 'Note')
+                                   .includes(:actor, :media_attachments)
+          scope = scope.where(local: true) if params[:stream] == 'public:local'
+          scope.recent.limit(limit)
+               .map { |post| { id: post.id, event: 'update', payload: serialize_status(post).to_json } }
+        else
+          []
+        end
+      end
+
       def serialize_status(status)
         serialized_status(status)
       end
 
       def serialize_notification(notification)
-        NotificationSerializer.new(notification).as_json
+        serialized_notification(notification)
       end
 
       def set_cors_headers

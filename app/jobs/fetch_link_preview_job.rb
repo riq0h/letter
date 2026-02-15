@@ -7,8 +7,8 @@ require 'timeout'
 class FetchLinkPreviewJob < ApplicationJob
   queue_as :default
 
-  # リトライ設定: ネットワークエラーに対応
-  retry_on StandardError, wait: :exponentially_longer, attempts: 3
+  # リトライ設定: ネットワークエラーのみ再試行
+  retry_on Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNREFUSED, wait: :exponentially_longer, attempts: 3
 
   def perform(url, activity_pub_object_id = nil)
     Rails.logger.info "🔗 Fetching link preview for: #{url}"
@@ -39,8 +39,11 @@ class FetchLinkPreviewJob < ApplicationJob
       Rails.logger.warn "⚠️  Failed to create link preview for: #{url}"
       nil
     end
+  rescue Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNREFUSED => e
+    raise e # ネットワークエラーはretry_onに委譲
   rescue StandardError => e
-    handle_error(e, "Link preview fetch failed for #{url}")
+    Rails.logger.error "Link preview fetch failed for #{url}: #{e.message}"
+    nil
   end
 
   private

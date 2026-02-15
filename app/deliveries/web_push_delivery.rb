@@ -3,6 +3,7 @@
 # Webプッシュ通知の配信処理を専門的に扱うDelivery
 # 通知タイプ別のペイロード構築と配信ロジックを分離
 class WebPushDelivery
+  include SsrfProtection
   def self.deliver_to_actor(actor, notification_type, title, body, options = {})
     return unless actor&.web_push_subscriptions&.any?
 
@@ -236,8 +237,18 @@ class WebPushDelivery
     def perform_webpush_send(subscription, payload)
       Rails.logger.info "📱 Sending WebPush notification to #{subscription.endpoint[0..50]}... for #{subscription.actor.username}"
 
-      encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
+      unless validate_push_endpoint!(subscription.endpoint)
+        Rails.logger.warn "🛡️ SSRF: blocked push to #{subscription.endpoint[0..50]}... for #{subscription.actor.username}"
+        subscription.destroy
+        return
+      end
 
+      encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
+      response = send_push_request(subscription, encrypted_payload)
+      handle_push_response(subscription, response)
+    end
+
+    def send_push_request(subscription, encrypted_payload)
       uri = URI.parse(subscription.endpoint)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = uri.scheme == 'https'
@@ -248,20 +259,19 @@ class WebPushDelivery
       request['TTL'] = '2592000'
       request['Urgency'] = 'normal'
 
-      # VAPID認証ヘッダーを追加
       vapid_headers = build_vapid_headers(subscription.endpoint)
       vapid_headers.each { |key, value| request[key] = value }
 
       request.body = encrypted_payload
+      http.request(request)
+    end
 
-      response = http.request(request)
-
+    def handle_push_response(subscription, response)
       if (200...300).cover?(response.code.to_i)
         Rails.logger.info "✅ WebPush notification sent successfully (HTTP #{response.code}) for #{subscription.actor.username}"
         return
       end
 
-      # 410 Gone は購読が無効になったことを示す
       if response.code.to_i == 410
         Rails.logger.warn "📱 Push subscription expired (HTTP 410) for #{subscription.actor.username}, removing subscription"
         subscription.destroy
@@ -284,6 +294,20 @@ class WebPushDelivery
     def handle_push_error(subscription, error)
       Rails.logger.error "❌ Push notification failed for #{subscription.actor.username}: #{error.message}"
       Rails.logger.error error.backtrace.join("\n") if Rails.env.development?
+      false
+    end
+
+    # Push endpointのSSRF安全性を検証
+    def validate_push_endpoint!(endpoint)
+      uri = URI.parse(endpoint.to_s)
+      # WebPushエンドポイントはHTTPSのみ許可
+      unless uri.scheme == 'https'
+        Rails.logger.warn '🛡️ SSRF protection: non-HTTPS push endpoint rejected'
+        return false
+      end
+
+      ssrf_safe_url?(endpoint)
+    rescue URI::InvalidURIError
       false
     end
 
@@ -361,6 +385,12 @@ class WebPushDelivery
     # 暗号化済み通知の送信
     def send_encrypted_notification(subscription, encrypted_payload, headers)
       require 'net/http'
+
+      unless validate_push_endpoint!(subscription.endpoint)
+        Rails.logger.warn "🛡️ SSRF: blocked encrypted push to #{subscription.endpoint[0..50]}..."
+        subscription.destroy
+        return
+      end
 
       uri = URI.parse(subscription.endpoint)
       http = Net::HTTP.new(uri.host, uri.port)

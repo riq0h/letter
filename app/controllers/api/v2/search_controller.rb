@@ -5,6 +5,9 @@ module Api
     class SearchController < Api::BaseController
       include SearchSerializationHelper
 
+      before_action :doorkeeper_authorize!
+      before_action :require_user!
+
       # GET /api/v2/search
       def index
         @results = perform_search

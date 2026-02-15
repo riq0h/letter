@@ -34,6 +34,14 @@ class TimelineQuery
     apply_pagination_filters(statuses).limit(limit)
   end
 
+  def build_list_timeline(list)
+    member_ids = list.list_memberships.pluck(:actor_id)
+    return ActivityPubObject.none if member_ids.empty?
+
+    statuses = base_timeline_query.where(actors: { id: member_ids })
+    apply_pagination_filters(statuses).limit(limit)
+  end
+
   private
 
   attr_reader :user, :params

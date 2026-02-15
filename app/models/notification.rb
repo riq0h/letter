@@ -5,6 +5,9 @@ class Notification < ApplicationRecord
   belongs_to :account, class_name: 'Actor', inverse_of: :notifications
   belongs_to :from_account, class_name: 'Actor', inverse_of: :sent_notifications
 
+  # from_accountのエイリアス（NotificationSerializer互換）
+  alias from_actor from_account
+
   # ポリモーフィック関連（activity_type + activity_id）
   def activity
     return nil unless activity_type && activity_id
@@ -15,6 +18,13 @@ class Notification < ApplicationRecord
     when 'ActivityPubObject'
       ActivityPubObject.find_by(id: activity_id)
     end
+  end
+
+  # ステータス関連の通知の場合、対象のActivityPubObjectを返す
+  def target_object
+    return nil unless activity_type == 'ActivityPubObject'
+
+    ActivityPubObject.find_by(id: activity_id)
   end
 
   # 通知タイプの定義
@@ -54,7 +64,7 @@ class Notification < ApplicationRecord
 
   # 通知作成のクラスメソッド
   def self.create_follow_notification(follow)
-    create!(
+    safe_create!(
       account: follow.target_actor,
       from_account: follow.actor,
       activity_type: 'Follow',
@@ -64,7 +74,7 @@ class Notification < ApplicationRecord
   end
 
   def self.create_follow_request_notification(follow)
-    create!(
+    safe_create!(
       account: follow.target_actor,
       from_account: follow.actor,
       activity_type: 'Follow',
@@ -74,7 +84,7 @@ class Notification < ApplicationRecord
   end
 
   def self.create_mention_notification(mention, status)
-    create!(
+    safe_create!(
       account: mention.actor,
       from_account: status.actor,
       activity_type: 'ActivityPubObject',
@@ -84,7 +94,7 @@ class Notification < ApplicationRecord
   end
 
   def self.create_favourite_notification(favourite, status)
-    create!(
+    safe_create!(
       account: status.actor,
       from_account: favourite.actor,
       activity_type: 'ActivityPubObject',
@@ -94,7 +104,7 @@ class Notification < ApplicationRecord
   end
 
   def self.create_reblog_notification(reblog, original_status)
-    create!(
+    safe_create!(
       account: original_status.actor,
       from_account: reblog.actor,
       activity_type: 'ActivityPubObject',
@@ -104,13 +114,21 @@ class Notification < ApplicationRecord
   end
 
   def self.create_quote_notification(quote_post, quoted_status)
-    create!(
+    safe_create!(
       account: quoted_status.actor,
       from_account: quote_post.actor,
       activity_type: 'ActivityPubObject',
       activity_id: quote_post.object.id.to_s,
       notification_type: 'quote'
     )
+  end
+
+  # 重複時にRecordNotUniqueを安全に処理する共通メソッド
+  def self.safe_create!(attrs)
+    create!(attrs)
+  rescue ActiveRecord::RecordNotUnique
+    Rails.logger.debug { "Duplicate notification skipped: #{attrs[:notification_type]}" }
+    nil
   end
 
   private

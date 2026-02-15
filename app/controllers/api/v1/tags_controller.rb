@@ -17,7 +17,7 @@ module Api
           # タグが存在しない場合は基本的な情報で作成
           render json: {
             name: tag_name,
-            url: "#{request.base_url}/tags/#{tag_name}",
+            url: "#{Rails.application.config.activitypub.base_url}/tags/#{tag_name}",
             history: [],
             following: false
           }
@@ -53,7 +53,7 @@ module Api
         else
           render json: {
             name: tag_name,
-            url: "#{request.base_url}/tags/#{tag_name}",
+            url: "#{Rails.application.config.activitypub.base_url}/tags/#{tag_name}",
             history: [],
             following: false
           }
@@ -73,7 +73,7 @@ module Api
 
         {
           name: tag.name,
-          url: "#{request.base_url}/tags/#{tag.name}",
+          url: "#{Rails.application.config.activitypub.base_url}/tags/#{tag.name}",
           history: build_hashtag_history(tag),
           following: following_status
         }

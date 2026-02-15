@@ -152,7 +152,7 @@
                 <div>
                   <!-- ユーザ名 -->
                   <div class="text-base text-gray-900" style="font-weight: 300;">
-                    <%= link_to reply.actor.ap_id, 
+                    <%= link_to safe_external_url(reply.actor.ap_id),
                                 class: "hover:text-gray-600 transition-colors",
                                 data: { turbo_frame: "_top" } do %>
                       <%= parse_content_for_frontend(reply.actor.display_name.presence || reply.actor.username).html_safe %>
@@ -168,7 +168,7 @@
               
               <!-- 右側：投稿日時 -->
               <div class="text-sm text-gray-500 text-right" style="font-weight: 300;">
-                <%= link_to reply.ap_id, 
+                <%= link_to safe_external_url(reply.ap_id),
                             class: "hover:text-gray-700 transition-colors",
                             data: { turbo_frame: "_top" } do %>
                   <time datetime="<%= reply.published_at.iso8601 %>" title="<%= l(reply.published_at, format: :long) %>">

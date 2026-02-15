@@ -33,7 +33,7 @@ RSpec.describe PostsController, type: :controller do
         expect(response.status).to eq(200)
         expect(response.content_type).to include('application/activity+json')
 
-        json_response = response.parsed_body
+        json_response = JSON.parse(response.body)
         expect(json_response['type']).to eq('Note')
         expect(json_response['id']).to eq(activity_pub_object.ap_id)
       end
@@ -61,7 +61,7 @@ RSpec.describe PostsController, type: :controller do
         get :redirect_to_frontend, params: { username: 'nonexistent', id: activity_pub_object.id }
 
         expect(response.status).to eq(404)
-        json_response = response.parsed_body
+        json_response = JSON.parse(response.body)
         expect(json_response['error']).to eq('Actor not found')
       end
     end
@@ -75,7 +75,7 @@ RSpec.describe PostsController, type: :controller do
         get :redirect_to_frontend, params: { username: actor.username, id: '999999' }
 
         expect(response.status).to eq(404)
-        json_response = response.parsed_body
+        json_response = JSON.parse(response.body)
         expect(json_response['error']).to eq('Object not found')
       end
     end

@@ -2,6 +2,7 @@
 
 class ObjectsController < ApplicationController
   include ActivityPubRequestHandling
+  include TextLinkingHelper
 
   skip_before_action :verify_authenticity_token
   before_action :set_object, only: [:show]
@@ -26,7 +27,7 @@ class ObjectsController < ApplicationController
     @object = ActivityPubObject.find_by(id: id_param) if id_param.match?(/^\d+$/)
 
     # 見つからない場合は ap_id のパターンで検索
-    @object ||= ActivityPubObject.find_by('ap_id LIKE ?', "%/posts/#{id_param}")
+    @object ||= ActivityPubObject.find_by('ap_id LIKE ?', "%/posts/#{ActiveRecord::Base.sanitize_sql_like(id_param)}")
 
     return if @object
 
@@ -44,7 +45,7 @@ class ObjectsController < ApplicationController
 
   def build_base_object_data(object)
     base_data = {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => object.ap_id,
       'type' => object.object_type,
       'attributedTo' => object.actor.ap_id,
@@ -126,7 +127,7 @@ class ObjectsController < ApplicationController
 
     # ActivityPub配信用: 絵文字HTMLをショートコードに戻す
     # Mastodonは content でショートコード、tag配列で絵文字メタデータを期待
-    content.gsub(/<img[^>]*alt=":([^"]+):"[^>]*\/>/, ':\1:')
+    convert_emoji_html_to_shortcode(content)
   end
 
   def build_absolute_media_url(attachment)

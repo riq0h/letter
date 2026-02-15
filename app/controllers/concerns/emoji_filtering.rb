@@ -34,7 +34,8 @@ module EmojiFiltering
   def filter_by_search(scope)
     return scope if params[:q].blank?
 
-    search_term = "%#{params[:q]}%"
+    sanitized_q = ActiveRecord::Base.sanitize_sql_like(params[:q])
+    search_term = "%#{sanitized_q}%"
     scope.where('shortcode LIKE ? OR category_id LIKE ?', search_term, search_term)
   end
 
@@ -46,13 +47,5 @@ module EmojiFiltering
 
   def paginate_emojis(scope)
     scope.page(params[:page]).per(50)
-  end
-
-  def available_emoji_categories
-    CustomEmoji.distinct.pluck(:category_id).compact.sort
-  end
-
-  def available_emoji_domains
-    CustomEmoji.where(local: false).distinct.pluck(:domain).compact.sort
   end
 end

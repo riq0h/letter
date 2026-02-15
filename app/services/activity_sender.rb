@@ -5,20 +5,21 @@ require 'uri'
 
 class ActivitySender
   include HTTParty
+  include SsrfProtection
 
   def initialize
     @timeout = 60
   end
 
   def send_activity(activity:, target_inbox:, signing_actor:)
+    return { success: false, error: 'SSRF protection: blocked' } unless validate_url_for_ssrf!(target_inbox)
+
     body = activity.to_json
     headers = build_headers(target_inbox, body, signing_actor)
 
-    Rails.logger.info "🔍 Sending #{activity['type']} activity to #{target_inbox}"
-    Rails.logger.info "🔍 Activity body: #{body}"
-    Rails.logger.info "🔍 Request headers: #{headers.except('Signature')}"
-    Rails.logger.info "🔍 Signing actor: #{signing_actor.ap_id}"
-    Rails.logger.info "🔍 Current time: #{Time.current.httpdate}"
+    Rails.logger.info "🔍 Sending #{activity['type']} activity to #{target_inbox} from #{signing_actor.ap_id}"
+    Rails.logger.debug { "🔍 Activity body: #{body}" }
+    Rails.logger.debug { "🔍 Request headers: #{headers.except('Signature')}" }
 
     response = perform_request(target_inbox, body, headers)
 
@@ -37,7 +38,7 @@ class ActivitySender
   private
 
   def build_headers(target_inbox, body, signing_actor)
-    date = Time.now.httpdate
+    date = Time.current.httpdate
     digest = generate_digest(body)
     {
       'Content-Type' => 'application/activity+json',

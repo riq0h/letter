@@ -54,7 +54,7 @@ class RelayUnfollowService
     }
 
     {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => undo_id,
       'type' => 'Undo',
       'actor' => @local_actor.ap_id,

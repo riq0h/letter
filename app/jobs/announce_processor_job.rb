@@ -4,7 +4,8 @@ class AnnounceProcessorJob < ApplicationJob
   include ActivityPubUtilityHelpers
 
   queue_as :default
-  retry_on StandardError, wait: 5.minutes, attempts: 3
+  retry_on Net::OpenTimeout, Net::ReadTimeout, wait: 5.minutes, attempts: 3
+  discard_on ActiveRecord::RecordNotFound
 
   def perform(activity_data, sender_id)
     @activity = activity_data
@@ -24,8 +25,7 @@ class AnnounceProcessorJob < ApplicationJob
   private
 
   def extract_announce_object_id
-    object = @activity['object']
-    object.is_a?(Hash) ? object['id'] : object
+    extract_activity_object_id(@activity['object'])
   end
 
   def create_announce_records(target_object)

@@ -45,18 +45,8 @@ module Letter
     # Don't generate system test files.
     config.generators.system_tests = nil
     config.active_record.schema_format = :sql
-    
-    # インスタンス設定のデフォルト値
-    config.instance_name = "letter"
-    config.instance_description = "General Letter Publication System based on ActivityPub"
-    config.instance_contact_email = ""
-    config.instance_maintainer = ""
-    config.blog_footer = "General Letter Publication System based on ActivityPub"
-    
+
     # カスタムエラーページを使用
     # config.exceptions_app = self.routes
-    
-    # アプリケーション名を設定
-    config.application_name = "letter"
   end
 end

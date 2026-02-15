@@ -109,6 +109,11 @@ class WellKnownController < ApplicationController
           href: actor_url
         },
         {
+          rel: 'self',
+          type: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+          href: actor_url
+        },
+        {
           rel: 'http://webfinger.net/rel/profile-page',
           type: 'text/html',
           href: profile_url

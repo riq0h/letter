@@ -18,9 +18,13 @@ Rails.application.routes.draw do
       get '/trends/statuses', to: 'trends#statuses'
       get '/trends/links', to: 'trends#links'
       
+      # 通知 (v2) - グループ化通知
+      get '/notifications', to: 'notifications#index'
+      get '/notifications/unread_count', to: 'notifications#unread_count'
+
       # フィルター (v2)
       resources :filters
-      
+
       # メディア (v2)
       resources :media, only: [:create]
     end

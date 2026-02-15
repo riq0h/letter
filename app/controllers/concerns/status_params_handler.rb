@@ -57,20 +57,4 @@ module StatusParamsHandler
   def apply_default_visibility(transformed_params)
     transformed_params['visibility'] ||= 'public'
   end
-
-  def poll_params
-    params[:poll]
-  end
-
-  def parse_scheduled_at
-    Time.zone.parse(params[:scheduled_at])
-  rescue ArgumentError, TypeError
-    nil
-  end
-
-  def prepare_scheduled_params
-    params.permit(:status, :text, :in_reply_to_id, :sensitive, :spoiler_text, :visibility,
-                  :language, :scheduled_at, media_ids: [], mentions: [],
-                                            poll: [:expires_in, :multiple, :hide_totals, { options: [] }]).to_h
-  end
 end

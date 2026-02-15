@@ -20,15 +20,16 @@ module ActivityPub
                 .strip
     end
 
-    # HTMLの安全性チェック
+    # HTMLの安全性チェック（Loofahベースのサニタイズ）
     def self.sanitize(html_content)
       return '' if html_content.blank?
 
-      # 基本的なサニタイズ
-      html_content.gsub(/<script[^>]*>.*?<\/script>/mi, '')
-                  .gsub(/<style[^>]*>.*?<\/style>/mi, '')
-                  .gsub(/on\w+\s*=\s*["'][^"']*["']/i, '')
-                  .gsub(/javascript:/i, '')
+      sanitizer = Rails::HTML5::SafeListSanitizer.new
+      sanitizer.sanitize(
+        html_content,
+        tags: %w[p br a span em strong b i u del blockquote pre code ul ol li h1 h2 h3 h4 h5 h6 div],
+        attributes: %w[href class rel target translate]
+      )
     end
 
     # メンション抽出
@@ -57,13 +58,15 @@ module ActivityPub
 
       hashtags = []
 
-      # #hashtag パターン
-      html_content.scan(/#(\w+)/) do |tag|
+      # #hashtag パターン（日本語ハッシュタグにも対応）
+      html_content.scan(/#([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/) do |tag|
         hashtags << tag[0]
       end
 
       # <a href="..." class="hashtag">#tag</a> パターン
-      hashtag_pattern = /<a[^>]+href=["']([^"']+)["'][^>]*class=["'][^"']*hashtag[^"']*["'][^>]*>#(\w+)<\/a>/i
+      hashtag_pattern =
+        /<a[^>]+href=["']([^"']+)["'][^>]*class=["'][^"']*hashtag[^"']*["'][^>]*>
+        \#([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)<\/a>/ix
       html_content.scan(hashtag_pattern) do |href, tag|
         hashtags << { href: href, tag: tag }
       end

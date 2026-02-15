@@ -6,23 +6,14 @@ class CreateActivityOrganizer
   include ActivityPubMediaHandler
   include ActivityPubConversationHandler
   include ActivityPubUtilityHelpers
+  include EmojiTagProcessing
 
-  class Result
-    attr_reader :success, :object, :error
+  class Result < OrganizerResult
+    attr_reader :object
 
     def initialize(success:, object: nil, error: nil)
-      @success = success
       @object = object
-      @error = error
-      freeze
-    end
-
-    def success?
-      success
-    end
-
-    def failure?
-      !success
+      super(success: success, error: error)
     end
   end
 
@@ -179,42 +170,8 @@ class CreateActivityOrganizer
   end
 
   def handle_emojis(object, object_data)
-    tags = Array(object_data['tag'])
-    emoji_tags = tags.select { |tag| tag['type'] == 'Emoji' }
-
-    emoji_tags.each do |emoji_tag|
-      shortcode = emoji_tag['name']&.gsub(/^:|:$/, '')
-      icon_url = emoji_tag.dig('icon', 'url')
-
-      next unless shortcode.present? && icon_url.present?
-
-      remote_domain = extract_domain_from_uri(object.ap_id)
-      next unless remote_domain
-
-      existing_emoji = CustomEmoji.find_by(shortcode: shortcode, domain: remote_domain)
-      next if existing_emoji
-
-      CustomEmoji.create!(
-        shortcode: shortcode,
-        domain: remote_domain,
-        image_url: icon_url,
-        visible_in_picker: false,
-        disabled: false
-      )
-
-      Rails.logger.info "🎨 Remote emoji created: :#{shortcode}: from #{remote_domain}"
-    end
-  rescue StandardError => e
-    Rails.logger.error "Failed to handle emojis: #{e.message}"
-  end
-
-  def extract_domain_from_uri(uri)
-    return nil unless uri
-
-    parsed_uri = URI.parse(uri)
-    parsed_uri.host
-  rescue URI::InvalidURIError
-    nil
+    remote_domain = extract_domain_from_uri(object.ap_id)
+    process_emoji_tags(object_data['tag'], domain: remote_domain)
   end
 
   def update_reply_count_if_needed(object)
@@ -223,8 +180,8 @@ class CreateActivityOrganizer
     parent_object = ActivityPubObject.find_by(ap_id: object.in_reply_to_ap_id)
     return unless parent_object
 
-    parent_object.increment!(:replies_count)
-    Rails.logger.info "💬 Reply count updated for #{parent_object.ap_id}: #{parent_object.replies_count}"
+    ActivityPubObject.update_counters(parent_object.id, replies_count: 1)
+    Rails.logger.info "💬 Reply count updated for #{parent_object.ap_id}"
   end
 
   def update_pin_posts_if_needed(actor)
@@ -244,15 +201,13 @@ class CreateActivityOrganizer
       return
     end
 
-    # 既に実行待ちのジョブがある場合は重複を避ける
-    existing_jobs = SolidQueue::Job.where(class_name: 'UpdatePinPostsJob')
-                                   .where('created_at > ?', 1.hour.ago)
-                                   .select do |job|
-      job_args = job.arguments.is_a?(Hash) ? job.arguments['arguments'] : job.arguments
-      job_args.is_a?(Array) && job_args.first == actor.id
-    end
+    # 既に実行待ちのジョブがある場合は重複を避ける（SQLレベルでフィルタ）
+    existing_job_count = SolidQueue::Job.where(class_name: 'UpdatePinPostsJob')
+                                        .where('created_at > ?', 1.hour.ago)
+                                        .where('arguments LIKE ?', "%#{actor.id}%")
+                                        .count
 
-    return if existing_jobs.any?
+    return if existing_job_count.positive?
 
     # キャッシュに記録（1時間）
     Rails.cache.write(cache_key, true, expires_in: 1.hour)

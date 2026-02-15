@@ -26,6 +26,7 @@ Rails.application.routes.draw do
       post '/accounts/:id/mute', to: 'accounts#mute'
       post '/accounts/:id/unmute', to: 'accounts#unmute'
       post '/accounts/:id/note', to: 'accounts#note'
+      get '/accounts/:id/lists', to: 'accounts#lists'
 
       # ステータス
       resources :statuses, only: %i[show create destroy update] do
@@ -45,6 +46,8 @@ Rails.application.routes.draw do
           post :unpin
           post :bookmark
           post :unbookmark
+          post :mute
+          post :unmute
         end
       end
 
@@ -60,9 +63,19 @@ Rails.application.routes.draw do
       get '/timelines/home', to: 'timelines#home'
       get '/timelines/public', to: 'timelines#public'
       get '/timelines/tag/:hashtag', to: 'timelines#tag'
+      get '/timelines/list/:id', to: 'timelines#list'
 
       # インスタンス
       get '/instance', to: 'instance#show'
+      get '/instance/peers', to: 'instance#peers'
+      get '/instance/activity', to: 'instance#activity'
+      get '/instance/rules', to: 'instance#rules'
+
+      # ミュート一覧
+      get '/mutes', to: 'mutes#index'
+
+      # ブロック一覧
+      get '/blocks', to: 'blocks#index'
 
       # メディア
       resources :media, only: %i[create show update]

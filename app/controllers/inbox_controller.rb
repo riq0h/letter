@@ -4,7 +4,7 @@ class InboxController < ApplicationController
   include ActivityPubVerification
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
-  include GeneralErrorHandler
+  include ErrorResponseHelper
 
   # エラーハンドリング
   rescue_from ActivityPub::SignatureError, with: :handle_signature_error
@@ -59,6 +59,8 @@ class InboxController < ApplicationController
       handle_announce_activity
     when 'Like'
       handle_like_activity
+    when 'Block'
+      handle_block_activity
     else
       handle_unsupported_activity
     end

@@ -167,6 +167,9 @@ class FollowInteractor
     end
 
     Follow.create!(follow_params)
+  rescue ActiveRecord::RecordNotUnique
+    # 同時リクエストで既に作成されていた場合は既存のレコードを返す
+    Follow.find_by(actor: @actor, target_actor: target_actor)
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create follow relationship: #{e.message}"
     nil

@@ -3,22 +3,20 @@
 module Api
   module V1
     class ScheduledStatusesController < Api::BaseController
+      include ApiPagination
+
       before_action :doorkeeper_authorize!
       before_action :require_user!
       before_action :set_scheduled_status, only: %i[show update destroy]
 
       # GET /api/v1/scheduled_statuses
       def index
-        limit = [params.fetch(:limit, 20).to_i, 40].min
-
         scheduled_statuses = current_user.scheduled_statuses
                                          .pending
                                          .order(scheduled_at: :asc)
-                                         .limit(limit)
 
-        scheduled_statuses = scheduled_statuses.where(id: ...(params[:max_id])) if params[:max_id].present?
-
-        scheduled_statuses = scheduled_statuses.where('id > ?', params[:min_id]) if params[:min_id].present?
+        scheduled_statuses = apply_collection_pagination(scheduled_statuses, 'scheduled_statuses')
+        scheduled_statuses = scheduled_statuses.limit(limit_param)
 
         render json: scheduled_statuses.map(&:to_mastodon_api)
       end

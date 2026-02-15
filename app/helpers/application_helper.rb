@@ -3,6 +3,16 @@
 module ApplicationHelper
   include StatusSerializer
 
+  # 外部URLのプロトコルを検証し、http(s)以外は '#' を返す
+  def safe_external_url(url)
+    return '#' if url.blank?
+
+    uri = URI.parse(url.to_s)
+    %w[http https].include?(uri.scheme) ? url : '#'
+  rescue URI::InvalidURIError
+    '#'
+  end
+
   def background_color
     stored_config = load_instance_config
     stored_config['background_color'] || '#fdfbfb'

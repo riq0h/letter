@@ -30,7 +30,7 @@
                 <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
               <% end %>
             <% else %>
-              <%= link_to reblog.object.actor.ap_id, 
+              <%= link_to safe_external_url(reblog.object.actor.ap_id),
                           class: "hover:text-gray-600 transition-colors",
                           data: { turbo_frame: "_top" } do %>
                 <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
@@ -57,7 +57,7 @@
             </time>
           <% end %>
         <% else %>
-          <%= link_to reblog.object.ap_id, 
+          <%= link_to safe_external_url(reblog.object.ap_id),
                       class: "hover:text-gray-700 transition-colors",
                       data: { turbo_frame: "_top" } do %>
             <time datetime="<%= reblog.object.published_at.iso8601 %>" title="<%= l(reblog.object.published_at, format: :long) %>">

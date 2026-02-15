@@ -24,18 +24,14 @@ module Api
             last_backup_at: nil,
             config: {
               statuses_config: {
-                max_characters: 500,
+                max_characters: Rails.application.config.activitypub.character_limit,
                 max_media_attachments: 4,
                 characters_reserved_per_url: 23
               },
               media_attachments: {
-                supported_mime_types: %w[
-                  image/jpeg image/png image/gif image/webp
-                  video/mp4 video/webm
-                  audio/mp3 audio/ogg audio/wav
-                ],
-                image_size_limit: 10.megabytes,
-                video_size_limit: 40.megabytes
+                supported_mime_types: MediaAttachmentCreationService::ALLOWED_MIME_TYPES,
+                image_size_limit: MediaAttachment::MAX_IMAGE_SIZE,
+                video_size_limit: MediaAttachment::MAX_VIDEO_SIZE
               },
               accounts: {
                 max_featured_tags: 10

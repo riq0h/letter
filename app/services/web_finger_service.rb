@@ -3,6 +3,7 @@
 class WebFingerService
   include HTTParty
   include ActivityPubHelper
+  include SsrfProtection
 
   def fetch_actor_data(acct_uri)
     # acct: URIからユーザ名とドメインを抽出
@@ -32,6 +33,8 @@ class WebFingerService
 
   def fetch_webfinger(username, domain)
     webfinger_url = "https://#{domain}/.well-known/webfinger"
+    return nil unless validate_url_for_ssrf!(webfinger_url)
+
     resource = AccountIdentifier.new(username, domain).to_webfinger_uri
 
     response = HTTParty.get(webfinger_url, {
@@ -50,11 +53,19 @@ class WebFingerService
 
   def extract_actor_uri(webfinger_data)
     links = webfinger_data['links'] || []
+    # application/activity+json と application/ld+json の両方をサポート
     actor_link = links.find do |link|
       link['rel'] == 'self' &&
-        link['type'] == 'application/activity+json'
+        (link['type'] == 'application/activity+json' ||
+         link['type']&.start_with?('application/ld+json'))
     end
 
-    actor_link&.dig('href')
+    href = actor_link&.dig('href')
+    return nil unless href
+
+    # 取得先URLもSSRFチェック
+    return nil unless validate_url_for_ssrf!(href)
+
+    href
   end
 end

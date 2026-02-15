@@ -3,8 +3,8 @@
 module ApiPagination
   extend ActiveSupport::Concern
 
-  DEFAULT_LIMIT = 200
-  MAX_LIMIT = 1000
+  DEFAULT_LIMIT = 20
+  MAX_LIMIT = 80
 
   private
 
@@ -91,22 +91,17 @@ module ApiPagination
     "#{request.base_url}#{request.path}?#{url_params.to_query}"
   end
 
+  def apply_collection_pagination(collection, table_name)
+    collection = collection.where(id: ...(params[:max_id])) if params[:max_id].present?
+    collection = collection.where("#{table_name}.id > ?", params[:since_id]) if params[:since_id].present?
+    collection = collection.where("#{table_name}.id > ?", params[:min_id]) if params[:min_id].present?
+    collection
+  end
+
   def limit_param
     return DEFAULT_LIMIT if params[:limit].blank?
 
-    [params[:limit].to_i, MAX_LIMIT].min
-  end
-
-  def max_id_param
-    params[:max_id]&.to_i
-  end
-
-  def since_id_param
-    params[:since_id]&.to_i
-  end
-
-  def min_id_param
-    params[:min_id]&.to_i
+    params[:limit].to_i.clamp(1, MAX_LIMIT)
   end
 
   def include_total_count?

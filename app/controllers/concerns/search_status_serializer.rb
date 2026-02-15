@@ -12,12 +12,6 @@ module SearchStatusSerializer
     )
   end
 
-  def serialized_media_attachments(status)
-    status.media_attachments.map do |attachment|
-      build_media_attachment_data(attachment)
-    end
-  end
-
   private
 
   def base_status_data(status)
@@ -54,27 +48,7 @@ module SearchStatusSerializer
       tags: [],
       emojis: serialized_emojis(status),
       card: nil,
-      poll: serialize_poll_for_search(status.poll)
-    }
-  end
-
-  def build_media_attachment_data(attachment)
-    {
-      id: attachment.id.to_s,
-      type: attachment.media_type,
-      url: attachment.remote_url || attachment.url,
-      preview_url: attachment.remote_url || attachment.url,
-      remote_url: attachment.remote_url,
-      description: attachment.description,
-      blurhash: attachment.blurhash,
-      meta: build_search_media_meta(attachment)
-    }
-  end
-
-  def build_search_media_meta(attachment)
-    # 検索用には original メタデータのみを返す（MediaSerializer の original 部分を使用）
-    {
-      original: build_original_meta(attachment)
+      poll: serialize_poll_base(status.poll)
     }
   end
 

@@ -3,17 +3,22 @@
 require 'net/http'
 require_relative 'concerns/actor_attachment_processing'
 require_relative 'concerns/featured_collection_fetching'
+require_relative 'concerns/emoji_tag_processing'
 
 class ActorFetcher
   include HTTParty
   include ActorAttachmentProcessing
   include FeaturedCollectionFetching
+  include EmojiTagProcessing
+  include SsrfProtection
 
   def initialize
     @timeout = 15
   end
 
   def fetch_and_create(actor_uri)
+    return nil unless validate_url_for_ssrf!(actor_uri)
+
     # 重複チェック
     existing_actor = Actor.find_by(ap_id: actor_uri)
     return existing_actor if existing_actor
@@ -31,7 +36,7 @@ class ActorFetcher
   def fetch_actor_data(actor_uri)
     response = perform_actor_request(actor_uri)
     actor_data = parse_actor_response(response)
-    validate_actor_data(actor_data)
+    validate_actor_data(actor_data, actor_uri)
 
     actor_data
   rescue JSON::ParserError => e
@@ -48,7 +53,7 @@ class ActorFetcher
     actor = Actor.create!(build_actor_attributes(actor_uri, actor_data, username, domain, public_key_pem))
 
     # emoji情報を処理
-    process_actor_emojis(actor, actor_data)
+    process_emoji_tags(actor_data['tag'], domain: actor.domain)
 
     # Featured Collection（ピン留め投稿）を取得
     fetch_featured_collection_async(actor)
@@ -65,7 +70,7 @@ class ActorFetcher
     HTTParty.get(
       actor_uri,
       headers: {
-        'Accept' => 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+        'Accept' => ActivityPubHttpClient::ACCEPT_HEADERS,
         'User-Agent' => InstanceConfig.user_agent(:activitypub)
       },
       timeout: @timeout,
@@ -79,7 +84,7 @@ class ActorFetcher
     JSON.parse(response.body)
   end
 
-  def validate_actor_data(actor_data)
+  def validate_actor_data(actor_data, expected_uri = nil)
     unless actor_data['type']&.match?(/Person|Service|Organization|Group/)
       raise ActivityPub::ActorFetchError,
             "Invalid actor type: #{actor_data['type']}"
@@ -89,6 +94,12 @@ class ActorFetcher
     missing_fields = required_fields.select { |field| actor_data[field].blank? }
 
     raise ActivityPub::ActorFetchError, "Missing required fields: #{missing_fields.join(', ')}" if missing_fields.any?
+
+    # フェッチしたIDがリクエストしたURIと一致することを検証（なりすまし防止）
+    return unless expected_uri && actor_data['id'] != expected_uri
+
+    raise ActivityPub::ActorFetchError,
+          "Actor ID mismatch: expected #{expected_uri}, got #{actor_data['id']}"
   end
 
   def extract_actor_identity(actor_data, uri)
@@ -127,31 +138,5 @@ class ActorFetcher
       bot: actor_data['bot'] == true,
       manually_approves_followers: actor_data['manuallyApprovesFollowers'] == true
     }
-  end
-
-  # アクターのemoji情報を処理
-  def process_actor_emojis(actor, actor_data)
-    tags = Array(actor_data['tag'])
-    emoji_tags = tags.select { |tag| tag['type'] == 'Emoji' }
-
-    emoji_tags.each do |emoji_tag|
-      shortcode = emoji_tag['name']&.gsub(/^:|:$/, '')
-      icon_url = emoji_tag.dig('icon', 'url')
-
-      next unless shortcode.present? && icon_url.present?
-
-      existing_emoji = CustomEmoji.find_by(shortcode: shortcode, domain: actor.domain)
-      next if existing_emoji
-
-      CustomEmoji.create!(
-        shortcode: shortcode,
-        domain: actor.domain,
-        image_url: icon_url,
-        visible_in_picker: false,
-        disabled: false
-      )
-    end
-  rescue StandardError => e
-    Rails.logger.error "❌ Failed to process actor emojis: #{e.message}"
   end
 end

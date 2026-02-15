@@ -6,7 +6,6 @@ module Api
   module V1
     class MediaController < Api::BaseController
       include MediaSerializer
-      include MediaAttachmentSerialization
       include MediaAttachmentCreation
 
       before_action :doorkeeper_authorize!
@@ -31,10 +30,10 @@ module Api
           render json: serialized_media_attachment(media_attachment), status: :created
         rescue ActiveRecord::RecordInvalid => e
           Rails.logger.error "Media upload validation failed: #{e.message}"
-          render json: { error: e.record.errors.full_messages.join(', ') }, status: :unprocessable_entity
+          render_validation_error(e.record)
         rescue StandardError => e
           Rails.logger.error "Media upload failed: #{e.message}"
-          render json: { error: e.message }, status: :unprocessable_entity
+          render_error(e.message)
         end
       end
 
@@ -45,10 +44,7 @@ module Api
         if media_attachment.update(media_update_params)
           render json: serialized_media_attachment(media_attachment)
         else
-          render json: {
-            error: 'Validation failed',
-            details: media_attachment.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_error(media_attachment)
         end
       rescue ActiveRecord::RecordNotFound
         render_not_found('Media')

@@ -3,6 +3,7 @@
 module Api
   module V1
     class AppsController < Api::BaseController
+      include VapidKeyHelper
       before_action :doorkeeper_authorize!, only: [:verify_credentials]
 
       # POST /api/v1/apps
@@ -13,15 +14,14 @@ module Api
         if @application.save
           render json: serialized_application(@application), status: :created
         else
-          render json: { error: 'Validation failed', details: @application.errors.full_messages },
-                 status: :unprocessable_entity
+          render_validation_error(@application)
         end
       end
 
       # GET /api/v1/apps/verify_credentials
       # アプリケーション認証情報を検証
       def verify_credentials
-        render json: serialized_application(doorkeeper_token.application)
+        render json: serialized_credential_application(doorkeeper_token.application)
       end
 
       private
@@ -53,17 +53,13 @@ module Api
         }
       end
 
-      def vapid_public_key
-        raw_key = ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
-        return nil unless raw_key
-
-        # PEM形式のBase64をデコードしてWebPush用のURLsafeBase64に変換
-        pem_data = Base64.decode64(raw_key)
-        ec_key = OpenSSL::PKey::EC.new(pem_data)
-        public_key_uncompressed = ec_key.public_key.to_bn.to_s(2)
-
-        # 65バイト（0x04を含む）のuncompressed P-256公開キーをWebPush用にエンコード
-        Base64.urlsafe_encode64(public_key_uncompressed).tr('=', '')
+      # verify_credentials用: client_secretを含めない（Mastodon API仕様準拠）
+      def serialized_credential_application(application)
+        {
+          name: application.name,
+          website: application.website,
+          vapid_key: vapid_public_key || 'not_configured'
+        }
       end
     end
   end

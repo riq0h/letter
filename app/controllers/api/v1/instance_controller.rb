@@ -3,6 +3,43 @@
 module Api
   module V1
     class InstanceController < Api::BaseController
+      include VapidKeyHelper
+      # GET /api/v1/instance/peers
+      def peers
+        domains = Actor.where(local: false)
+                       .where.not(domain: nil)
+                       .distinct
+                       .pluck(:domain)
+                       .compact
+        render json: domains
+      end
+
+      # GET /api/v1/instance/activity
+      def activity
+        weeks = (0..11).map do |i|
+          week_start = i.weeks.ago.beginning_of_week
+          week_end = i.weeks.ago.end_of_week
+
+          statuses = ActivityPubObject.where(object_type: 'Note', created_at: week_start..week_end).count
+          logins = Actor.where(local: true).count # 簡易的にローカルユーザー数を返す
+          registrations = 0
+
+          {
+            week: week_start.to_i.to_s,
+            statuses: statuses.to_s,
+            logins: logins.to_s,
+            registrations: registrations.to_s
+          }
+        end
+
+        render json: weeks
+      end
+
+      # GET /api/v1/instance/rules
+      def rules
+        render json: []
+      end
+
       # GET /api/v1/instance (DEPRECATED - use v2/instance instead)
       def show
         # 非推奨警告をレスポンスヘッダに追加
@@ -49,7 +86,7 @@ module Api
               max_featured_tags: 0
             },
             statuses: {
-              max_characters: 9999,
+              max_characters: Rails.application.config.activitypub.character_limit,
               max_media_attachments: 4,
               characters_reserved_per_url: 23
             },
@@ -79,19 +116,6 @@ module Api
           contact_account: nil,
           rules: []
         }
-      end
-
-      def vapid_public_key
-        raw_key = ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
-        return nil unless raw_key
-
-        # PEM形式のBase64をデコードしてWebPush用のURLsafeBase64に変換
-        pem_data = Base64.decode64(raw_key)
-        ec_key = OpenSSL::PKey::EC.new(pem_data)
-        public_key_uncompressed = ec_key.public_key.to_bn.to_s(2)
-
-        # 65バイト（0x04を含む）のuncompressed P-256公開キーをWebPush用にエンコード
-        Base64.urlsafe_encode64(public_key_uncompressed).tr('=', '')
       end
     end
   end

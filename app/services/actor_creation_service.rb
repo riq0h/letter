@@ -6,6 +6,7 @@ require 'stringio'
 # リモートアクターの作成を担当するサービス
 class ActorCreationService
   include ActorAttachmentProcessing
+  include SsrfProtection
 
   def self.create_from_activitypub_data(actor_data)
     new.create_from_activitypub_data(actor_data)
@@ -91,6 +92,8 @@ class ActorCreationService
   end
 
   def fetch_image_response(image_url)
+    return nil unless validate_url_for_ssrf!(image_url)
+
     response = Net::HTTP.get_response(URI(image_url))
     response.is_a?(Net::HTTPSuccess) ? response : nil
   end

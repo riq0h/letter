@@ -22,6 +22,11 @@ module MediaSerializer
     [] # エラー時は常に空配列を返す
   end
 
+  # 単一メディアのシリアライズ（MediaController用公開メソッド）
+  def serialized_media_attachment(media)
+    serialize_single_media_attachment(media)
+  end
+
   def serialize_single_media_attachment(media)
     # メディアの存在をバリデート
     return nil unless media
@@ -53,10 +58,16 @@ module MediaSerializer
   end
 
   def build_media_meta(media)
-    {
+    meta = {
       original: build_original_meta(media),
       small: build_small_meta(media)
     }
+
+    # focalPoint（注目点座標）があれば追加
+    focus = extract_focus_point(media)
+    meta[:focus] = focus if focus
+
+    meta
   end
 
   def build_original_meta(media)
@@ -84,5 +95,19 @@ module MediaSerializer
     else
       build_original_meta(media)
     end
+  end
+
+  def extract_focus_point(media)
+    return nil if media.metadata.blank?
+
+    parsed = media.metadata.is_a?(String) ? JSON.parse(media.metadata) : media.metadata
+    focus_x = parsed['focus_x'] || parsed['focusX']
+    focus_y = parsed['focus_y'] || parsed['focusY']
+
+    return nil unless focus_x && focus_y
+
+    { x: focus_x.to_f, y: focus_y.to_f }
+  rescue JSON::ParserError
+    nil
   end
 end

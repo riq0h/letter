@@ -57,7 +57,7 @@ class RelayDistributionService
     activity_id = "#{local_actor_instance.ap_id}#announces/relay/#{SecureRandom.hex(16)}"
 
     {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => activity_id,
       'type' => 'Announce',
       'actor' => local_actor_instance.ap_id,

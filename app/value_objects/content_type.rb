@@ -46,6 +46,28 @@ class ContentType
     audio/flac audio/opus audio/webm audio/mp4
   ].freeze
 
+  # MIMEタイプ→拡張子の逆引きマッピング
+  EXTENSION_FOR_MIME = {
+    'image/jpeg' => 'jpg',
+    'image/jpg' => 'jpg',
+    'image/png' => 'png',
+    'image/gif' => 'gif',
+    'image/webp' => 'webp',
+    'image/avif' => 'avif',
+    'image/heic' => 'heic',
+    'image/heif' => 'heif',
+    'video/mp4' => 'mp4',
+    'video/webm' => 'webm',
+    'video/quicktime' => 'mov',
+    'video/ogg' => 'ogv',
+    'audio/mpeg' => 'mp3',
+    'audio/ogg' => 'oga',
+    'audio/wav' => 'wav',
+    'audio/wave' => 'wav',
+    'audio/flac' => 'flac',
+    'audio/mp4' => 'm4a'
+  }.freeze
+
   DEFAULT_MIME_TYPE = 'application/octet-stream'
 
   attr_reader :mime_type, :filename
@@ -102,6 +124,11 @@ class ContentType
   alias eql? ==
 
   delegate :hash, to: :mime_type
+
+  # MIMEタイプから拡張子を取得（ドットなし）
+  def self.extension_for(mime_type, fallback: 'bin')
+    EXTENSION_FOR_MIME[mime_type] || fallback
+  end
 
   # サポートされているすべてのMIMEタイプを取得
   def self.supported_mime_types

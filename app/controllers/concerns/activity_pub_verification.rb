@@ -5,6 +5,8 @@ require_relative '../../../lib/activity_pub'
 module ActivityPubVerification
   extend ActiveSupport::Concern
 
+  MAX_PAYLOAD_SIZE = 1.megabyte
+
   private
 
   # Content-Type検証
@@ -40,8 +42,11 @@ module ActivityPubVerification
 
   # Activity JSON解析
   def parse_activity_json
-    @raw_body = request.body.read
-    @activity = JSON.parse(@raw_body)
+    @raw_body = request.body.read(MAX_PAYLOAD_SIZE + 1)
+
+    raise ActivityPub::ValidationError, 'Payload too large' if @raw_body && @raw_body.bytesize > MAX_PAYLOAD_SIZE
+
+    @activity = JSON.parse(@raw_body, max_nesting: 50)
 
     validate_activity_structure
     check_json_ld_context
@@ -57,9 +62,13 @@ module ActivityPubVerification
 
   def check_json_ld_context
     context = @activity['@context']
-    return if context&.include?('https://www.w3.org/ns/activitystreams')
 
-    Rails.logger.warn '⚠️ Missing or invalid @context'
+    raise ActivityPub::ValidationError, 'Missing @context in activity' unless context
+
+    return if context.is_a?(String) && context.include?('https://www.w3.org/ns/activitystreams')
+    return if context.is_a?(Array) && context.any? { |c| c.is_a?(String) && c.include?('https://www.w3.org/ns/activitystreams') }
+
+    Rails.logger.warn "⚠️ Activity @context does not include ActivityStreams namespace: #{context.inspect}"
   end
 
   # HTTP Signature検証
@@ -75,23 +84,38 @@ module ActivityPubVerification
     actor_uri = @activity['actor']
     Rails.logger.debug { "🔍 Verifying signature for actor: #{actor_uri}" }
 
-    # リレーからの活動かチェック（署名検証前に実行）
+    # keyIdを抽出して検証対象のアクターURIを決定
+    signature_header = request.headers['Signature']
+    key_id = extract_key_id_from_signature(signature_header)
+
     if relay_activity?
-      Rails.logger.debug '✅ Verified as relay activity, skipping signature check'
-      return
+      # リレー経由: リレーサーバの鍵で署名検証を行う（スキップしない）
+      relay_actor_uri = key_id&.sub(/#.*$/, '') # keyIdからfragmentを除去してactor URIを取得
+      Rails.logger.debug { "🔀 Relay activity detected, verifying relay signature from: #{relay_actor_uri}" }
+      verify_actor_uri = relay_actor_uri || actor_uri
+    else
+      # 非リレー: keyIdがactivity actorと一致することを確認
+      if key_id.present?
+        key_actor_uri = key_id.sub(/#.*$/, '')
+        unless key_actor_uri == actor_uri
+          Rails.logger.warn "🔐 keyId actor (#{key_actor_uri}) does not match activity actor (#{actor_uri})"
+          raise ::ActivityPub::SignatureError, 'keyId does not match activity actor'
+        end
+      end
+      verify_actor_uri = actor_uri
     end
 
     verifier = create_signature_verifier
 
     begin
-      signature_result = verifier.verify!(actor_uri)
+      signature_result = verifier.verify!(verify_actor_uri)
       Rails.logger.debug { "✅ Signature verification result: #{signature_result}" }
 
       return if signature_result
     rescue StandardError => e
-      Rails.logger.warn "🔐 Signature verification error for #{actor_uri}: #{e.message}"
+      Rails.logger.warn "🔐 Signature verification error for #{verify_actor_uri}: #{e.message}"
       Rails.logger.debug { "   Error class: #{e.class}" }
-      Rails.logger.debug { "   Headers: #{request.headers['Signature']}" }
+      Rails.logger.debug { "   Headers: #{signature_header}" }
       Rails.logger.debug { "   Method: #{request.method}" }
       Rails.logger.debug { "   Path: #{request.fullpath}" }
 
@@ -101,7 +125,7 @@ module ActivityPubVerification
       end
     end
 
-    Rails.logger.warn "🔐 HTTP signature verification failed for actor: #{actor_uri}"
+    Rails.logger.warn "🔐 HTTP signature verification failed for actor: #{verify_actor_uri}"
     raise ::ActivityPub::SignatureError, 'Signature verification failed'
   end
 

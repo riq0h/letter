@@ -62,5 +62,12 @@ class Conversation < ApplicationRecord
       end
       conversation
     end
+  rescue ActiveRecord::RecordNotUnique
+    # 競合状態で既に作成されていた場合は再検索
+    joins(:conversation_participants)
+      .group('conversations.id')
+      .having('COUNT(conversation_participants.actor_id) = ? AND GROUP_CONCAT(conversation_participants.actor_id ORDER BY conversation_participants.actor_id) = ?',
+              actor_ids.size, actor_ids.join(','))
+      .first
   end
 end

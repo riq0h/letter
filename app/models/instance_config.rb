@@ -16,11 +16,21 @@ class InstanceConfig < ApplicationRecord
   validates :value, presence: true
   validates :config_key, uniqueness: true
 
+  # デフォルト値
+  DEFAULTS = {
+    'instance_name' => 'letter',
+    'instance_description' => '',
+    'instance_contact_email' => '',
+    'instance_maintainer' => '',
+    'blog_footer' => '',
+    'background_color' => '#ffffff'
+  }.freeze
+
   # 設定値を取得するクラスメソッド
   def self.get(key)
     Rails.cache.fetch("instance_config:#{key}", expires_in: 1.hour) do
       find_by(config_key: key)&.value
-    end
+    end || DEFAULTS[key.to_s]
   end
 
   # 設定値を設定するクラスメソッド

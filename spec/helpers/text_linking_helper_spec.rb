@@ -228,11 +228,12 @@ RSpec.describe TextLinkingHelper, type: :helper do
         expect(result).to eq('alert(&quot;xss&quot;)Hello\\nWorld')
       end
 
-      it 'converts newlines to br tags' do
+      it 'preserves newlines without converting to br tags' do
+        # <br>変換はauto_link_urls内でURLリンク化の後に行われる
         text = "Line 1\nLine 2\nLine 3"
         result = helper.send(:escape_and_format_text, text)
 
-        expect(result).to eq('Line 1<br>Line 2<br>Line 3')
+        expect(result).to eq("Line 1\nLine 2\nLine 3")
       end
     end
 

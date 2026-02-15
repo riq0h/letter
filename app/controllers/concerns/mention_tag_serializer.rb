@@ -8,9 +8,17 @@ module MentionTagSerializer
   def serialized_mentions(status)
     # 防御的プログラミング: 常に配列を返し、nullは返さない
     return [] unless status.respond_to?(:mentions)
-    return [] if status.mentions.nil?
 
-    mentions = status.mentions.includes(:actor).filter_map do |mention|
+    # キャッシュがあればそれを使用（N+1回避）
+    raw_mentions = if defined?(@mentions_cache) && @mentions_cache
+                     @mentions_cache[status.id] || []
+                   else
+                     return [] if status.mentions.nil?
+
+                     status.mentions.includes(:actor).to_a
+                   end
+
+    mentions = raw_mentions.filter_map do |mention|
       serialize_mention(mention)
     end
 
@@ -41,7 +49,7 @@ module MentionTagSerializer
     return '' unless actor
 
     if actor.local?
-      "#{Rails.application.config.activitypub.scheme}://#{Rails.application.config.activitypub.domain}/users/#{actor.username}"
+      "#{Rails.application.config.activitypub.base_url}/users/#{actor.username}"
     else
       actor.ap_id.to_s
     end
@@ -73,7 +81,7 @@ module MentionTagSerializer
 
     {
       name: tag.name.to_s,
-      url: "#{Rails.application.config.activitypub.scheme}://#{Rails.application.config.activitypub.domain}/tags/#{tag.name}"
+      url: "#{Rails.application.config.activitypub.base_url}/tags/#{tag.name}"
     }
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize tag #{tag&.id}: #{e.message}"

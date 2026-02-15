@@ -7,10 +7,9 @@ class Mention < ApplicationRecord
   belongs_to :object, class_name: 'ActivityPubObject'
   belongs_to :actor
 
-  validates :ap_id, presence: true
+  validates :ap_id, presence: true, uniqueness: true
 
-  before_validation :set_ap_id, on: :create
-  after_create :create_notification
+  after_create :create_notification_for_mention
 
   scope :local, -> { joins(:actor).where(actors: { local: true }) }
   scope :remote, -> { joins(:actor).where(actors: { local: false }) }
@@ -22,11 +21,5 @@ class Mention < ApplicationRecord
     else
       "#{actor.username}@#{actor.domain}"
     end
-  end
-
-  private
-
-  def create_notification
-    create_notification_for_mention
   end
 end

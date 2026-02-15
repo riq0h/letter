@@ -6,7 +6,6 @@ module Api
   module V2
     class MediaController < Api::BaseController
       include MediaSerializer
-      include MediaAttachmentSerialization
       include MediaAttachmentCreation
 
       before_action :doorkeeper_authorize!, :require_user!
@@ -18,7 +17,7 @@ module Api
         render json: serialized_media_attachment(media_attachment), status: :ok
       rescue StandardError => e
         Rails.logger.error "Media creation error: #{e.message}"
-        render json: { error: e.message }, status: :unprocessable_entity
+        render_error(e.message)
       end
 
       private

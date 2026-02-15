@@ -44,6 +44,26 @@ module TimelineBuilder
     }
   end
 
+  def extract_reference_time_from_max_id
+    max_id = params[:max_id]
+
+    if max_id.start_with?('post_')
+      post_id = max_id.sub('post_', '')
+      ActivityPubObject.find_by(id: post_id)&.published_at
+    elsif max_id.start_with?('reblog_')
+      reblog_id = max_id.sub('reblog_', '')
+      Reblog.find_by(id: reblog_id)&.created_at
+    end
+  end
+
+  def filter_timeline_items_by_time(timeline_items, reference_time)
+    timeline_items.select { |item| item[:published_at] < reference_time }
+  end
+
+  def get_post_display_id(timeline_item)
+    timeline_item[:id]
+  end
+
   def build_timeline_items_from_posts_and_reblogs(posts, reblogs)
     timeline_items = posts.map do |post|
       build_post_timeline_item(post)

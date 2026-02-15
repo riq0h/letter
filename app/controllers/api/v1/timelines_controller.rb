@@ -4,11 +4,9 @@ module Api
   module V1
     class TimelinesController < Api::BaseController
       include StatusSerializationHelper
-      include AccountSerializer
-      include TextLinkingHelper
       include ApiPagination
 
-      before_action :doorkeeper_authorize!, only: [:home]
+      before_action :doorkeeper_authorize!, only: %i[home list]
       after_action :insert_pagination_headers
 
       # GET /api/v1/timelines/home
@@ -18,9 +16,9 @@ module Api
         timeline_query = TimelineQuery.new(current_user, timeline_params)
         timeline_items = timeline_query.build_home_timeline
 
-        # リプライ先情報をプリロード
+        # リプライ先情報とインタラクション状態をプリロード
         statuses = timeline_items.filter_map { |item| item.is_a?(Reblog) ? item.object : item }
-        preload_reply_to_data(statuses)
+        preload_all_status_data(statuses)
 
         @paginated_items = timeline_items
         render json: timeline_items.map { |item| serialize_timeline_item(item) }
@@ -31,8 +29,7 @@ module Api
         timeline_query = TimelineQuery.new(current_user, timeline_params)
         statuses = timeline_query.build_public_timeline
 
-        # リプライ先情報をプリロード
-        preload_reply_to_data(statuses)
+        preload_all_status_data(statuses)
 
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }
@@ -43,14 +40,40 @@ module Api
         timeline_query = TimelineQuery.new(current_user, timeline_params)
         statuses = timeline_query.build_hashtag_timeline(params[:hashtag])
 
-        # リプライ先情報をプリロード
-        preload_reply_to_data(statuses)
+        preload_all_status_data(statuses)
+
+        @paginated_items = statuses
+        render json: statuses.map { |status| serialized_status(status) }
+      end
+
+      # GET /api/v1/timelines/list/:id
+      def list
+        return render_authentication_required unless current_user
+
+        list = current_user.lists.find_by(id: params[:id])
+        return render_not_found('List') unless list
+
+        timeline_query = TimelineQuery.new(current_user, timeline_params)
+        statuses = timeline_query.build_list_timeline(list)
+
+        preload_all_status_data(statuses)
 
         @paginated_items = statuses
         render json: statuses.map { |status| serialized_status(status) }
       end
 
       private
+
+      # タイムライン表示に必要な全データを一括プリロード
+      def preload_all_status_data(statuses)
+        return if statuses.blank?
+
+        preload_reply_to_data(statuses)
+        preload_interaction_data(statuses)
+        preload_quote_data(statuses)
+        preload_link_previews(statuses)
+        preload_mentions_data(statuses)
+      end
 
       def timeline_params
         params.permit(:max_id, :since_id, :min_id, :local).merge(limit: limit_param)
@@ -67,7 +90,7 @@ module Api
           {
             id: item.id.to_s,
             created_at: item.created_at.iso8601,
-            account: simple_account_data(item.actor),
+            account: serialized_account(item.actor),
             reblog: reblogged_status
           }.merge(default_interaction_data)
         else
@@ -101,34 +124,9 @@ module Api
           language: nil,
           text: nil,
           edited_at: nil,
-          poll: nil
-        }
-      end
-
-      def simple_account_data(actor)
-        {
-          id: actor.id.to_s,
-          username: actor.username,
-          acct: actor.local? ? actor.username : actor.full_username,
-          display_name: actor.display_name || actor.username,
-          locked: actor.manually_approves_followers || false,
-          bot: actor.actor_type == 'Service',
-          discoverable: actor.discoverable || false,
-          group: false,
-          created_at: actor.created_at.iso8601,
-          note: actor.note || '',
-          url: actor.public_url || actor.ap_id || '',
-          uri: actor.ap_id || '',
-          avatar: actor.avatar_url || '/icon.png',
-          avatar_static: actor.avatar_url || '/icon.png',
-          header: actor.header_url || '/icon.png',
-          header_static: actor.header_url || '/icon.png',
-          followers_count: actor.followers_count || 0,
-          following_count: actor.following_count || 0,
-          statuses_count: actor.posts_count || 0,
-          last_status_at: nil,
-          emojis: [],
-          fields: []
+          poll: nil,
+          card: nil,
+          quote: nil
         }
       end
     end

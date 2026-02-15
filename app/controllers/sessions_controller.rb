@@ -46,18 +46,19 @@ class SessionsController < ApplicationController
   end
 
   def login_failure
+    Rails.logger.warn "⚠️ Login failure: username=#{params[:username]&.strip.inspect} ip=#{request.remote_ip}"
     flash.now[:alert] = I18n.t('auth.invalid_credentials')
     render :new, status: :unprocessable_entity
   end
 
   def login_user(actor)
+    reset_session
     session[:current_user_id] = actor.id
     session[:logged_in_at] = Time.current
   end
 
   def logout_user
-    session.delete(:current_user_id)
-    session.delete(:logged_in_at)
+    reset_session
   end
 
   def redirect_to_after_login

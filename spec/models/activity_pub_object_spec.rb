@@ -260,7 +260,8 @@ RSpec.describe ActivityPubObject, type: :model do
     it 'updates content and sets edited_at' do
       object.perform_edit!(content: 'Updated content')
 
-      expect(object.reload.content).to eq('Updated content')
+      # after_updateでprocess_text_contentが実行され<p>タグで囲まれる
+      expect(object.reload.content).to eq('<p>Updated content</p>')
       expect(object.edited_at).to be_present
     end
 
@@ -501,9 +502,10 @@ RSpec.describe ActivityPubObject, type: :model do
       it 'updates content successfully' do
         note_object = create(:activity_pub_object, object_type: 'Note', local: true, content: 'Original content')
 
+        # after_createでprocess_text_contentが実行され<p>タグで囲まれる
         expect do
           note_object.update!(content: 'Updated note content')
-        end.to change { note_object.reload.content }.from('Original content').to('Updated note content')
+        end.to change { note_object.reload.content }.from('<p>Original content</p>').to('<p>Updated note content</p>')
       end
 
       it 'updates visibility successfully' do
@@ -616,7 +618,9 @@ RSpec.describe ActivityPubObject, type: :model do
 
         result = object.build_activitypub_content
 
-        expect(result).to include('@user@example.com')
+        # after_createでメンションがh-card形式のリンクに変換される
+        expect(result).to include('h-card')
+        expect(result).to include('@user')
         expect(result).to include('Hello')
       end
 

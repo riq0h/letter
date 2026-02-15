@@ -5,15 +5,16 @@ module Api
     class AccountsController < Api::BaseController
       include StatusSerializationHelper
       include ApiPagination
-      include ValidationErrorRendering
       include FeaturedTagSerializer
       include AccountRelationshipActions
+      include RelationshipSerializer
+      include ListSerializer
       include FileUploadHandler
 
       before_action :doorkeeper_authorize!, except: [:show]
       after_action :insert_pagination_headers, only: %i[statuses followers following]
       before_action :doorkeeper_authorize!, only: [:show], if: -> { request.authorization.present? }
-      before_action :set_account, only: %i[show statuses followers following follow unfollow block unblock mute unmute note]
+      before_action :set_account, only: %i[show statuses followers following follow unfollow block unblock mute unmute note lists]
       before_action :set_account_for_featured_tags, only: [:featured_tags]
 
       # GET /api/v1/accounts/verify_credentials
@@ -31,7 +32,7 @@ module Api
 
       # PATCH /api/v1/accounts/update_credentials
       def update_credentials
-        return render_unauthorized unless current_user
+        return render_authentication_required unless current_user
 
         process_file_uploads
         update_account_attributes
@@ -108,8 +109,8 @@ module Api
 
       # POST /api/v1/accounts/:id/block
       def block
-        return render_block_authentication_error unless current_user
-        return render_block_self_error if @account == current_user
+        return render_authentication_required unless current_user
+        return render_self_action_forbidden('block') if @account == current_user
 
         process_block_action
         render json: serialized_relationship(@account)
@@ -200,11 +201,23 @@ module Api
           else
             # 存在しないアカウントの場合、デフォルトrelationshipを返す
             { id: id.to_s, following: false, followed_by: false, showing_reblogs: true, notifying: false, requested: false, blocking: false,
-              blocked_by: false, domain_blocking: false, muting: false, muting_notifications: false, endorsed: false }
+              blocked_by: false, domain_blocking: false, muting: false, muting_notifications: false, endorsed: false,
+              languages: nil, requested_by: false, note: '' }
           end
         end
 
         render json: relationships
+      end
+
+      # GET /api/v1/accounts/:id/lists
+      def lists
+        return render_authentication_required unless current_user
+
+        lists = current_user.lists
+                            .joins(:list_memberships)
+                            .where(list_memberships: { actor_id: @account.id })
+
+        render json: lists.map { |list| serialized_list(list) }
       end
 
       # POST /api/v1/accounts/:id/note
@@ -262,58 +275,23 @@ module Api
         params.permit(:display_name, :note, :locked, :bot, :discoverable, :avatar, :header, fields_attributes: %i[name value])
       end
 
-      def serialized_relationship(account)
-        return {} unless current_user
-
-        { id: account.id.to_s, **follow_relationship_data(account), **blocking_relationship_data(account), **muting_relationship_data(account),
-          **additional_relationship_data(account) }
-      end
-
-      def follow_relationship_data(account)
-        following_relationship = Follow.find_by(actor: current_user, target_actor: account)
-        followed_by_relationship = Follow.find_by(actor: account, target_actor: current_user)
-
-        { following: following_relationship&.accepted? || false, followed_by: followed_by_relationship&.accepted? || false, showing_reblogs: true,
-          notifying: false, requested: following_relationship&.pending? || false }
-      end
-
-      def blocking_relationship_data(account)
-        { blocking: current_user.blocking?(account), blocked_by: current_user.blocked_by?(account),
-          domain_blocking: account.domain.present? ? current_user.domain_blocking?(account.domain) : false }
-      end
-
-      def muting_relationship_data(account)
-        mute = current_user.mutes.find_by(target_actor: account)
-        { muting: current_user.muting?(account), muting_notifications: mute&.notifications || false }
-      end
-
-      def additional_relationship_data(account)
-        note = current_user.account_notes.find_by(target_actor: account)
-        { endorsed: false, note: note&.comment || '' }
-      end
-
-      def render_block_authentication_error
-        render_authentication_required
-      end
-
-      def render_block_self_error
-        render_self_action_forbidden('block')
-      end
-
       def process_block_action
-        # 既存のフォロー関係を削除（双方向）
-        current_user.follows.find_by(target_actor: @account)&.destroy
-        @account.follows.find_by(target_actor: current_user)&.destroy
+        ActiveRecord::Base.transaction do
+          # ブロックを先に作成して、並行リクエストでフォローが再作成されるのを防ぐ
+          current_user.blocks.find_or_create_by(target_actor: @account)
 
-        # ブロックを作成
-        current_user.blocks.find_or_create_by(target_actor: @account)
+          # 既存のフォロー関係を削除（双方向）
+          @account.follows.find_by(target_actor: current_user)&.destroy
+          current_user.follows.find_by(target_actor: @account)&.destroy
+        end
       end
 
       def search_accounts(query, limit, resolve: false)
         # ローカル検索を実行
+        sanitized_query = ActiveRecord::Base.sanitize_sql_like(query)
         local_accounts = Actor.where(
           'username LIKE ? OR display_name LIKE ?',
-          "%#{query}%", "%#{query}%"
+          "%#{sanitized_query}%", "%#{sanitized_query}%"
         ).limit(limit)
 
         # resolveがtrueで、ローカル結果が少ない場合はWebFinger解決を試行

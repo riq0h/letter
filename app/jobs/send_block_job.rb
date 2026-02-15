@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class SendBlockJob < ApplicationJob
+  include ActorRefreshOnRetry
+
   queue_as :default
 
   def perform(block, attempt = 1)
@@ -31,8 +33,7 @@ class SendBlockJob < ApplicationJob
   def send_block_activity(activity, block)
     sender = ActivitySender.new
 
-    # Shared inboxを優先的に使用
-    target_inbox = block.target_actor.shared_inbox_url.presence || block.target_actor.inbox_url
+    target_inbox = block.target_actor.preferred_inbox
 
     Rails.logger.info "🚫 Sending Block activity to: #{target_inbox}"
 
@@ -68,20 +69,7 @@ class SendBlockJob < ApplicationJob
     end
   end
 
-  def should_refresh_actor?(attempt)
-    attempt == 1
-  end
-
-  def refresh_actor_data(actor)
-    fetcher = ActorFetcher.new
-    updated_actor = fetcher.fetch_and_create(actor.ap_id)
-    Rails.logger.info "✅ Actor data refreshed for #{actor.ap_id}" if updated_actor && updated_actor != actor
-  rescue StandardError => e
-    Rails.logger.warn "Failed to refresh actor data: #{e.message}"
-  end
-
   def generate_block_activity_id(_block)
-    snowflake_id = Letter::Snowflake.generate
-    "#{Rails.application.config.activitypub.base_url}/#{snowflake_id}"
+    ApIdGeneration.generate_ap_id
   end
 end

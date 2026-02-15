@@ -5,8 +5,7 @@ class Follow < ApplicationRecord
   validates :ap_id, presence: true, uniqueness: true
   validates :follow_activity_ap_id, presence: true
 
-  # 自分自身をフォローできない
-  validate :cannot_follow_self
+  include SelfReferenceValidation
 
   # === アソシエーション ===
   belongs_to :actor, inverse_of: :follows
@@ -92,7 +91,7 @@ class Follow < ApplicationRecord
 
   def create_accept_activity
     activity = Activity.create!(
-      ap_id: generate_accept_activity_id,
+      ap_id: ApIdGeneration.generate_ap_id,
       activity_type: 'Accept',
       actor: target_actor,
       target_ap_id: follow_activity_ap_id,
@@ -135,12 +134,6 @@ class Follow < ApplicationRecord
     actor&.local? && target_actor&.local? && !target_actor.manually_approves_followers
   end
 
-  def cannot_follow_self
-    return unless actor_id == target_actor_id
-
-    errors.add(:target_actor, "can't follow yourself")
-  end
-
   def update_follower_counts
     return unless accepted?
 
@@ -178,7 +171,7 @@ class Follow < ApplicationRecord
 
   def create_reject_activity
     Activity.create!(
-      ap_id: generate_reject_activity_id,
+      ap_id: ApIdGeneration.generate_ap_id,
       activity_type: 'Reject',
       actor: target_actor,
       target_ap_id: follow_activity_ap_id,
@@ -190,7 +183,7 @@ class Follow < ApplicationRecord
 
   def create_undo_activity
     activity = Activity.create!(
-      ap_id: generate_undo_activity_id,
+      ap_id: ApIdGeneration.generate_ap_id,
       activity_type: 'Undo',
       actor: actor,
       target_ap_id: follow_activity_ap_id,
@@ -205,26 +198,10 @@ class Follow < ApplicationRecord
     activity
   end
 
-  def generate_accept_activity_id
-    snowflake_id = Letter::Snowflake.generate
-    "#{Rails.application.config.activitypub.base_url}/#{snowflake_id}"
-  end
-
-  def generate_reject_activity_id
-    snowflake_id = Letter::Snowflake.generate
-    "#{Rails.application.config.activitypub.base_url}/#{snowflake_id}"
-  end
-
-  def generate_undo_activity_id
-    snowflake_id = Letter::Snowflake.generate
-    "#{Rails.application.config.activitypub.base_url}/#{snowflake_id}"
-  end
-
   def generate_follow_ap_id
     return unless actor&.local?
 
-    snowflake_id = Letter::Snowflake.generate
-    "#{Rails.application.config.activitypub.base_url}/#{snowflake_id}"
+    ApIdGeneration.generate_ap_id
   end
 
   def should_send_follow_activity?

@@ -4,7 +4,8 @@ require 'rails_helper'
 
 RSpec.describe ActivityPubFollowHandlers, type: :controller do
   controller(ApplicationController) do
-    include described_class
+    include ActivityPubUtilityHelpers
+    include ActivityPubFollowHandlers
 
     # CSRFトークン無効化（テスト用）
     skip_before_action :verify_authenticity_token
@@ -53,7 +54,7 @@ RSpec.describe ActivityPubFollowHandlers, type: :controller do
     end
 
     it 'decrements favourites_count on the object' do
-      initial_count = status.favourites_count
+      initial_count = status.reload.favourites_count
 
       post :test_undo_action, params: { activity: undo_like_activity, sender: remote_actor }
 
@@ -82,20 +83,21 @@ RSpec.describe ActivityPubFollowHandlers, type: :controller do
 
     it 'removes related notifications' do
       # favourite let! でnotificationが既に1つ作成されている
-      # さらに追加のnotificationを作成
-      additional_notification = create(:notification,
-                                       account: status.actor,
-                                       from_account: remote_actor,
-                                       notification_type: 'favourite',
-                                       activity_type: 'ActivityPubObject',
-                                       activity_id: status.id.to_s)
+      existing_notification = Notification.find_by(
+        account: status.actor,
+        from_account: remote_actor,
+        notification_type: 'favourite',
+        activity_type: 'ActivityPubObject',
+        activity_id: status.id.to_s
+      )
 
-      # 既存1つ + 追加1つ = 合計2つのnotificationが削除される
+      expect(existing_notification).to be_present
+
       expect do
         post :test_undo_action, params: { activity: undo_like_activity, sender: remote_actor }
-      end.to change(Notification, :count).by(-2)
+      end.to change(Notification, :count).by(-1)
 
-      expect(Notification.exists?(additional_notification.id)).to be false
+      expect(Notification.exists?(existing_notification.id)).to be false
     end
   end
 
@@ -125,7 +127,7 @@ RSpec.describe ActivityPubFollowHandlers, type: :controller do
     end
 
     it 'decrements reblogs_count on the object' do
-      initial_count = status.reblogs_count
+      initial_count = status.reload.reblogs_count
 
       post :test_undo_action, params: { activity: undo_announce_activity, sender: remote_actor }
 
@@ -154,20 +156,21 @@ RSpec.describe ActivityPubFollowHandlers, type: :controller do
 
     it 'removes related notifications' do
       # reblog let! でnotificationが既に1つ作成されている
-      # さらに追加のnotificationを作成
-      additional_notification = create(:notification,
-                                       account: status.actor,
-                                       from_account: remote_actor,
-                                       notification_type: 'reblog',
-                                       activity_type: 'ActivityPubObject',
-                                       activity_id: status.id.to_s)
+      existing_notification = Notification.find_by(
+        account: status.actor,
+        from_account: remote_actor,
+        notification_type: 'reblog',
+        activity_type: 'ActivityPubObject',
+        activity_id: status.id.to_s
+      )
 
-      # 既存1つ + 追加1つ = 合計2つのnotificationが削除される
+      expect(existing_notification).to be_present
+
       expect do
         post :test_undo_action, params: { activity: undo_announce_activity, sender: remote_actor }
-      end.to change(Notification, :count).by(-2)
+      end.to change(Notification, :count).by(-1)
 
-      expect(Notification.exists?(additional_notification.id)).to be false
+      expect(Notification.exists?(existing_notification.id)).to be false
     end
   end
 end

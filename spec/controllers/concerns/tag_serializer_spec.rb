@@ -15,9 +15,7 @@ RSpec.describe TagSerializer, type: :controller do
   let(:first_actor) { create(:actor) }
   let(:second_actor) { create(:actor) }
 
-  before do
-    allow(controller.request).to receive(:base_url).and_return('https://example.com')
-  end
+  let(:base_url) { Rails.application.config.activitypub.base_url }
 
   describe '#serialized_tag' do
     context 'with history enabled' do
@@ -36,7 +34,7 @@ RSpec.describe TagSerializer, type: :controller do
 
         expect(result).to include(
           name: tag.name,
-          url: "https://example.com/tags/#{tag.name}",
+          url: "#{base_url}/tags/#{tag.name}",
           history: be_an(Array)
         )
       end
@@ -59,7 +57,7 @@ RSpec.describe TagSerializer, type: :controller do
 
         expect(result).to include(
           name: tag.name,
-          url: "https://example.com/tags/#{tag.name}",
+          url: "#{base_url}/tags/#{tag.name}",
           history: []
         )
       end

@@ -4,6 +4,7 @@ class PollExpirationNotifyJob < ApplicationJob
   include HTTParty
 
   queue_as :default
+  discard_on ActiveRecord::RecordNotFound
 
   def perform(poll_id)
     @poll = Poll.find(poll_id)
@@ -140,7 +141,7 @@ class PollExpirationNotifyJob < ApplicationJob
 
   def activitypub_headers
     {
-      'Accept' => 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+      'Accept' => ActivityPubHttpClient::ACCEPT_HEADERS,
       'User-Agent' => InstanceConfig.user_agent(:activitypub)
     }
   end

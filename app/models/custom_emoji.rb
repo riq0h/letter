@@ -134,7 +134,7 @@ class CustomEmoji < ApplicationRecord
     def search(query)
       return none if query.blank?
 
-      where('shortcode LIKE ?', "%#{query}%")
+      where('shortcode LIKE ?', "%#{sanitize_sql_like(query)}%")
         .enabled
         .alphabetical
         .limit(20)

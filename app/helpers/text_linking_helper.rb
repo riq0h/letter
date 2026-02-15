@@ -6,14 +6,24 @@ module TextLinkingHelper
     return ''.html_safe if text.blank?
 
     if text.include?('<') && text.include?('>')
-      linked_text = apply_url_links_to_html(text)
+      sanitized = sanitize_html_for_display(text)
+      linked_text = apply_url_links_to_html(sanitized)
       mention_linked_text = apply_mention_links_to_html(linked_text)
     else
       escaped_text = escape_and_format_text(text)
       linked_text = apply_url_links(escaped_text)
       mention_linked_text = apply_mention_links(linked_text)
+      # URLリンク化の後に改行を<br>に変換（URL内に<br>が混入するのを防ぐ）
+      mention_linked_text = mention_linked_text.gsub("\n", '<br>')
     end
     mention_linked_text.html_safe
+  end
+
+  # 絵文字HTMLタグ (<img ... alt=":shortcode:" ...>) をショートコード形式 (:shortcode:) に変換
+  def convert_emoji_html_to_shortcode(text)
+    return text if text.blank?
+
+    text.gsub(/<img[^>]*alt=":([^"]+):"[^>]*\/?>/, ':\1:')
   end
 
   def extract_urls_from_content(content)
@@ -23,7 +33,7 @@ module TextLinkingHelper
 
     # まずプレーンテキストのURLを抽出（ローカル投稿など、未処理のテキスト用）
     # これがないとWeb UIでローカル投稿のプレビューが表示されない
-    content.scan(/(https?:\/\/[^\s<>"']+)/i) do |url|
+    content.scan(/(https?:\/\/[^\s<>＜＞"']+)/i) do |url|
       url_text = url[0]
       urls << url_text
     end
@@ -80,13 +90,26 @@ module TextLinkingHelper
 
   private
 
+  def sanitize_html_for_display(html)
+    # LoofahベースのサニタイザーでリモートHTMLコンテンツを安全にする
+    # script, style, iframe, form等の危険なタグとイベントハンドラ属性を除去
+    sanitizer = Rails::HTML5::SafeListSanitizer.new
+    sanitizer.sanitize(
+      html,
+      tags: %w[p br a span em strong b i u del blockquote pre code ul ol li h1 h2 h3 h4 h5 h6 div img],
+      attributes: %w[href class rel target translate src alt title width height loading]
+    )
+  end
+
   def escape_and_format_text(text)
     plain_text = ActionView::Base.full_sanitizer.sanitize(text).strip
-    ERB::Util.html_escape(plain_text).gsub("\n", '<br>')
+    # 注意: <br>変換はURLリンク化の後に行う（apply_url_linksが<br>を跨いでマッチするのを防ぐため）
+    ERB::Util.html_escape(plain_text)
   end
 
   def apply_url_links(text)
-    link_pattern = /(https?:\/\/[^\s]+)/
+    # 全角＜＞もURLの区切りとして扱う
+    link_pattern = /(https?:\/\/[^\s<>＜＞"']+)/
     text.gsub(link_pattern) do
       url = ::Regexp.last_match(1)
       display_text = mask_protocol(url)
@@ -101,8 +124,8 @@ module TextLinkingHelper
       username = ::Regexp.last_match(1)
       domain = ::Regexp.last_match(2)
       mention_url = build_mention_url(username, domain)
-      # ActivityPub標準のh-card形式でメンションを作成
-      %(<a href="#{mention_url}" class="h-card u-url mention"><span class="p-nickname">@#{username}</span></a>)
+      # ActivityPub標準のh-card形式でメンションを作成（XSS防止のためエスケープ）
+      %(<a href="#{CGI.escapeHTML(mention_url)}" class="h-card u-url mention"><span class="p-nickname">@#{CGI.escapeHTML(username)}</span></a>)
     end
   end
 
@@ -112,7 +135,7 @@ module TextLinkingHelper
 
     # 完全にHTMLリンク化済みコンテンツ（すべてのURLがリンク済み）の場合はスキップ
     # ただし、プレーンテキストURLがある場合は処理を続行
-    urls_in_text = html_text.scan(/(https?:\/\/[^\s<>"']+)/)
+    urls_in_text = html_text.scan(/(https?:\/\/[^\s<>＜＞"']+)/)
     return html_text if urls_in_text.empty?
 
     # すべてのURLが既にリンク化されているかチェック
@@ -131,7 +154,7 @@ module TextLinkingHelper
     html_text.scan(/<[^>]+>/) { |match| tags << { content: match, start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
 
     # URLパターンを探してリンク化（ただし、既存のタグ内は除外）
-    url_pattern = /(https?:\/\/[^\s<>"']+)/
+    url_pattern = /(https?:\/\/[^\s<>＜＞"']+)/
     result = html_text.dup
     offset = 0
 
@@ -187,27 +210,28 @@ module TextLinkingHelper
         mention_start >= tag[:start] && mention_end <= tag[:end]
       end
 
-      unless inside_a_tag
-        mention_url = build_mention_url(username, domain)
-        display_text = "@#{username}"
-
-        linked_mention = "<a href=\"#{mention_url}\" class=\"h-card u-url mention\"><span class=\"p-nickname\">#{display_text}</span></a>"
-
-        # オフセットを考慮して置換
-        actual_start = mention_start + offset
-        actual_end = mention_end + offset
-        original_mention = "@#{username}@#{domain}"
-        result[actual_start...actual_end] = linked_mention
-        offset += linked_mention.length - original_mention.length
-      end
+      offset = replace_mention_with_link(result, username, domain, mention_start..mention_end, offset) unless inside_a_tag
     end
 
     result
   end
 
+  def replace_mention_with_link(result, username, domain, mention_range, offset)
+    mention_url = build_mention_url(username, domain)
+    escaped_url = CGI.escapeHTML(mention_url)
+    escaped_text = CGI.escapeHTML("@#{username}")
+    linked_mention = "<a href=\"#{escaped_url}\" class=\"h-card u-url mention\">" \
+                     "<span class=\"p-nickname\">#{escaped_text}</span></a>"
+
+    actual_range = (mention_range.begin + offset)...(mention_range.end + offset)
+    original_mention = "@#{username}@#{domain}"
+    result[actual_range] = linked_mention
+    offset + linked_mention.length - original_mention.length
+  end
+
   def build_mention_url(username, domain)
-    safe_username = username.gsub(/[^a-zA-Z0-9_.-]/, '')
-    safe_domain = domain.gsub(/[^a-zA-Z0-9.-]/, '')
+    safe_username = username.gsub(/[^\w.-]/u, '')
+    safe_domain = domain.gsub(/[^\w.\-:\/]/u, '')
 
     return '#' if safe_username.empty? || safe_domain.empty?
 
@@ -220,9 +244,11 @@ module TextLinkingHelper
       # リモートユーザの場合、Actorレコードから正しいURLを取得を試行
       actor = Actor.find_by(username: safe_username, domain: safe_domain)
       if actor&.ap_id.present?
-        # ap_idが完全なURLの場合はそのまま使用、そうでなければhttpsを追加
+        # ap_idがhttp/httpsプロトコルであることを検証（javascript:等のXSS防止）
         actor_url = actor.ap_id
-        actor_url.start_with?('http') ? actor_url : "https://#{actor_url}"
+        return '#' unless actor_url.start_with?('https://', 'http://')
+
+        actor_url
       else
         # Actorレコードがない場合は一般的なパターンを使用（クライアント互換のためAPI形式）
         "https://#{ERB::Util.url_encode(safe_domain)}/users/#{ERB::Util.url_encode(safe_username)}"
@@ -249,8 +275,8 @@ module TextLinkingHelper
       href_url = ::Regexp.last_match(2)
       username = ::Regexp.last_match(3)
 
-      # ActivityPub標準のh-card形式に変換
-      %(<a href="#{href_url}" class="h-card u-url mention"><span class="p-nickname">@#{username}</span></a>)
+      # ActivityPub標準のh-card形式に変換（XSS防止のためエスケープ）
+      %(<a href="#{CGI.escapeHTML(href_url)}" class="h-card u-url mention"><span class="p-nickname">@#{CGI.escapeHTML(username)}</span></a>)
     end
 
     # パターン2: @マークがspan内にある場合
@@ -259,8 +285,8 @@ module TextLinkingHelper
       href_url = ::Regexp.last_match(2)
       username = ::Regexp.last_match(3)
 
-      # ActivityPub標準のh-card形式に変換
-      %(<a href="#{href_url}" class="h-card u-url mention"><span class="p-nickname">@#{username}</span></a>)
+      # ActivityPub標準のh-card形式に変換（XSS防止のためエスケープ）
+      %(<a href="#{CGI.escapeHTML(href_url)}" class="h-card u-url mention"><span class="p-nickname">@#{CGI.escapeHTML(username)}</span></a>)
     end
   end
 

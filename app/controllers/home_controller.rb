@@ -61,38 +61,8 @@ class HomeController < ApplicationController
     filter_timeline_items_by_time(timeline_items, reference_time)
   end
 
-  def extract_reference_time_from_max_id
-    max_id = params[:max_id]
-
-    if max_id.start_with?('post_')
-      extract_post_reference_time(max_id)
-    elsif max_id.start_with?('reblog_')
-      extract_reblog_reference_time(max_id)
-    end
-  end
-
-  def extract_post_reference_time(max_id)
-    post_id = max_id.sub('post_', '')
-    reference_post = ActivityPubObject.find_by(id: post_id)
-    reference_post&.published_at
-  end
-
-  def extract_reblog_reference_time(max_id)
-    reblog_id = max_id.sub('reblog_', '')
-    reference_reblog = Reblog.find_by(id: reblog_id)
-    reference_reblog&.created_at
-  end
-
-  def filter_timeline_items_by_time(timeline_items, reference_time)
-    timeline_items.select { |item| item[:published_at] < reference_time }
-  end
-
   def find_post_by_id(id)
     ActivityPubObject.find_by(id: id)
-  end
-
-  def get_post_display_id(timeline_item)
-    timeline_item[:id]
   end
 
   def check_older_posts_available

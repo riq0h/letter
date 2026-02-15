@@ -4,11 +4,12 @@ class ProfilesController < ApplicationController
   include StatusSerializer
   include PaginationHelper
   include TimelineBuilder
+  include ActivityPubRequestHandling
 
   before_action :find_actor, except: [:redirect_to_frontend]
 
   def show
-    return render_activitypub_profile if activitypub_request?
+    return render_activitypub_profile if strict_activitypub_request?
 
     @current_tab = params[:tab] || 'posts'
     @posts = load_posts_for_tab(@current_tab)
@@ -31,7 +32,7 @@ class ProfilesController < ApplicationController
     username = params[:username]
 
     # ActivityPubクライアントの場合はJSONレスポンスを返す
-    if activitypub_client_request?
+    if activitypub_request?
       render_activitypub_profile_by_username(username)
     else
       # ブラウザアクセスの場合はフロントエンドにリダイレクト
@@ -40,27 +41,6 @@ class ProfilesController < ApplicationController
   end
 
   private
-
-  # ActivityPubクライアントからのリクエストかどうかを判定
-  def activitypub_client_request?
-    # Accept headerでActivityPubリクエストを判定
-    accept_header = request.headers['Accept'] || ''
-
-    # 明示的なActivityPub Accept header
-    return true if accept_header.include?('application/activity+json')
-    return true if accept_header.include?('application/ld+json')
-    return true if accept_header.include?('application/json')
-
-    # HTMLを明示的に要求している場合はブラウザと判定
-    return false if accept_header.include?('text/html')
-
-    # User-Agentでの判定（ActivityPubクライアント特有のパターン）
-    user_agent = request.headers['User-Agent'] || ''
-    return true if user_agent.match?(/mastodon|pleroma|misskey|pixelfed|lemmy|kbin|activitypub/i)
-
-    # 不明な場合は ActivityPub として扱う（フェデレーション優先）
-    true
-  end
 
   def render_activitypub_profile
     render json: @actor.to_activitypub(request),
@@ -189,45 +169,15 @@ class ProfilesController < ApplicationController
   def apply_timeline_pagination_filters(timeline_items)
     return timeline_items if params[:max_id].blank?
 
-    reference_time = extract_profiles_reference_time_from_max_id
+    reference_time = extract_reference_time_from_max_id
     return timeline_items unless reference_time
 
-    filter_profiles_timeline_items_by_time(timeline_items, reference_time)
-  end
-
-  def extract_profiles_reference_time_from_max_id
-    max_id = params[:max_id]
-
-    if max_id.start_with?('post_')
-      extract_profiles_post_reference_time(max_id)
-    elsif max_id.start_with?('reblog_')
-      extract_profiles_reblog_reference_time(max_id)
-    end
-  end
-
-  def extract_profiles_post_reference_time(max_id)
-    post_id = max_id.sub('post_', '')
-    reference_post = ActivityPubObject.find_by(id: post_id)
-    reference_post&.published_at
-  end
-
-  def extract_profiles_reblog_reference_time(max_id)
-    reblog_id = max_id.sub('reblog_', '')
-    reference_reblog = Reblog.find_by(id: reblog_id)
-    reference_reblog&.created_at
-  end
-
-  def filter_profiles_timeline_items_by_time(timeline_items, reference_time)
-    timeline_items.select { |item| item[:published_at] < reference_time }
+    filter_timeline_items_by_time(timeline_items, reference_time)
   end
 
   def find_post_by_id(id)
     numeric_id = id.to_s.start_with?('post_') ? id.sub('post_', '') : id
     ActivityPubObject.find_by(id: numeric_id)
-  end
-
-  def get_post_display_id(timeline_item)
-    timeline_item[:id]
   end
 
   def check_older_posts_available

@@ -24,7 +24,8 @@ RSpec.describe PublishScheduledStatusOrganizer do
 
       expect(result).to be_success
       expect(result.status).to be_a(ActivityPubObject)
-      expect(result.status.content).to eq('Hello world!')
+      # after_createでprocess_text_contentが実行され<p>タグで囲まれる
+      expect(result.status.content).to eq('<p>Hello world!</p>')
       expect(result.status.visibility).to eq('public')
       expect(result.status.local).to be(true)
     end
@@ -44,7 +45,7 @@ RSpec.describe PublishScheduledStatusOrganizer do
       expect(status.actor).to eq(actor)
       expect(status.object_type).to eq('Note')
       expect(status.published_at).to be_within(1.second).of(Time.current)
-      expect(status.ap_id).to include(actor.username)
+      expect(status.ap_id).to start_with(Rails.application.config.activitypub.base_url)
     end
   end
 

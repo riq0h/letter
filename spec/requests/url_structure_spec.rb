@@ -20,7 +20,7 @@ RSpec.describe 'URL Structure', type: :request do
       expect(response.status).to eq(200)
       expect(response.content_type).to include('application/activity+json')
 
-      json_response = response.parsed_body
+      json_response = JSON.parse(response.body)
       expect(json_response['type']).to eq('Person')
       expect(json_response['preferredUsername']).to eq(actor.username)
     end
@@ -54,7 +54,7 @@ RSpec.describe 'URL Structure', type: :request do
       expect(response.status).to eq(200)
       expect(response.content_type).to include('application/activity+json')
 
-      json_response = response.parsed_body
+      json_response = JSON.parse(response.body)
       expect(json_response['type']).to eq('Note')
       expect(json_response['id']).to eq(activity_pub_object.ap_id)
     end
@@ -109,7 +109,7 @@ RSpec.describe 'URL Structure', type: :request do
       get '/users/nonexistent', headers: { 'Accept' => 'application/activity+json' }
 
       expect(response.status).to eq(404)
-      json_response = response.parsed_body
+      json_response = JSON.parse(response.body)
       expect(json_response['error']).to eq('Actor not found')
     end
 
@@ -118,7 +118,7 @@ RSpec.describe 'URL Structure', type: :request do
           headers: { 'Accept' => 'application/activity+json' }
 
       expect(response.status).to eq(404)
-      json_response = response.parsed_body
+      json_response = JSON.parse(response.body)
       expect(json_response['error']).to eq('Object not found')
     end
   end

@@ -166,6 +166,9 @@ class ActivityPubObjectSerializer
     context = [
       'https://www.w3.org/ns/activitystreams',
       {
+        'toot' => 'http://joinmastodon.org/ns#',
+        'quoteUrl' => 'toot:quoteUrl',
+        '_misskey_quote' => 'https://misskey-hub.net/ns#_misskey_quote',
         'gts' => 'https://gotosocial.org/ns#',
         'interactionPolicy' => {
           '@id' => 'gts:interactionPolicy',

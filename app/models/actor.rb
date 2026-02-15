@@ -86,7 +86,9 @@ class Actor < ApplicationRecord
   validates :inbox_url, presence: true, if: -> { !local? || !new_record? }
   validates :outbox_url, presence: true, if: -> { !local? || !new_record? }
   validates :public_key, presence: true, if: -> { !local? || !new_record? }
-  validates :password, length: { minimum: 6 }, if: -> { local? && password.present? }
+  validates :password, length: { minimum: 8 }, if: -> { local? && password.present? }
+  validates :display_name, length: { maximum: 500 }, allow_nil: true
+  validates :note, length: { maximum: 10_000 }, allow_nil: true
 
   # ローカルアクター制限（SQLiteトリガーで制御）
   validate :local_actor_limit, if: -> { local? && !Rails.env.test? }
@@ -155,6 +157,11 @@ class Actor < ApplicationRecord
     return super if super.present?
 
     "#{ap_id}/collections/featured" if local? && ap_id.present?
+  end
+
+  # 配送先として優先するinbox URL（shared_inboxがあればそちらを使用）
+  def preferred_inbox
+    shared_inbox_url.presence || inbox_url
   end
 
   # WebFinger識別子

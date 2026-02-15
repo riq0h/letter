@@ -47,10 +47,11 @@ module ActivityBuilders
     end
 
     def build_mention_tag(actor)
+      domain = actor.domain || Rails.application.config.activitypub.domain
       {
         'type' => 'Mention',
         'href' => actor.ap_id,
-        'name' => "@#{actor.username}@#{actor.domain}"
+        'name' => "@#{actor.username}@#{domain}"
       }
     end
   end

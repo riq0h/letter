@@ -56,7 +56,7 @@ class PollCreationService
 
   def formatted_options
     @poll_params[:options].map do |option_text|
-      { 'title' => option_text.to_s.strip }
+      { 'title' => option_text.to_s.strip.truncate(50) }
     end
   end
 

@@ -4,8 +4,8 @@
 class RemoteImageCacheJob < ApplicationJob
   queue_as :default
 
-  # リトライ設定
-  retry_on StandardError, wait: :exponentially_longer, attempts: 3
+  # リトライ設定: ネットワークエラーのみ再試行
+  retry_on Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNREFUSED, wait: :exponentially_longer, attempts: 3
 
   def perform(media_attachment_id)
     media_attachment = MediaAttachment.find_by(id: media_attachment_id)

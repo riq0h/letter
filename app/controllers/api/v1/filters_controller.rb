@@ -3,6 +3,8 @@
 module Api
   module V1
     class FiltersController < Api::BaseController
+      include FilterSerializer
+
       before_action :doorkeeper_authorize!
       before_action :require_user!
       before_action :set_filter, only: %i[show update destroy]
@@ -21,7 +23,7 @@ module Api
       # POST /api/v1/filters
       def create
         filter = current_user.filters.build(filter_params)
-        filter.context_array = params[:context] if params[:context].present?
+        filter.context = params[:context] if params[:context].present?
 
         if filter.save
           # キーワードを追加
@@ -33,15 +35,14 @@ module Api
 
           render json: serialized_filter(filter)
         else
-          render json: { error: 'Validation failed', details: filter.errors.full_messages },
-                 status: :unprocessable_entity
+          render_validation_error(filter)
         end
       end
 
       # PUT /api/v1/filters/:id
       def update
         if @filter.update(filter_params)
-          @filter.context_array = params[:context] if params[:context].present?
+          @filter.context = params[:context] if params[:context].present?
           @filter.save if @filter.context_changed?
 
           # キーワードを更新
@@ -54,8 +55,7 @@ module Api
 
           render json: serialized_filter(@filter)
         else
-          render json: { error: 'Validation failed', details: @filter.errors.full_messages },
-                 status: :unprocessable_entity
+          render_validation_error(@filter)
         end
       end
 
@@ -75,33 +75,6 @@ module Api
 
       def filter_params
         params.permit(:title, :expires_at, :filter_action)
-      end
-
-      def serialized_filter(filter)
-        {
-          id: filter.id.to_s,
-          title: filter.title,
-          context: filter.context_array,
-          expires_at: filter.expires_at&.iso8601,
-          filter_action: filter.filter_action,
-          keywords: filter.filter_keywords.map { |keyword| serialized_keyword(keyword) },
-          statuses: filter.filter_statuses.map { |status| serialized_filter_status(status) }
-        }
-      end
-
-      def serialized_keyword(keyword)
-        {
-          id: keyword.id.to_s,
-          keyword: keyword.keyword,
-          whole_word: keyword.whole_word
-        }
-      end
-
-      def serialized_filter_status(filter_status)
-        {
-          id: filter_status.id.to_s,
-          status_id: filter_status.status_id
-        }
       end
     end
   end

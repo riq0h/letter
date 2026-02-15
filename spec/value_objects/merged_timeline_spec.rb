@@ -13,7 +13,7 @@ RSpec.describe MergedTimeline do
 
       merged = described_class.merge([status], [reblog], 10)
       expect(merged).to be_a(described_class)
-      expect(merged.count).to eq(1)
+      expect(merged.count).to eq(2)
     end
   end
 
@@ -25,9 +25,12 @@ RSpec.describe MergedTimeline do
 
       merged = described_class.new([old_status, new_status], [reblog], 10)
 
-      expect(merged.items.first).to eq(reblog)
-      expect(merged.items.second).to eq(new_status)
-      expect(merged.items).not_to include(old_status) # Reblog takes precedence
+      # Sort is by sort_id (ID) descending; reblog sort_id = old_status.id
+      # Reblogs don't remove the original status from the timeline
+      expect(merged.items.first).to eq(new_status)
+      expect(merged.items).to include(old_status)
+      expect(merged.items).to include(reblog)
+      expect(merged.count).to eq(3)
     end
 
     it 'handles empty collections' do
@@ -41,13 +44,15 @@ RSpec.describe MergedTimeline do
       expect(merged.count).to eq(3)
     end
 
-    it 'removes duplicates when reblog exists for status' do
+    it 'keeps both status and reblog when reblog exists for status' do
       status = create(:activity_pub_object, actor: user)
       reblog = create(:reblog, actor: other_user, object: status)
 
       merged = described_class.new([status], [reblog], 10)
-      expect(merged.count).to eq(1)
-      expect(merged.items.first).to eq(reblog)
+      # Reblogs bypass deduplication, so both the original status and reblog appear
+      expect(merged.count).to eq(2)
+      expect(merged.items).to include(status)
+      expect(merged.items).to include(reblog)
     end
   end
 
@@ -143,17 +148,19 @@ RSpec.describe MergedTimeline do
   end
 
   describe 'chronological ordering' do
-    it 'sorts items by timestamp in descending order' do
+    it 'sorts items by sort_id in descending order' do
       oldest_status = create(:activity_pub_object, actor: user, published_at: 3.hours.ago)
       newest_status = create(:activity_pub_object, actor: user, published_at: 1.hour.ago)
+      # The reblog's object is created after newest_status, so it has the highest ID
+      # The reblog's sort_id = object.id, making the reblog sort first
       middle_reblog = create(:reblog, actor: other_user,
                                       object: create(:activity_pub_object, actor: user),
                                       created_at: 2.hours.ago)
 
       merged = described_class.new([oldest_status, newest_status], [middle_reblog], 10)
 
-      expect(merged.items[0]).to eq(newest_status)
-      expect(merged.items[1]).to eq(middle_reblog)
+      expect(merged.items[0]).to eq(middle_reblog)
+      expect(merged.items[1]).to eq(newest_status)
       expect(merged.items[2]).to eq(oldest_status)
     end
   end

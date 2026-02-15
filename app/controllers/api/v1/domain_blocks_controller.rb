@@ -3,12 +3,12 @@
 module Api
   module V1
     class DomainBlocksController < Api::BaseController
+      include ApiPagination
       before_action :doorkeeper_authorize!
+      before_action :require_user!
 
       # GET /api/v1/domain_blocks
       def index
-        return render_authentication_required unless current_user
-
         domain_blocks = paginated_domain_blocks
         domains = domain_blocks.pluck(:domain)
 
@@ -28,29 +28,11 @@ module Api
       end
 
       def apply_pagination_to_domain_blocks(domain_blocks)
-        return apply_max_id_filter(domain_blocks) if params[:max_id].present?
-        return apply_since_id_filter(domain_blocks) if params[:since_id].present?
-        return apply_min_id_filter(domain_blocks) if params[:min_id].present?
-
-        domain_blocks
-      end
-
-      def apply_max_id_filter(domain_blocks)
-        domain_blocks.where(id: ...(params[:max_id]))
-      end
-
-      def apply_since_id_filter(domain_blocks)
-        domain_blocks.where('id > ?', params[:since_id])
-      end
-
-      def apply_min_id_filter(domain_blocks)
-        domain_blocks.where('id > ?', params[:min_id])
+        apply_collection_pagination(domain_blocks, 'domain_blocks')
       end
 
       # POST /api/v1/domain_blocks
       def create
-        return render_authentication_required unless current_user
-
         domain = normalized_domain_param
         return render_validation_failed('Domain parameter is required') if domain.blank?
 
@@ -65,7 +47,7 @@ module Api
         current_user.domain_blocks.find_or_create_by!(domain: domain)
         render json: {}, status: :created
       rescue ActiveRecord::RecordInvalid => e
-        render json: { error: 'Validation failed', details: e.record.errors.full_messages }, status: :unprocessable_entity
+        render_validation_error(e.record)
       rescue StandardError => e
         Rails.logger.error "Domain block creation failed: #{e.message}"
         render_operation_failed('Block domain')
@@ -73,8 +55,6 @@ module Api
 
       # DELETE /api/v1/domain_blocks
       def destroy
-        return render_authentication_required unless current_user
-
         domain = normalized_domain_param
         return render_validation_failed('Domain parameter is required') if domain.blank?
 

@@ -6,43 +6,26 @@ module StatusActions
   private
 
   def create_like_activity(status)
-    result = StatusActionOrganizer.call(current_user, action_type: 'like', status: status)
-
-    unless result.success?
-      Rails.logger.error "❌ Failed to create like activity: #{result.error}"
-      raise StandardError, result.error
-    end
-
-    result.activity
+    execute_status_action('like', status)
   end
 
-  def create_undo_like_activity(status, _favourite)
-    result = StatusActionOrganizer.call(current_user, action_type: 'undo_like', status: status)
-
-    unless result.success?
-      Rails.logger.error "❌ Failed to create undo like activity: #{result.error}"
-      raise StandardError, result.error
-    end
-
-    result.activity
+  def create_undo_like_activity(status, _favourite = nil)
+    execute_status_action('undo_like', status)
   end
 
   def create_announce_activity(status)
-    result = StatusActionOrganizer.call(current_user, action_type: 'announce', status: status)
-
-    unless result.success?
-      Rails.logger.error "❌ Failed to create announce activity: #{result.error}"
-      raise StandardError, result.error
-    end
-
-    result.activity
+    execute_status_action('announce', status)
   end
 
-  def create_undo_announce_activity(status, _reblog)
-    result = StatusActionOrganizer.call(current_user, action_type: 'undo_announce', status: status)
+  def create_undo_announce_activity(status, _reblog = nil)
+    execute_status_action('undo_announce', status)
+  end
+
+  def execute_status_action(action_type, status)
+    result = StatusActionOrganizer.call(current_user, action_type: action_type, status: status)
 
     unless result.success?
-      Rails.logger.error "❌ Failed to create undo announce activity: #{result.error}"
+      Rails.logger.error "❌ Failed to create #{action_type} activity: #{result.error}"
       raise StandardError, result.error
     end
 

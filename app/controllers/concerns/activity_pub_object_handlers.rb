@@ -25,6 +25,12 @@ module ActivityPubObjectHandlers
   end
 
   def update_actor_profile(object_data)
+    # オリジン検証: objectのidがsenderのap_idと一致することを確認
+    if object_data['id'].present? && object_data['id'] != @sender.ap_id
+      Rails.logger.warn "⚠️ Update actor profile rejected: object id #{object_data['id']} does not match sender #{@sender.ap_id}"
+      return
+    end
+
     update_attrs = {
       display_name: object_data['name'],
       note: object_data['summary'],
@@ -149,8 +155,7 @@ module ActivityPubObjectHandlers
   end
 
   def extract_delete_object_id
-    object_id = @activity['object']
-    object_id.is_a?(Hash) ? object_id['id'] : object_id
+    extract_activity_object_id(@activity['object'])
   end
 
   def authorized_to_delete?(object)

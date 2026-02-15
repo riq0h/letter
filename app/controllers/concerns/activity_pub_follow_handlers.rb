@@ -39,23 +39,32 @@ module ActivityPubFollowHandlers
   end
 
   def create_follow_request
+    # manuallyApprovesFollowersの場合は承認待ちにする
+    auto_accept = @target_actor.local? && !@sender.local? && !@target_actor.manually_approves_followers
+
     follow = Follow.create!(
       actor: @sender,
       target_actor: @target_actor,
       ap_id: @activity['id'],
-      follow_activity_ap_id: @activity['id']
+      follow_activity_ap_id: @activity['id'],
+      accepted: auto_accept
     )
 
-    # 外部フォローの場合は明示的にAccept activityを送信
-    if @target_actor.local? && !@sender.local?
+    if auto_accept
+      # 外部フォローの場合は明示的にAccept activityを送信
       Rails.logger.info '🎯 External follow received, creating Accept activity'
       follow.create_accept_activity
+      Notification.create_follow_notification(follow)
+      Rails.logger.info "✅ Follow auto-accepted: #{follow.id}"
+    else
+      # 承認待ちの場合はフォローリクエスト通知を送信
+      Notification.create_follow_request_notification(follow)
+      Rails.logger.info "⏳ Follow request pending approval: #{follow.id}"
     end
 
-    # フォロー通知を作成
-    Notification.create_follow_notification(follow)
-
-    Rails.logger.info "✅ Follow auto-accepted: #{follow.id}"
+    head :accepted
+  rescue ActiveRecord::RecordNotUnique
+    Rails.logger.info '⚠️ Follow already exists (concurrent request)'
     head :accepted
   end
 
@@ -124,6 +133,19 @@ module ActivityPubFollowHandlers
 
     object = @activity['object']
 
+    # objectがString（URI）の場合はActivityをDBから検索
+    unless object.is_a?(Hash) || object.respond_to?(:key?)
+      Rails.logger.warn "⚠️ Undo object is not a Hash (#{object.class}), attempting to resolve"
+      resolved = Activity.find_by(ap_id: object.to_s)
+      if resolved
+        object = { 'type' => resolved.activity_type, 'id' => resolved.ap_id, 'object' => resolved.target_ap_id }
+      else
+        Rails.logger.warn "⚠️ Could not resolve Undo object: #{object}"
+        head :accepted
+        return
+      end
+    end
+
     case object['type']
     when 'Follow'
       handle_undo_follow(object)
@@ -187,22 +209,24 @@ module ActivityPubFollowHandlers
     target_object = ActivityPubObject.find_by(ap_id: liked_object_id)
     return unless target_object
 
-    # Favouriteレコードを検索して削除
-    favourite = Favourite.find_by(actor: @sender, object: target_object)
-    if favourite
-      # 関連するNotificationも削除
-      remove_favourite_notification(favourite, target_object)
+    ActiveRecord::Base.transaction do
+      # Favouriteレコードを検索して削除
+      favourite = Favourite.find_by(actor: @sender, object: target_object)
+      if favourite
+        # 関連するNotificationも削除
+        remove_favourite_notification(favourite, target_object)
 
-      favourite.destroy!
-      Rails.logger.info "💔 Like undone: removed favourite #{favourite.id} for object #{target_object.ap_id}"
+        favourite.destroy!
+        Rails.logger.info "💔 Like undone: removed favourite #{favourite.id} for object #{target_object.ap_id}"
+      end
+
+      # Activityレコードも削除（あれば）
+      activity = target_object.activities.find_by(actor: @sender, activity_type: 'Like')
+      if activity
+        activity.destroy!
+        Rails.logger.info "💔 Like activity removed: #{activity.id}"
+      end
     end
-
-    # Activityレコードも削除（あれば）
-    activity = target_object.activities.find_by(actor: @sender, activity_type: 'Like')
-    return unless activity
-
-    activity.destroy!
-    Rails.logger.info "💔 Like activity removed: #{activity.id}"
   end
 
   def handle_undo_announce(object)
@@ -216,69 +240,58 @@ module ActivityPubFollowHandlers
     target_object = ActivityPubObject.find_by(ap_id: announced_object_id)
     return unless target_object
 
-    # Reblogレコードを検索して削除
-    reblog = Reblog.find_by(actor: @sender, object: target_object)
-    if reblog
-      # 関連するNotificationも削除
-      remove_reblog_notification(reblog, target_object)
+    ActiveRecord::Base.transaction do
+      # Reblogレコードを検索して削除
+      reblog = Reblog.find_by(actor: @sender, object: target_object)
+      if reblog
+        # 関連するNotificationも削除
+        remove_reblog_notification(reblog, target_object)
 
-      reblog.destroy!
-      Rails.logger.info "🔄 Announce undone: removed reblog #{reblog.id} for object #{target_object.ap_id}"
+        reblog.destroy!
+        Rails.logger.info "🔄 Announce undone: removed reblog #{reblog.id} for object #{target_object.ap_id}"
+      end
+
+      # Activityレコードも削除（あれば）
+      activity = target_object.activities.find_by(actor: @sender, activity_type: 'Announce')
+      if activity
+        activity.destroy!
+        Rails.logger.info "🔄 Announce activity removed: #{activity.id}"
+      end
     end
-
-    # Activityレコードも削除（あれば）
-    activity = target_object.activities.find_by(actor: @sender, activity_type: 'Announce')
-    return unless activity
-
-    activity.destroy!
-    Rails.logger.info "🔄 Announce activity removed: #{activity.id}"
   end
 
   def extract_activity_id(object)
-    object.is_a?(Hash) ? object['id'] : object
+    extract_activity_object_id(object)
   end
 
   def extract_like_object_id_from_undo(like_object)
-    # Undo.Like活動のobjectフィールドから対象のオブジェクトIDを抽出
-    object = like_object['object']
-    object.is_a?(Hash) ? object['id'] : object
+    extract_activity_object_id(like_object['object'])
   end
 
   def extract_announce_object_id_from_undo(announce_object)
-    # Undo.Announce活動のobjectフィールドから対象のオブジェクトIDを抽出
-    object = announce_object['object']
-    object.is_a?(Hash) ? object['id'] : object
+    extract_activity_object_id(announce_object['object'])
   end
 
-  # Favourite通知の削除
   def remove_favourite_notification(favourite, target_object)
-    notifications = Notification.where(
-      account: target_object.actor,
-      from_account: favourite.actor,
-      notification_type: 'favourite',
-      activity_type: 'ActivityPubObject',
-      activity_id: target_object.id.to_s
-    )
-
-    notifications.each do |notification|
-      notification.destroy!
-      Rails.logger.info "🔔 Removed favourite notification #{notification.id}"
-    end
+    remove_interaction_notification(favourite, target_object, 'favourite')
   end
 
-  # Reblog通知の削除
   def remove_reblog_notification(reblog, target_object)
+    remove_interaction_notification(reblog, target_object, 'reblog')
+  end
+
+  def remove_interaction_notification(interaction, target_object, notification_type)
     notifications = Notification.where(
       account: target_object.actor,
-      from_account: reblog.actor,
-      notification_type: 'reblog',
+      from_account: interaction.actor,
+      notification_type: notification_type,
       activity_type: 'ActivityPubObject',
       activity_id: target_object.id.to_s
     )
 
     notifications.each do |notification|
       notification.destroy!
-      Rails.logger.info "🔔 Removed reblog notification #{notification.id}"
+      Rails.logger.info "🔔 Removed #{notification_type} notification #{notification.id}"
     end
   end
 end

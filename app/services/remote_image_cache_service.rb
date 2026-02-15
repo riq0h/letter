@@ -3,6 +3,9 @@
 # リモート画像のキャッシュサービス
 # Solid Cacheを使用してリモート画像を一定期間キャッシュし、/cacheに保存
 class RemoteImageCacheService
+  include SsrfProtection
+  include BlobStorage
+
   CACHE_DURATION = 7.days # キャッシュ期間
   MAX_FILE_SIZE = 10.megabytes # 最大ファイルサイズ
   ALLOWED_CONTENT_TYPES = %w[
@@ -64,6 +67,7 @@ class RemoteImageCacheService
   def download_and_cache_image
     uri = URI.parse(@remote_url)
     return @remote_url unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
+    return @remote_url unless validate_url_for_ssrf!(@remote_url)
 
     response = fetch_remote_image(uri)
     return @remote_url unless response
@@ -115,23 +119,7 @@ class RemoteImageCacheService
 
   def create_blob(response, content_type, filename)
     io = StringIO.new(response.body)
-
-    if ENV['S3_ENABLED'] == 'true'
-      custom_key = "cache/#{SecureRandom.hex(16)}"
-      ActiveStorage::Blob.create_and_upload!(
-        io: io,
-        filename: filename,
-        content_type: content_type,
-        service_name: :cloudflare_r2,
-        key: custom_key
-      )
-    else
-      ActiveStorage::Blob.create_and_upload!(
-        io: io,
-        filename: filename,
-        content_type: content_type
-      )
-    end
+    create_storage_blob(io: io, filename: filename, content_type: content_type, folder: 'cache')
   end
 
   def attach_to_media_attachment(blob, content_type, filename)
@@ -157,19 +145,6 @@ class RemoteImageCacheService
   end
 
   def content_type_to_extension(content_type)
-    case content_type
-    when 'image/jpeg', 'image/jpg'
-      'jpg'
-    when 'image/png'
-      'png'
-    when 'image/gif'
-      'gif'
-    when 'image/webp'
-      'webp'
-    when 'image/avif'
-      'avif'
-    else
-      'bin'
-    end
+    ContentType.extension_for(content_type)
   end
 end

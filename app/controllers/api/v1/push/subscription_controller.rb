@@ -4,7 +4,7 @@ module Api
   module V1
     module Push
       class SubscriptionController < Api::BaseController
-        include ValidationErrorRendering
+        include VapidKeyHelper
 
         before_action :doorkeeper_authorize!
         before_action :require_user!
@@ -46,10 +46,7 @@ module Api
 
             render json: serialized_subscription(@subscription), status: :created
           else
-            render json: {
-              error: 'Validation failed',
-              details: @subscription.errors.full_messages
-            }, status: :unprocessable_entity
+            render_validation_error(@subscription)
           end
         end
 
@@ -64,10 +61,7 @@ module Api
             if @subscription.save
               render json: serialized_subscription(@subscription)
             else
-              render json: {
-                error: 'Validation failed',
-                details: @subscription.errors.full_messages
-              }, status: :unprocessable_entity
+              render_validation_error(@subscription)
             end
           else
             render_not_found('Push subscription')
@@ -136,19 +130,6 @@ module Api
             expires_at: subscription.expires_at.iso8601,
             days_until_expiry: subscription.days_until_expiry
           }
-        end
-
-        def vapid_public_key
-          raw_key = ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
-          return nil unless raw_key
-
-          # PEM形式のBase64をデコードしてWebPush用のURLsafeBase64に変換
-          pem_data = Base64.decode64(raw_key)
-          ec_key = OpenSSL::PKey::EC.new(pem_data)
-          public_key_uncompressed = ec_key.public_key.to_bn.to_s(2)
-
-          # 65バイト（0x04を含む）のuncompressed P-256公開キーをWebPush用にエンコード
-          Base64.urlsafe_encode64(public_key_uncompressed).tr('=', '')
         end
 
         def normalize_base64(key)

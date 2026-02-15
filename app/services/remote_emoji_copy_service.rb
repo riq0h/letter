@@ -4,6 +4,7 @@ require 'marcel'
 
 class RemoteEmojiCopyService
   include HTTParty
+  include SsrfProtection
 
   def initialize
     @copied_emojis = []
@@ -113,6 +114,8 @@ class RemoteEmojiCopyService
   end
 
   def download_image(image_url)
+    raise "SSRF protection: blocked request to #{image_url}" unless validate_url_for_ssrf!(image_url)
+
     response = HTTParty.get(image_url, timeout: 30, follow_redirects: true)
 
     raise "Failed to download image: HTTP #{response.code}" unless response.success?
@@ -144,15 +147,9 @@ class RemoteEmojiCopyService
   end
 
   def determine_file_extension(content_type, original_url)
-    case content_type
-    when 'image/jpeg', 'image/jpg'
-      '.jpg'
-    when 'image/png'
-      '.png'
-    when 'image/gif'
-      '.gif'
-    when 'image/webp'
-      '.webp'
+    ext = ContentType.extension_for(content_type, fallback: nil)
+    if ext
+      ".#{ext}"
     else
       extract_extension_from_url(original_url)
     end

@@ -39,4 +39,16 @@ module ActivityPubUtilityHelpers
   rescue StandardError
     Time.current
   end
+
+  def extract_activity_object_id(object_data)
+    object_data.is_a?(Hash) ? object_data['id'] : object_data
+  end
+
+  def extract_domain_from_uri(uri)
+    return nil unless uri
+
+    URI.parse(uri).host
+  rescue URI::InvalidURIError
+    nil
+  end
 end

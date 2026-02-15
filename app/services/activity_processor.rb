@@ -61,6 +61,8 @@ class ActivityProcessor
       actor: activity.actor,
       object: target_obj
     )
+  rescue ActiveRecord::RecordNotUnique
+    # 競合状態で既に作成されていた場合は無視
   end
 
   def process_announce_activity
@@ -72,11 +74,19 @@ class ActivityProcessor
       actor: activity.actor,
       object: target_obj
     )
+  rescue ActiveRecord::RecordNotUnique
+    # 競合状態で既に作成されていた場合は無視
   end
 
   def process_delete_activity
     target = find_target_by_ap_id
     return unless target
+
+    # 削除権限の検証: 送信者がオブジェクトの所有者であることを確認
+    unless authorized_to_delete?(target)
+      Rails.logger.warn "🚫 Delete activity rejected: actor #{activity.actor&.ap_id} is not authorized to delete #{target.class}##{target.id}"
+      return
+    end
 
     delete_target(target)
   end
@@ -138,6 +148,22 @@ class ActivityProcessor
       accepted_at: Time.current,
       accept_activity_ap_id: activity.ap_id
     )
+  end
+
+  def authorized_to_delete?(target)
+    sender = activity.actor
+    return false unless sender
+
+    case target
+    when ActivityPubObject, Activity
+      # オブジェクト・アクティビティの作成者のみ削除可能
+      target.actor_id == sender.id
+    when Actor
+      # アクター自身のみ削除（suspend）可能
+      target.id == sender.id
+    else
+      false
+    end
   end
 
   def delete_target(target)

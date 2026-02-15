@@ -62,12 +62,12 @@ class ActivityPubObject < ApplicationRecord
   before_save :set_conversation_id
   after_create :process_text_content, if: -> { content.present? }
   after_create :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
-  after_create :distribute_to_relays, if: -> { local? && should_distribute_to_relays? }
   after_create :deliver_to_streaming, if: -> { object_type == 'Note' }
   after_update :process_text_content, if: -> { local? && saved_change_to_content? }
   after_destroy :create_delete_activity, if: :local?
   after_destroy :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
   after_save :create_activity_if_needed, if: :local?
+  after_commit :enqueue_relay_distribution, on: :create, if: -> { local? && should_distribute_to_relays? }
 
   # === URL生成メソッド ===
   def public_url
@@ -206,34 +206,32 @@ class ActivityPubObject < ApplicationRecord
     update_attributes[:language] = params[:language] if params.key?(:language)
     update_attributes[:edited_at] = Time.current
 
-    if update!(update_attributes)
-      # メディア添付の更新
-      if params.key?(:media_ids)
-        if params[:media_ids].present? && params[:media_ids].any?
-          # 既存のメディアと新しいメディアの両方を考慮
-          existing_media = media_attachments.where(id: params[:media_ids])
-          new_media = actor.media_attachments.where(id: params[:media_ids], object_id: nil)
-          all_requested_media = (existing_media + new_media).uniq
+    return false unless update(update_attributes)
 
-          self.media_attachments = all_requested_media
-        else
-          # メディアIDが空の場合は関連付けを解除（レコードは保持）
-          current_media = media_attachments.to_a
-          current_media.each { |media| media.update!(object_id: nil) }
-          association(:media_attachments).reset
-        end
+    # メディア添付の更新
+    if params.key?(:media_ids)
+      if params[:media_ids].present? && params[:media_ids].any?
+        # 既存のメディアと新しいメディアの両方を考慮
+        existing_media = media_attachments.where(id: params[:media_ids])
+        new_media = actor.media_attachments.where(id: params[:media_ids], object_id: nil)
+        all_requested_media = (existing_media + new_media).uniq
+
+        self.media_attachments = all_requested_media
+      else
+        # メディアIDが空の場合は関連付けを解除（レコードは保持）
+        current_media = media_attachments.to_a
+        current_media.each { |media| media.update!(object_id: nil) }
+        association(:media_attachments).reset
       end
-
-      # 投票の更新処理
-      update_poll_for_edit(params[:poll_options]) if params.key?(:poll_options)
-
-      # ActivityPub配信用のUpdate活動を作成
-      create_update_activity if local?
-
-      true
-    else
-      false
     end
+
+    # 投票の更新処理
+    update_poll_for_edit(params[:poll_options]) if params.key?(:poll_options)
+
+    # ActivityPub配信用のUpdate活動を作成
+    create_update_activity if local?
+
+    true
   end
 
   # Quote活動を作成してActivityPub配信
@@ -307,7 +305,7 @@ class ActivityPubObject < ApplicationRecord
 
   def set_visibility_and_language
     self.visibility ||= 'public'
-    self.language ||= 'ja'
+    self.language ||= Rails.application.config.activitypub.default_locale
   end
 
   def set_sensitivity
@@ -444,10 +442,10 @@ class ActivityPubObject < ApplicationRecord
     true
   end
 
-  def distribute_to_relays
-    RelayDistributionService.new.distribute_to_relays(self)
+  def enqueue_relay_distribution
+    DistributeToRelaysJob.perform_later(id)
   rescue StandardError => e
-    Rails.logger.error "💥 Relay distribution error: #{e.message}"
+    Rails.logger.error "💥 Relay distribution enqueue error: #{e.message}"
   end
 
   # === リアルタイムストリーミング配信 ===

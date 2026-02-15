@@ -33,44 +33,47 @@ class CleanupUnavailableServerJob < ApplicationJob
 
     Rails.logger.info "🔍 Found #{actor_ids.count} users from domain #{domain}"
 
-    # フォロー関係を削除
-    cleanup_follows(actor_ids, domain)
+    # 影響を受けるローカルユーザIDを削除前に収集
+    affected_local_actor_ids = collect_affected_local_actor_ids(actor_ids)
 
-    # フォロワー数・フォロー数を更新
-    update_relationship_counts(actor_ids, domain)
+    # フォロー関係を削除
+    cleanup_follows(actor_ids)
+
+    # フォロワー数・フォロー数を更新（事前収集したIDを使用）
+    update_relationship_counts(affected_local_actor_ids)
   end
 
-  def cleanup_follows(actor_ids, _domain)
+  def collect_affected_local_actor_ids(domain_actor_ids)
+    # ドメインユーザをフォローしているローカルユーザ
+    followers_of_domain = Follow.where(target_actor_id: domain_actor_ids)
+                                .joins(:actor)
+                                .where(actors: { local: true })
+                                .pluck(:actor_id)
+
+    # ドメインユーザにフォローされているローカルユーザ
+    followed_by_domain = Follow.where(actor_id: domain_actor_ids)
+                               .joins(:target_actor)
+                               .where(actors: { local: true })
+                               .pluck(:target_actor_id)
+
+    (followers_of_domain + followed_by_domain).uniq
+  end
+
+  def cleanup_follows(actor_ids)
     # このドメインのユーザがフォローしている関係を削除
-    follows_by_domain = Follow.where(actor_id: actor_ids)
-    follows_by_domain_count = follows_by_domain.count
-    follows_by_domain.delete_all
+    follows_by_domain_count = Follow.where(actor_id: actor_ids).count
+    Follow.where(actor_id: actor_ids).delete_all
 
     # このドメインのユーザをフォローしている関係を削除
-    follows_to_domain = Follow.where(target_actor_id: actor_ids)
-    follows_to_domain_count = follows_to_domain.count
-    follows_to_domain.delete_all
+    follows_to_domain_count = Follow.where(target_actor_id: actor_ids).count
+    Follow.where(target_actor_id: actor_ids).delete_all
 
     Rails.logger.info "🗑️ Removed #{follows_by_domain_count} follows by domain users"
     Rails.logger.info "🗑️ Removed #{follows_to_domain_count} follows to domain users"
   end
 
-  def update_relationship_counts(actor_ids, _domain)
-    # 影響を受けたローカルユーザのフォロー数を更新
-    affected_followers = Follow.joins(:target_actor)
-                               .where(actor_id: actor_ids)
-                               .where(actors: { local: true })
-                               .pluck(:target_actor_id)
-                               .uniq
-
-    affected_following = Follow.joins(:actor)
-                               .where(target_actor_id: actor_ids)
-                               .where(actors: { local: true })
-                               .pluck(:actor_id)
-                               .uniq
-
-    # フォロワー数とフォロー数を更新
-    (affected_followers + affected_following).uniq.each do |actor_id|
+  def update_relationship_counts(affected_local_actor_ids)
+    affected_local_actor_ids.each do |actor_id|
       actor = Actor.find_by(id: actor_id, local: true)
       next unless actor
 
@@ -78,6 +81,6 @@ class CleanupUnavailableServerJob < ApplicationJob
       actor.update_following_count!
     end
 
-    Rails.logger.info "📊 Updated relationship counts for #{(affected_followers + affected_following).uniq.count} local users"
+    Rails.logger.info "📊 Updated relationship counts for #{affected_local_actor_ids.count} local users"
   end
 end

@@ -101,7 +101,7 @@ RSpec.describe Follow, type: :model do
         follow = build(:follow, actor: actor, target_actor: actor)
 
         expect(follow).not_to be_valid
-        expect(follow.errors[:target_actor]).to include('can\'t follow yourself')
+        expect(follow.errors[:target_actor]).to include('cannot follow yourself')
       end
 
       it 'allows following other actors' do

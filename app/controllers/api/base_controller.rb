@@ -46,7 +46,10 @@ module Api
 
     # 現在のリクエストが必要なOAuthスコープを持っているかチェック
     def doorkeeper_authorize!(*scopes)
-      return false unless doorkeeper_token
+      unless doorkeeper_token
+        render_authentication_required
+        return false
+      end
 
       # トークンが必要なスコープを持っているかチェック
       if scopes.any?
@@ -79,13 +82,16 @@ module Api
     private
 
     def find_access_token
-      # まずAuthorizationヘッダーを試行
-      if request.authorization.present?
-        token_from_authorization_header
-      # 次にaccess_tokenパラメータを試行
-      elsif params[:access_token].present?
-        token_from_params
-      end
+      token = if request.authorization.present?
+                token_from_authorization_header
+              elsif params[:access_token].present?
+                token_from_params
+              end
+
+      # トークンの有効期限・失効チェック
+      return nil if token && (token.expired? || token.revoked?)
+
+      token
     end
 
     def token_from_authorization_header

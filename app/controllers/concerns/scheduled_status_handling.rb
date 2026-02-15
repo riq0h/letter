@@ -33,7 +33,7 @@ module ScheduledStatusHandling
 
   def parse_scheduled_at
     Time.zone.parse(params[:scheduled_at])
-  rescue ArgumentError
+  rescue ArgumentError, TypeError
     nil
   end
 

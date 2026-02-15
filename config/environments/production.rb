@@ -92,7 +92,9 @@ Rails.application.configure do
     'X-Content-Type-Options' => 'nosniff',
     'X-XSS-Protection' => '1; mode=block',
     'Referrer-Policy' => 'strict-origin-when-cross-origin',
-    'X-Permitted-Cross-Domain-Policies' => 'none'
+    'X-Permitted-Cross-Domain-Policies' => 'none',
+    'Strict-Transport-Security' => 'max-age=63072000; includeSubDomains; preload',
+    'Permissions-Policy' => 'geolocation=(), microphone=(), camera=(), payment=(), usb=()'
   }
 
   # Enable DNS rebinding protection and other `Host` header attacks.

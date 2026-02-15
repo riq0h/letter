@@ -17,22 +17,35 @@ class UserTimelineQuery
 
   attr_reader :user
 
+  def blocked_actor_ids
+    @blocked_actor_ids ||= user.blocked_actors.pluck(:id)
+  end
+
+  def muted_actor_ids
+    @muted_actor_ids ||= user.muted_actors.pluck(:id)
+  end
+
+  def blocked_domains
+    @blocked_domains ||= user.domain_blocks.pluck(:domain)
+  end
+
+  def followed_actor_ids
+    @followed_actor_ids ||= user.followed_actors.pluck(:id) + [user.id]
+  end
+
   def exclude_blocked_users(query)
-    blocked_actor_ids = user.blocked_actors.pluck(:id)
     return query unless blocked_actor_ids.any?
 
     query.where.not(actors: { id: blocked_actor_ids })
   end
 
   def exclude_muted_users(query)
-    muted_actor_ids = user.muted_actors.pluck(:id)
     return query unless muted_actor_ids.any?
 
     query.where.not(actors: { id: muted_actor_ids })
   end
 
   def exclude_domain_blocked_users(query)
-    blocked_domains = user.domain_blocks.pluck(:domain)
     return query unless blocked_domains.any?
 
     query.where(
@@ -47,8 +60,6 @@ class UserTimelineQuery
   end
 
   def exclude_unwanted_replies(query)
-    followed_actor_ids = user.followed_actors.pluck(:id) + [user.id]
-
     # リプライではない投稿は全て表示
     # リプライの場合は、以下の条件で表示：
     # 1. 自分宛のメンション

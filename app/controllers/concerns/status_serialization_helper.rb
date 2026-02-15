@@ -50,9 +50,12 @@ module StatusSerializationHelper
       favourites_count: status.favourites_count || 0,
       favourited: favourited_by_current_user?(status),
       reblogged: reblogged_by_current_user?(status),
+      muted: muted_by_current_user?(status),
       bookmarked: bookmarked_by_current_user?(status),
       pinned: pinned_by_current_user?(status),
-      quoted: quoted_by_current_user?(status)
+      quoted: quoted_by_current_user?(status),
+      filtered: [],
+      application: status.local? ? { name: 'Letter', website: nil } : nil
     }
   end
 
@@ -82,49 +85,69 @@ module StatusSerializationHelper
   end
 
   def in_reply_to_id(status)
-    return nil if status.in_reply_to_ap_id.blank?
-
-    # キャッシュされたリプライ先情報があれば使用
-    if defined?(@reply_to_cache) && @reply_to_cache
-      reply_info = @reply_to_cache[status.in_reply_to_ap_id]
-      return reply_info&.dig(:id)&.to_s
-    end
-
-    # フォールバック: 個別クエリ
-    in_reply_to = ActivityPubObject.find_by(ap_id: status.in_reply_to_ap_id)
-    in_reply_to&.id&.to_s
+    reply_info = find_reply_to_info(status)
+    reply_info&.dig(:id)&.to_s
   end
 
   def in_reply_to_account_id(status)
+    reply_info = find_reply_to_info(status)
+    reply_info&.dig(:actor_id)&.to_s
+  end
+
+  def find_reply_to_info(status)
     return nil if status.in_reply_to_ap_id.blank?
 
     # キャッシュされたリプライ先情報があれば使用
-    if defined?(@reply_to_cache) && @reply_to_cache
-      reply_info = @reply_to_cache[status.in_reply_to_ap_id]
-      return reply_info&.dig(:actor_id)&.to_s
+    return @reply_to_cache[status.in_reply_to_ap_id] if defined?(@reply_to_cache) && @reply_to_cache
+
+    # フォールバック: 個別クエリ（同一ステータスでの重複クエリを防止）
+    @reply_to_fallback_cache ||= {}
+    unless @reply_to_fallback_cache.key?(status.in_reply_to_ap_id)
+      obj = ActivityPubObject.find_by(ap_id: status.in_reply_to_ap_id)
+      @reply_to_fallback_cache[status.in_reply_to_ap_id] = ({ id: obj.id, actor_id: obj.actor&.id } if obj)
     end
+    @reply_to_fallback_cache[status.in_reply_to_ap_id]
+  end
 
-    # フォールバック: 個別クエリ
-    in_reply_to = ActivityPubObject.find_by(ap_id: status.in_reply_to_ap_id)
-    return nil unless in_reply_to&.actor
+  # バッチプリロード: タイムライン全体のインタラクション状態を一括取得（N+1回避）
+  def preload_interaction_data(statuses)
+    return unless current_user
 
-    in_reply_to.actor.id.to_s
+    status_ids = statuses.map(&:id)
+    @favourited_ids = current_user.favourites.where(object_id: status_ids).pluck(:object_id).to_set
+    @reblogged_ids = current_user.reblogs.where(object_id: status_ids).pluck(:object_id).to_set
+    @bookmarked_ids = current_user.bookmarks.where(object_id: status_ids).pluck(:object_id).to_set
+    @pinned_ids = current_user.pinned_statuses.where(object_id: status_ids).pluck(:object_id).to_set
+    @quoted_ids = current_user.quote_posts.where(quoted_object_id: status_ids).pluck(:quoted_object_id).to_set
+    @muted_account_ids = current_user.mutes.pluck(:target_actor_id).to_set
   end
 
   def favourited_by_current_user?(status)
     return false unless current_user
+    return @favourited_ids.include?(status.id) if defined?(@favourited_ids) && @favourited_ids
 
     current_user.favourites.exists?(object: status)
   end
 
   def reblogged_by_current_user?(status)
     return false unless current_user
+    return @reblogged_ids.include?(status.id) if defined?(@reblogged_ids) && @reblogged_ids
 
     current_user.reblogs.exists?(object: status)
   end
 
+  def muted_by_current_user?(status)
+    return false unless current_user
+
+    # アカウントミュートに基づく（会話ミュートは未実装）
+    return @muted_account_ids.include?(status.actor_id) if defined?(@muted_account_ids) && @muted_account_ids
+
+    current_user.muting?(status.actor)
+  end
+
   def bookmarked_by_current_user?(status)
     return false unless current_user
+    return @bookmarked_ids.include?(status.id) if defined?(@bookmarked_ids) && @bookmarked_ids
 
     current_user.bookmarks.exists?(object: status)
   end
@@ -133,52 +156,57 @@ module StatusSerializationHelper
     # AccountsController#statusesの場合は、そのアカウントが固定した投稿かどうかを返す
     return status.actor.pinned_statuses.exists?(object: status) if params[:controller] == 'api/v1/accounts' && params[:action] == 'statuses'
 
-    # その他の場合は現在のユーザが固定した投稿かどうかを返す
     return false unless current_user
+    return @pinned_ids.include?(status.id) if defined?(@pinned_ids) && @pinned_ids
 
     current_user.pinned_statuses.exists?(object: status)
   end
 
   def quoted_by_current_user?(status)
     return false unless current_user
+    return @quoted_ids.include?(status.id) if defined?(@quoted_ids) && @quoted_ids
 
     current_user.quote_posts.exists?(quoted_object: status)
   end
 
   def build_quote_data(status)
-    quote_post = status.quote_posts.first
+    # キャッシュがあればそれを使用
+    quote_post = if defined?(@quote_cache) && @quote_cache
+                   @quote_cache[status.id]
+                 else
+                   status.quote_posts.first
+                 end
     return nil unless quote_post
 
-    quoted_actor = quote_post.quoted_object.actor
+    quoted_object = quote_post.quoted_object
+    return nil unless quoted_object
+
+    quoted_actor = quoted_object.actor
+    return nil unless quoted_actor
+
     {
-      id: quote_post.quoted_object.id.to_s,
-      created_at: quote_post.quoted_object.published_at&.iso8601,
-      uri: quote_post.quoted_object.ap_id,
-      url: quote_post.quoted_object.public_url,
-      content: parse_content_for_api_with_mentions(quote_post.quoted_object),
-      account: {
-        id: quoted_actor.id.to_s,
-        username: quoted_actor.username,
-        acct: quoted_actor.acct,
-        display_name: quoted_actor.display_name || quoted_actor.username,
-        avatar: quoted_actor.avatar_url
-      },
+      id: quoted_object.id.to_s,
+      created_at: quoted_object.published_at&.iso8601,
+      uri: quoted_object.ap_id,
+      url: quoted_object.public_url,
+      content: parse_content_for_api_with_mentions(quoted_object),
+      account: serialized_account(quoted_actor),
       shallow_quote: quote_post.shallow_quote?
     }
   end
 
   def serialize_poll(status)
-    return nil unless status.poll
-
     poll = status.poll
+    return nil unless poll
+
     result = poll.to_mastodon_api
 
     # 認証済みの場合は現在のユーザ固有データを追加
     if current_user
-      # 一度のクエリで投票情報を取得
-      user_votes = poll.poll_votes.where(actor: current_user)
-      result[:voted] = user_votes.exists?
-      result[:own_votes] = user_votes.pluck(:choice)
+      # メモリ上で処理して2回のDBクエリを1回に削減
+      user_votes = poll.poll_votes.where(actor: current_user).to_a
+      result[:voted] = user_votes.any?
+      result[:own_votes] = user_votes.map(&:choice)
     end
 
     result
@@ -187,13 +215,16 @@ module StatusSerializationHelper
   def serialize_preview_card(status)
     return nil if status.content.blank?
 
-    # 投稿内容からURLを抽出
-    urls = extract_urls_from_content(status.content)
-    return nil if urls.empty?
+    # キャッシュがあればそれを使用
+    if defined?(@link_preview_cache) && @link_preview_cache
+      link_preview = @link_preview_cache[status.id]
+    else
+      urls = extract_urls_from_content(status.content)
+      return nil if urls.empty?
 
-    # 最初のURLのプレビューカードを取得
-    preview_url = urls.first
-    link_preview = LinkPreview.find_by(url: preview_url)
+      preview_url = urls.first
+      link_preview = LinkPreview.find_by(url: preview_url)
+    end
     return nil if link_preview&.title.blank?
 
     {
@@ -231,6 +262,48 @@ module StatusSerializationHelper
         id: obj.id,
         actor_id: obj.actor&.id
       }
+    end
+  end
+
+  # quote_posts情報をバルクで取得してキャッシュ
+  def preload_quote_data(statuses)
+    status_ids = statuses.map(&:id)
+    quote_posts = QuotePost.where(object_id: status_ids)
+                           .includes(quoted_object: :actor)
+                           .to_a
+
+    @quote_cache = {}
+    quote_posts.each do |qp|
+      @quote_cache[qp[:object_id]] ||= qp
+    end
+  end
+
+  # link_preview情報をバルクで取得してキャッシュ
+  def preload_link_previews(statuses)
+    all_urls = {}
+    statuses.each do |status|
+      next if status.content.blank?
+
+      urls = extract_urls_from_content(status.content)
+      all_urls[urls.first] = status.id if urls.any?
+    end
+
+    return if all_urls.empty?
+
+    previews = LinkPreview.where(url: all_urls.keys).index_by(&:url)
+    @link_preview_cache = {}
+    all_urls.each do |url, status_id|
+      @link_preview_cache[status_id] = previews[url] if previews[url]
+    end
+  end
+
+  # mentionsをバルクでプリロード
+  def preload_mentions_data(statuses)
+    status_ids = statuses.map(&:id)
+    mentions = Mention.where(object_id: status_ids).includes(:actor).to_a
+    @mentions_cache = {}
+    mentions.each do |mention|
+      (@mentions_cache[mention[:object_id]] ||= []) << mention
     end
   end
 
@@ -275,14 +348,18 @@ module StatusSerializationHelper
                                  content.include?(%(<span class="p-nickname">@#{actor.username}</span>))
 
         unless mention_already_linked
+          # XSS防止: リモートアクターのap_idやusernameをHTMLエスケープ
+          safe_ap_id = CGI.escapeHTML(actor.ap_id.to_s)
+          safe_username = CGI.escapeHTML(actor.username.to_s)
+
           # ドメイン付きメンションを優先的に処理
           if content.include?(full_mention)
             # Mastodon標準のh-card形式でメンションを作成
-            mention_link = %(<a href="#{actor.ap_id}" class="h-card mention"><span class="p-nickname">@#{actor.username}</span></a>)
+            mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
             content = content.gsub(full_mention, mention_link)
           elsif content.include?(local_mention) && actor.local?
             # Mastodon標準のh-card形式でメンションを作成
-            mention_link = %(<a href="#{actor.ap_id}" class="h-card mention"><span class="p-nickname">@#{actor.username}</span></a>)
+            mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
             content = content.gsub(local_mention, mention_link)
           end
         end
@@ -302,7 +379,7 @@ module StatusSerializationHelper
     content.scan(/<[^>]+>/) { |_match| tags << { start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
 
     # URLパターンを探してリンク化（ただし、既存のタグ内は除外）
-    url_pattern = /(https?:\/\/[^\s<>\"']+)/
+    url_pattern = /(https?:\/\/[^\s<>＜＞\"']+)/
     result = content.dup
     offset = 0
 

@@ -6,6 +6,7 @@ require_relative 'concerns/featured_collection_fetching'
 class HttpSignatureVerifier
   include ActorAttachmentProcessing
   include FeaturedCollectionFetching
+  include SsrfProtection
 
   attr_reader :method, :path, :headers, :body
 
@@ -20,6 +21,7 @@ class HttpSignatureVerifier
     signature_params = parse_signature_header
     return false unless signature_params
     return false unless validate_date_header
+    return false unless verify_digest_header
 
     # 初回署名検証試行
     public_key = fetch_actor_public_key(actor_uri)
@@ -63,11 +65,33 @@ class HttpSignatureVerifier
 
     begin
       request_time = Time.httpdate(date_header)
-      time_diff = (Time.now.utc - request_time).abs
-      time_diff <= 3600
+      time_diff = (Time.current - request_time).abs
+      time_diff <= 300
     rescue ArgumentError
       false
     end
+  end
+
+  # Digestヘッダーとリクエストボディの一致を検証（改ざん防止）
+  def verify_digest_header
+    digest_header = find_header_value('digest')
+
+    # POSTリクエストでボディがある場合、Digestヘッダーは必須
+    if body.present?
+      unless digest_header
+        Rails.logger.warn 'Missing Digest header for request with body'
+        return false
+      end
+
+      # SHA-256=base64(sha256(body)) 形式を検証
+      expected_digest = "SHA-256=#{Base64.strict_encode64(OpenSSL::Digest::SHA256.digest(body))}"
+      unless ActiveSupport::SecurityUtils.secure_compare(digest_header, expected_digest)
+        Rails.logger.warn 'Digest header does not match request body'
+        return false
+      end
+    end
+
+    true
   end
 
   private
@@ -114,6 +138,8 @@ class HttpSignatureVerifier
 
   # アクターデータ取得
   def fetch_actor_data(actor_uri)
+    raise ActivityPub::SignatureError, 'SSRF protection: blocked' unless validate_url_for_ssrf!(actor_uri)
+
     uri = URI(actor_uri)
     http = configure_http_client(uri)
     request = build_actor_request(uri)
@@ -180,7 +206,7 @@ class HttpSignatureVerifier
 
   def build_actor_request(uri)
     request = Net::HTTP::Get.new(uri.path)
-    request['Accept'] = 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+    request['Accept'] = ActivityPubHttpClient::ACCEPT_HEADERS
     request['User-Agent'] = InstanceConfig.user_agent(:activitypub)
     request
   end

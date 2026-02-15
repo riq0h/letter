@@ -37,6 +37,7 @@ Metrics/MethodLength:
   Max: 30
   Exclude:
     - 'app/controllers/**/*'
+    - 'app/deliveries/**/*'
 
 Metrics/AbcSize:
   Max: 30
@@ -52,6 +53,7 @@ Metrics/ClassLength:
   Max: 300
   Exclude:
     - 'app/models/**/*'
+    - 'app/deliveries/**/*'
 
 Metrics/BlockLength:
   Exclude:
@@ -93,6 +95,34 @@ Rails/SkipsModelValidations:
 Rails/OutputSafety:
   Exclude:
     - 'app/helpers/**/*'
+
+RSpec/SpecFilePathFormat:
+  Exclude:
+    - 'spec/controllers/api/v1/instance_endpoints_spec.rb'
+    - 'spec/controllers/api/v1/statuses_mute_spec.rb'
+    - 'spec/controllers/api/v1/timelines_list_spec.rb'
+    - 'spec/controllers/concerns/relationship_fields_spec.rb'
+
+RSpec/DescribeClass:
+  Exclude:
+    - 'spec/controllers/concerns/account_entity_fields_spec.rb'
+    - 'spec/controllers/concerns/media_focus_spec.rb'
+    - 'spec/controllers/concerns/status_entity_fields_spec.rb'
+
+RSpec/IndexedLet:
+  Exclude:
+    - 'spec/queries/timeline_query_list_spec.rb'
+
+Rails/ResponseParsedBody:
+  Exclude:
+    - 'spec/controllers/api/v1/streaming_controller_spec.rb'
+    - 'spec/controllers/posts_controller_spec.rb'
+    - 'spec/controllers/profiles_controller_spec.rb'
+    - 'spec/requests/url_structure_spec.rb'
+
+RSpec/DescribedClass:
+  Exclude:
+    - 'spec/controllers/concerns/activity_pub_follow_handlers_spec.rb'
 
 RSpec/ExampleLength:
   Max: 30

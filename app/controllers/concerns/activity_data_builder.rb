@@ -7,7 +7,7 @@ module ActivityDataBuilder
 
   def build_activity_data(activity)
     base_data = {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => activity.ap_id,
       'type' => activity.activity_type,
       'actor' => activity.actor.ap_id,

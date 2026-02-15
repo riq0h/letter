@@ -6,30 +6,25 @@ module StatusSerializer
 
   private
 
-  def parse_content_with_emojis(content)
-    return content if content.blank?
-
-    EmojiPresenter.present_with_emojis(content)
-  end
-
   def parse_content_links_only(content)
     return content if content.blank?
 
     # API用: 絵文字HTMLがあればショートコードに戻す
     # クライアント側でemojis配列を使って絵文字処理
-    content.gsub(/<img[^>]*alt=":([^"]+):"[^>]*\/>/, ':\1:')
+    convert_emoji_html_to_shortcode(content)
   end
 
   def parse_content_for_frontend(content)
     return '' if content.blank?
 
-    # 既にHTMLリンクが含まれている場合（外部投稿）は絵文字処理のみ
+    # 既にHTMLリンクが含まれている場合（外部投稿）はサニタイズ + 絵文字処理
     if content.include?('<a ') || content.include?('<p>')
-      # 外部投稿: 既にHTMLでリンク化済み、絵文字のみ処理
-      if content.include?('<img') && content.include?('custom-emoji')
-        content
+      # 外部投稿: まずサニタイズしてから絵文字処理
+      sanitized = sanitize_html_for_display(content)
+      if sanitized.include?('<img') && sanitized.include?('custom-emoji')
+        sanitized
       else
-        EmojiPresenter.present_with_emojis(content)
+        EmojiPresenter.present_with_emojis(sanitized)
       end
     else
       # ローカル投稿: 絵文字処理 + URLリンク化
@@ -40,20 +35,6 @@ module StatusSerializer
                                 end
 
       auto_link_urls(emoji_processed_content)
-    end
-  end
-
-  def parse_content_for_api(content)
-    return '' if content.blank?
-
-    # API用: メンション・URLのみリンク化、絵文字はショートコード形式で保持
-    if content.include?('<a ') || content.include?('<p>')
-      # 外部投稿: 絵文字HTMLをショートコードに戻してからメンション・URLリンク化
-      content_with_shortcodes = parse_content_links_only(content)
-      auto_link_urls(content_with_shortcodes)
-    else
-      # ローカル投稿: メンション・URLリンク化のみ（絵文字処理なし）
-      auto_link_urls(content)
     end
   end
 

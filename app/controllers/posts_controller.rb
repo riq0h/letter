@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class PostsController < ApplicationController
+  include ActivityPubRequestHandling
+
   before_action :set_post, only: %i[show_html embed]
   skip_after_action :set_x_frame_options, only: :embed
 
@@ -39,26 +41,6 @@ class PostsController < ApplicationController
   end
 
   private
-
-  def activitypub_request?
-    # Accept headerでActivityPubリクエストを判定
-    accept_header = request.headers['Accept'] || ''
-
-    # 明示的なActivityPub Accept header
-    return true if accept_header.include?('application/activity+json')
-    return true if accept_header.include?('application/ld+json')
-    return true if accept_header.include?('application/json')
-
-    # HTMLを明示的に要求している場合はブラウザと判定
-    return false if accept_header.include?('text/html')
-
-    # User-Agentでの判定（ActivityPubクライアント特有のパターン）
-    user_agent = request.headers['User-Agent'] || ''
-    return true if user_agent.match?(/mastodon|pleroma|misskey|pixelfed|lemmy|kbin|activitypub/i)
-
-    # 不明な場合は ActivityPub として扱う（フェデレーション優先）
-    true
-  end
 
   def render_activitypub_object(username, id)
     actor = Actor.local.find_by(username: username)

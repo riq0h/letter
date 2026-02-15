@@ -26,7 +26,8 @@ RSpec.describe PublishActivityOrganizer do
         expect(result.activity).to be_a(Activity)
         expect(result.activity.activity_type).to eq('Create')
         expect(result.activity.object).to be_a(ActivityPubObject)
-        expect(result.activity.object.content).to eq('Hello world!')
+        # after_createでprocess_text_contentが実行され<p>タグで囲まれる
+        expect(result.activity.object.content).to eq('<p>Hello world!</p>')
       end
 
       it 'delivers to followers' do
@@ -211,9 +212,10 @@ RSpec.describe PublishActivityOrganizer do
 
     before do
       # 複数のフォロワーを設定
+      # shared_inbox_urlメソッドはraw_dataから読むため、raw_dataにsharedInboxを設定
       follower1 = create(:actor, :remote,
                          inbox_url: individual_inbox_url,
-                         shared_inbox_url: shared_inbox_url)
+                         raw_data: { 'endpoints' => { 'sharedInbox' => shared_inbox_url } }.to_json)
       follower2 = create(:actor, :remote,
                          inbox_url: other_inbox_url)
 
@@ -224,15 +226,12 @@ RSpec.describe PublishActivityOrganizer do
     it 'prioritizes shared inbox over individual inboxes' do
       organizer = described_class.new(actor, activity_type: 'Create', content: 'Test')
 
-      # ActivityPubObjectのqueue_activity_deliveryをモックして直接テスト
-      allow_any_instance_of(ActivityPubObject).to receive(:queue_activity_delivery) do |_object, _activity|
-        follower_inboxes = organizer.send(:collect_follower_inboxes)
-        expect(follower_inboxes).to include(shared_inbox_url)
-        expect(follower_inboxes).to include(other_inbox_url)
-        expect(follower_inboxes).not_to include(individual_inbox_url)
-      end
-
-      organizer.call
+      # collect_follower_inboxesを直接テスト
+      follower_inboxes = organizer.send(:collect_follower_inboxes)
+      expect(follower_inboxes).to include(shared_inbox_url)
+      expect(follower_inboxes).to include(other_inbox_url)
+      # shared_inbox_urlがあるドメインのindividual_inboxは除外される
+      expect(follower_inboxes).not_to include(individual_inbox_url)
     end
   end
 end

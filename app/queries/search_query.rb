@@ -92,11 +92,13 @@ class SearchQuery
   end
 
   def build_fts5_query
-    if query.include?(' ')
-      keywords = query.split(/\s+/).map { |word| "\"#{word}\"" }
+    # FTS5のダブルクォート内ではダブルクォートを""でエスケープ
+    escaped_query = query.gsub('"', '""')
+    if escaped_query.include?(' ')
+      keywords = escaped_query.split(/\s+/).map { |word| "\"#{word}\"" }
       keywords.join(' AND ')
     else
-      "\"#{query}\""
+      "\"#{escaped_query}\""
     end
   end
 
@@ -212,7 +214,7 @@ class SearchQuery
       LIMIT ? OFFSET ?
     SQL
 
-    like_query = "%#{query}%"
+    like_query = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
     results = ActiveRecord::Base.connection.execute(
       ActiveRecord::Base.sanitize_sql([sql, like_query, limit, offset])
     )
@@ -238,16 +240,17 @@ class SearchQuery
   end
 
   def contains_special_characters?
-    special_chars = ['@', '"', '^', '*', '(', ')', '[', ']', '{', '}', '\\', '.']
+    special_chars = ['@', '"', '^', '*', '(', ')', '[', ']', '{', '}', '\\', '.', ':', '-', '+', '~', 'AND', 'OR', 'NOT', 'NEAR']
     special_chars.any? { |char| query.include?(char) }
   end
 
   def build_japanese_query
-    keywords = query.split(/\s+/).compact_blank
+    escaped_query = query.gsub('"', '""')
+    keywords = escaped_query.split(/\s+/).compact_blank
     if keywords.length > 1
       keywords.map do |word|
         if word.length >= 2
-          "#{word}*"
+          "\"#{word}\"*"
         else
           "\"#{word}\""
         end
@@ -258,15 +261,17 @@ class SearchQuery
   end
 
   def build_english_multi_word_query
-    keywords = query.split(/\s+/).map { |word| "\"#{word}\"" }
+    escaped_query = query.gsub('"', '""')
+    keywords = escaped_query.split(/\s+/).map { |word| "\"#{word}\"" }
     keywords.join(' AND ')
   end
 
   def build_single_word_query
-    if query.length >= 2
-      "#{query}*"
+    escaped_query = query.gsub('"', '""')
+    if escaped_query.length >= 2
+      "\"#{escaped_query}\"*"
     else
-      "\"#{query}\""
+      "\"#{escaped_query}\""
     end
   end
 

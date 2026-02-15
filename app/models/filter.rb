@@ -5,22 +5,14 @@ class Filter < ApplicationRecord
   has_many :filter_keywords, dependent: :destroy
   has_many :filter_statuses, dependent: :destroy
 
+  array_field :context
+
   validates :title, presence: true, length: { maximum: 100 }
   validates :context, presence: true
   validates :filter_action, inclusion: { in: %w[warn hide] }
 
   scope :active, -> { where('expires_at IS NULL OR expires_at > ?', Time.current) }
   scope :recent, -> { order(updated_at: :desc) }
-
-  def context_array
-    JSON.parse(context)
-  rescue JSON::ParserError
-    []
-  end
-
-  def context_array=(contexts)
-    self.context = contexts.to_json
-  end
 
   def expired?
     expires_at.present? && expires_at <= Time.current
@@ -47,7 +39,7 @@ class Filter < ApplicationRecord
   end
 
   def matches_content?(text, content_context = 'home')
-    return false unless context_array.include?(content_context)
+    return false unless context.include?(content_context)
     return false if expired?
 
     filter_keywords.any? do |filter_keyword|
@@ -60,7 +52,7 @@ class Filter < ApplicationRecord
   end
 
   def matches_status?(status_id, content_context = 'home')
-    return false unless context_array.include?(content_context)
+    return false unless context.include?(content_context)
     return false if expired?
 
     filter_statuses.exists?(status_id: status_id)

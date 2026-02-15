@@ -3,6 +3,7 @@
 class Favourite < ApplicationRecord
   include ApIdGeneration
   include NotificationCreation
+  include ObjectCounterManagement
 
   belongs_to :actor, class_name: 'Actor'
   belongs_to :object, class_name: 'ActivityPubObject'
@@ -11,27 +12,15 @@ class Favourite < ApplicationRecord
 
   scope :recent, -> { order(created_at: :desc) }
 
-  before_validation :set_ap_id, on: :create
-  after_create :increment_favourites_count
-  after_create :create_notification
-  after_create :send_push_notification
-  after_destroy :decrement_favourites_count
+  tracks_object_counter :favourites_count
+  after_create :create_notification_for_favourite
+  after_commit :send_push_notification, on: :create
 
   private
 
-  def increment_favourites_count
-    object.increment!(:favourites_count)
-  end
-
-  def decrement_favourites_count
-    object.decrement!(:favourites_count)
-  end
-
-  def create_notification
-    create_notification_for_favourite
-  end
-
   def send_push_notification
     WebPushDelivery.deliver_favourite_notification(self)
+  rescue StandardError => e
+    Rails.logger.error "Failed to send favourite push notification: #{e.message}"
   end
 end

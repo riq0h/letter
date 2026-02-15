@@ -82,7 +82,7 @@ RSpec.describe WebPushDelivery do
       it 'sends push notification with correct parameters' do
         # 事前検証を通す
         allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
-        expect(WebPush).to receive(:payload_send).with(push_options)
+        allow(described_class).to receive(:perform_webpush_send)
 
         result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
 
@@ -91,7 +91,7 @@ RSpec.describe WebPushDelivery do
 
       it 'handles invalid subscription errors' do
         allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
-        allow(WebPush).to receive(:payload_send).and_raise(WebPush::InvalidSubscription, 'Invalid endpoint')
+        allow(described_class).to receive(:perform_webpush_send).and_raise(WebPush::InvalidSubscription, 'Invalid endpoint')
 
         result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
 
@@ -100,7 +100,7 @@ RSpec.describe WebPushDelivery do
 
       it 'handles expired subscription errors' do
         allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
-        allow(WebPush).to receive(:payload_send).and_raise(WebPush::ExpiredSubscription, 'Subscription expired')
+        allow(described_class).to receive(:perform_webpush_send).and_raise(WebPush::ExpiredSubscription, 'Subscription expired')
 
         result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
 
@@ -110,7 +110,7 @@ RSpec.describe WebPushDelivery do
       it 'handles general errors without destroying subscription' do
         # 事前検証を通す
         allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
-        allow(WebPush).to receive(:payload_send).and_raise(StandardError, 'Network error')
+        allow(described_class).to receive(:perform_webpush_send).and_raise(StandardError, 'Network error')
         expect(subscription).not_to receive(:destroy)
         expect(Rails.logger).to receive(:error).with(/Push notification failed/)
 
@@ -403,7 +403,7 @@ RSpec.describe WebPushDelivery do
     end
 
     it 'returns true for valid keys' do
-      allow(WebPush).to receive(:payload_send).and_return(true)
+      allow(WebPush::Encryption).to receive(:encrypt).and_return('encrypted')
 
       expect(described_class.send(:valid_webpush_keys?, valid_subscription)).to be true
     end
@@ -424,7 +424,7 @@ RSpec.describe WebPushDelivery do
       subscription = build(:web_push_subscription,
                            p256dh_key: Base64.strict_encode64('a' * 65),
                            auth_key: Base64.strict_encode64('b' * 16))
-      allow(WebPush).to receive(:payload_send).and_raise(ArgumentError, 'Invalid key')
+      allow(WebPush::Encryption).to receive(:encrypt).and_raise(ArgumentError, 'Invalid key')
 
       expect(described_class.send(:valid_webpush_keys?, subscription)).to be false
     end
@@ -443,9 +443,9 @@ RSpec.describe WebPushDelivery do
     end
 
     it 'handles OpenSSL::PKey::ECError gracefully when keys are valid' do
-      allow(described_class).to receive_messages(valid_webpush_keys?: true, build_push_options: {})
-      allow(WebPush).to receive(:payload_send).and_raise(OpenSSL::PKey::ECError, 'EC_POINT_bn2point: invalid encoding')
-      expect(Rails.logger).to receive(:error).with(/Unexpected encryption error/)
+      allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
+      allow(described_class).to receive(:perform_webpush_send).and_raise(OpenSSL::PKey::ECError, 'EC_POINT_bn2point: invalid encoding')
+      expect(Rails.logger).to receive(:error).with(/Encryption error/)
 
       result = described_class.send(:send_push_notification, subscription, payload)
       expect(result).to be false

@@ -10,7 +10,7 @@
     <%= parse_content_for_frontend(actor.display_name.presence || actor.username).html_safe %>
   <% end %>
 <% else %>
-  <%= link_to actor.ap_id, 
+  <%= link_to safe_external_url(actor.ap_id),
               class: "post-card-username-link",
               data: { turbo_frame: "_top" } do %>
     <%= parse_content_for_frontend(actor.display_name.presence || actor.username).html_safe %>

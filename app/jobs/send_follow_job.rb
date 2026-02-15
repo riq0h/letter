@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class SendFollowJob < ApplicationJob
+  include ActorRefreshOnRetry
+
   queue_as :default
 
   # SolidQueueの重複制約エラーを回避するため、retry_onを使わない
@@ -34,8 +36,7 @@ class SendFollowJob < ApplicationJob
   def send_follow_activity(activity, follow)
     sender = ActivitySender.new
 
-    # Shared inboxを優先的に使用（Mastodonでより確実）
-    target_inbox = follow.target_actor.shared_inbox_url.presence || follow.target_actor.inbox_url
+    target_inbox = follow.target_actor.preferred_inbox
 
     Rails.logger.info "🔍 Using inbox: #{target_inbox} (shared: #{follow.target_actor.shared_inbox_url.present?})"
 
@@ -73,18 +74,5 @@ class SendFollowJob < ApplicationJob
       # 永続的に失敗した場合はフォロー関係を削除
       follow.destroy
     end
-  end
-
-  def should_refresh_actor?(attempt)
-    # 初回失敗時のみアクター情報を更新
-    attempt == 1
-  end
-
-  def refresh_actor_data(actor)
-    fetcher = ActorFetcher.new
-    updated_actor = fetcher.fetch_and_create(actor.ap_id)
-    Rails.logger.info "✅ Actor data refreshed for #{actor.ap_id}" if updated_actor && updated_actor != actor
-  rescue StandardError => e
-    Rails.logger.warn "Failed to refresh actor data: #{e.message}"
   end
 end

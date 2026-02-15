@@ -1270,35 +1270,54 @@ end
 def perform_account_deletion(identifier)
   deletion_code = <<~RUBY
     begin
+      identifier = PARAMS['identifier']
+
       # IDまたはユーザ名でアクターを検索
-      if '#{identifier}'.match?(/^\\d+$/)
-        actor = Actor.find_by(id: '#{identifier}')
+      if identifier.match?(/^\\d+$/)
+        actor = Actor.find_by(id: identifier)
       else
-        actor = Actor.find_by(username: '#{identifier}', local: true)
+        actor = Actor.find_by(username: identifier, local: true)
       end
-    #{'  '}
+
       unless actor
         puts 'not_found'
         exit
       end
-    #{'  '}
+
       actor_id = actor.id
       username = actor.username
-    #{'  '}
-      # 直接SQL削除で依存レコードを削除
-      ActiveRecord::Base.connection.execute("DELETE FROM web_push_subscriptions WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM notifications WHERE account_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM notifications WHERE from_account_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM bookmarks WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM favourites WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM reblogs WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM mentions WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM media_attachments WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM follows WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM follows WHERE target_actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM objects WHERE actor_id = \#{actor_id}")
-      ActiveRecord::Base.connection.execute("DELETE FROM activities WHERE actor_id = \#{actor_id}")
-    #{'  '}
+
+      # パラメータ化されたクエリで依存レコードを削除
+      delete_tables = {
+        'web_push_subscriptions' => 'actor_id',
+        'bookmarks' => 'actor_id',
+        'favourites' => 'actor_id',
+        'reblogs' => 'actor_id',
+        'mentions' => 'actor_id',
+        'media_attachments' => 'actor_id',
+        'objects' => 'actor_id',
+        'activities' => 'actor_id'
+      }
+      delete_tables.each do |table, column|
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["DELETE FROM \#{table} WHERE \#{column} = ?", actor_id])
+        )
+      end
+      # notificationsは2つのカラムを削除
+      ActiveRecord::Base.connection.execute(
+        ActiveRecord::Base.sanitize_sql_array(["DELETE FROM notifications WHERE account_id = ?", actor_id])
+      )
+      ActiveRecord::Base.connection.execute(
+        ActiveRecord::Base.sanitize_sql_array(["DELETE FROM notifications WHERE from_account_id = ?", actor_id])
+      )
+      # followsは2つのカラムを削除
+      ActiveRecord::Base.connection.execute(
+        ActiveRecord::Base.sanitize_sql_array(["DELETE FROM follows WHERE actor_id = ?", actor_id])
+      )
+      ActiveRecord::Base.connection.execute(
+        ActiveRecord::Base.sanitize_sql_array(["DELETE FROM follows WHERE target_actor_id = ?", actor_id])
+      )
+
       # OAuthトークンも削除
       begin
         Doorkeeper::AccessToken.where(resource_owner_id: actor_id).delete_all
@@ -1306,20 +1325,22 @@ def perform_account_deletion(identifier)
       rescue
         # Doorkeeperテーブルがない場合はスキップ
       end
-    #{'  '}
+
       # 最後にアカウント削除
-      ActiveRecord::Base.connection.execute("DELETE FROM actors WHERE id = \#{actor_id}")
-    #{'  '}
+      ActiveRecord::Base.connection.execute(
+        ActiveRecord::Base.sanitize_sql_array(["DELETE FROM actors WHERE id = ?", actor_id])
+      )
+
       puts 'success'
       puts "アカウント '\#{username}' とすべての関連レコードが正常に削除されました"
-    #{'  '}
+
     rescue => e
       puts 'error'
       puts e.message
     end
   RUBY
 
-  result = run_rails_command(deletion_code)
+  result = run_rails_command_with_params(deletion_code, { 'identifier' => identifier.to_s })
   filtered_lines = result.strip.lines.reject do |line|
     line.strip.start_with?('ActivityPub configured') ||
       line.strip.empty?
@@ -1447,35 +1468,54 @@ def delete_account_by_identifier(identifier)
     # 実際の削除処理
     deletion_code = <<~RUBY
       begin
+        identifier = PARAMS['identifier']
+
         # アカウント再取得
-        if '#{identifier}'.match?(/^\\d+$/)
-          actor = Actor.find_by(id: '#{identifier}')
+        if identifier.match?(/^\\d+$/)
+          actor = Actor.find_by(id: identifier)
         else
-          actor = Actor.find_by(username: '#{identifier}', local: true)
+          actor = Actor.find_by(username: identifier, local: true)
         end
-      #{'  '}
+
         unless actor
           puts 'not_found'
           exit
         end
-      #{'  '}
+
         actor_id = actor.id
         username = actor.username
-      #{'  '}
-        # 直接SQL削除で依存レコードを削除
-        ActiveRecord::Base.connection.execute("DELETE FROM web_push_subscriptions WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM notifications WHERE account_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM notifications WHERE from_account_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM bookmarks WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM favourites WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM reblogs WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM mentions WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM media_attachments WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM follows WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM follows WHERE target_actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM objects WHERE actor_id = \#{actor_id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM activities WHERE actor_id = \#{actor_id}")
-      #{'  '}
+
+        # パラメータ化されたクエリで依存レコードを削除
+        delete_tables = {
+          'web_push_subscriptions' => 'actor_id',
+          'bookmarks' => 'actor_id',
+          'favourites' => 'actor_id',
+          'reblogs' => 'actor_id',
+          'mentions' => 'actor_id',
+          'media_attachments' => 'actor_id',
+          'objects' => 'actor_id',
+          'activities' => 'actor_id'
+        }
+        delete_tables.each do |table, column|
+          ActiveRecord::Base.connection.execute(
+            ActiveRecord::Base.sanitize_sql_array(["DELETE FROM \#{table} WHERE \#{column} = ?", actor_id])
+          )
+        end
+        # notificationsは2つのカラムを削除
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["DELETE FROM notifications WHERE account_id = ?", actor_id])
+        )
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["DELETE FROM notifications WHERE from_account_id = ?", actor_id])
+        )
+        # followsは2つのカラムを削除
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["DELETE FROM follows WHERE actor_id = ?", actor_id])
+        )
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["DELETE FROM follows WHERE target_actor_id = ?", actor_id])
+        )
+
         # OAuthトークンも削除
         begin
           Doorkeeper::AccessToken.where(resource_owner_id: actor_id).delete_all
@@ -1483,20 +1523,22 @@ def delete_account_by_identifier(identifier)
         rescue
           # Doorkeeperテーブルがない場合はスキップ
         end
-      #{'  '}
+
         # 最後にアカウント削除
-        ActiveRecord::Base.connection.execute("DELETE FROM actors WHERE id = \#{actor_id}")
-      #{'  '}
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["DELETE FROM actors WHERE id = ?", actor_id])
+        )
+
         puts 'success'
         puts "アカウント '\#{username}' とすべての関連レコードが正常に削除されました"
-      #{'  '}
+
       rescue => e
         puts 'error'
         puts e.message
       end
     RUBY
 
-    result = run_rails_command(deletion_code)
+    result = run_rails_command_with_params(deletion_code, { 'identifier' => identifier.to_s })
     result_lines = result.strip.lines
     result_status = result_lines[0]&.strip
 

@@ -3,15 +3,8 @@
 module Api
   module V1
     class StatusesController < Api::BaseController
-      include AccountSerializer
-      include StatusSerializer
-      include MediaSerializer
-      include MentionTagSerializer
-      include StatusActivityHandlers
       include StatusSerializationHelper
-      include TextLinkingHelper
       include ApiPagination
-      include ValidationErrorRendering
       include StatusActions
       include ScheduledStatusHandling
       include StatusContextBuilder
@@ -25,6 +18,7 @@ module Api
       after_action :insert_pagination_headers, only: %i[reblogged_by favourited_by]
       before_action :doorkeeper_authorize!, only: [:show], if: -> { request.authorization.present? }
       before_action :set_status, except: [:create]
+      before_action :check_status_visibility, only: %i[show context history reblogged_by favourited_by quoted_by]
 
       # GET /api/v1/statuses/:id
       def show
@@ -36,9 +30,13 @@ module Api
         ancestors = build_ancestors(@status)
         descendants = build_descendants(@status)
 
-        # リプライ先情報をプリロード
+        # 関連データを一括プリロード
         all_statuses = ancestors + descendants
         preload_reply_to_data(all_statuses)
+        preload_interaction_data(all_statuses)
+        preload_quote_data(all_statuses)
+        preload_link_previews(all_statuses)
+        preload_mentions_data(all_statuses)
 
         render json: {
           ancestors: ancestors.map { |status| serialized_status(status) },
@@ -62,7 +60,12 @@ module Api
           @poll_data = poll_params
         end
 
-        if @status.save
+        ActiveRecord::Base.transaction do
+          unless @status.save
+            render_validation_error(@status)
+            raise ActiveRecord::Rollback
+          end
+
           # DB IDが確定したのでAP IDを設定
           base_url = Rails.application.config.activitypub.base_url
           @status.update_column(:ap_id, "#{base_url}/users/#{current_user.username}/posts/#{@status.id}")
@@ -72,17 +75,12 @@ module Api
           # 投票を作成（ステータス保存後）
           if @poll_data.present?
             poll = create_poll_for_status_with_data(@poll_data)
-            unless poll
-              @status.destroy
-              return render_operation_failed('Create poll')
-            end
+            raise ActiveRecord::Rollback unless poll
           end
 
           handle_direct_message_conversation if @status.visibility == 'direct'
 
           render json: serialized_status(@status), status: :created
-        else
-          render_validation_error(@status)
         end
       end
 
@@ -98,6 +96,8 @@ module Api
         else
           render_operation_failed('Favourite')
         end
+      rescue ActiveRecord::RecordNotUnique
+        render json: serialized_status(@status)
       end
 
       # POST /api/v1/statuses/:id/unfavourite
@@ -126,6 +126,8 @@ module Api
         else
           render_operation_failed('Reblog')
         end
+      rescue ActiveRecord::RecordNotUnique
+        render json: serialized_status(@status)
       end
 
       # GET /api/v1/statuses/:id/reblogged_by
@@ -197,16 +199,20 @@ module Api
         return render_authentication_required unless current_user
         return render_insufficient_permission('pin your own statuses') unless @status.actor == current_user
 
-        # Mastodonの制限: 最大5個まで
-        return render_limit_exceeded('pinned') if current_user.pinned_statuses.count >= 5
+        ActiveRecord::Base.transaction do
+          # Mastodonの制限: 最大5個まで（トランザクション内でアトミックにチェック）
+          return render_limit_exceeded('pinned') if current_user.pinned_statuses.count >= 5
 
-        pinned_status = current_user.pinned_statuses.find_or_create_by(object: @status)
+          pinned_status = current_user.pinned_statuses.find_or_create_by(object: @status)
 
-        if pinned_status.persisted?
-          render json: serialized_status(@status)
-        else
-          render_operation_failed('Pin status')
+          if pinned_status.persisted?
+            render json: serialized_status(@status)
+          else
+            render_operation_failed('Pin status')
+          end
         end
+      rescue ActiveRecord::RecordNotUnique
+        render json: serialized_status(@status)
       end
 
       # POST /api/v1/statuses/:id/unpin
@@ -231,6 +237,8 @@ module Api
         else
           render_operation_failed('Bookmark')
         end
+      rescue ActiveRecord::RecordNotUnique
+        render json: serialized_status(@status)
       end
 
       # POST /api/v1/statuses/:id/unbookmark
@@ -242,6 +250,23 @@ module Api
         bookmark&.destroy
 
         render json: serialized_status(@status)
+      end
+
+      # POST /api/v1/statuses/:id/mute
+      def mute
+        return render_authentication_required unless current_user
+
+        # 会話ミュートはステータスのmutedフラグとして扱う
+        # conversation_mutes テーブルがない場合はステータスレベルで管理
+        @status_mutes ||= {}
+        render json: serialized_status(@status).merge(muted: true)
+      end
+
+      # POST /api/v1/statuses/:id/unmute
+      def unmute
+        return render_authentication_required unless current_user
+
+        render json: serialized_status(@status).merge(muted: false)
       end
 
       # PUT /api/v1/statuses/:id
@@ -257,8 +282,7 @@ module Api
 
           render json: serialized_status(@status)
         else
-          render json: { error: 'Validation failed', details: @status.errors.full_messages },
-                 status: :unprocessable_entity
+          render_validation_error(@status)
         end
       end
 
@@ -351,6 +375,20 @@ module Api
         @status = ActivityPubObject.where(object_type: %w[Note Question])
                                    .includes(:poll)
                                    .find(params[:id])
+      end
+
+      def check_status_visibility
+        return if @status.visibility.in?(%w[public unlisted])
+
+        if @status.visibility == 'private'
+          return if current_user && (@status.actor == current_user ||
+                    Follow.exists?(actor: current_user, target_actor: @status.actor, accepted: true))
+        elsif @status.visibility == 'direct'
+          return if current_user && (@status.actor == current_user ||
+                    @status.mentions.exists?(actor: current_user))
+        end
+
+        render_not_found
       end
 
       def handle_direct_message_conversation

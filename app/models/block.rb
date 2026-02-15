@@ -1,14 +1,16 @@
 # frozen_string_literal: true
 
 class Block < ApplicationRecord
+  include ApIdGeneration
+  include SelfReferenceValidation
+
   belongs_to :actor, class_name: 'Actor'
   belongs_to :target_actor, class_name: 'Actor'
 
   validates :actor_id, uniqueness: { scope: :target_actor_id }
-  validate :cannot_block_self
+  validates :ap_id, presence: true, uniqueness: true
 
   # コールバック
-  before_validation :set_defaults, on: :create
   after_create :send_block_activity, if: :should_send_block_activity?
   after_destroy :send_unblock_activity, if: :should_send_unblock_activity?
 
@@ -25,14 +27,6 @@ class Block < ApplicationRecord
   end
 
   private
-
-  def cannot_block_self
-    errors.add(:target_actor, 'cannot block yourself') if actor_id == target_actor_id
-  end
-
-  def set_defaults
-    # 必要に応じてデフォルト値を設定
-  end
 
   def should_send_block_activity?
     # ローカルユーザが外部ユーザをブロックする場合のみ送信

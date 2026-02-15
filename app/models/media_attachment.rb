@@ -2,6 +2,7 @@
 
 class MediaAttachment < ApplicationRecord
   include RemoteLocalHelper
+  include SsrfProtection
 
   # === 定数 ===
   MEDIA_TYPES = %w[image video audio document].freeze
@@ -157,6 +158,51 @@ class MediaAttachment < ApplicationRecord
     end
   end
 
+  # ローカルファイルかどうかの判定
+  def local_file?
+    file.attached?
+  end
+
+  def aspect_ratio
+    return nil unless width.present? && height.present? && height.positive?
+
+    (width.to_f / height).round(2)
+  end
+
+  def landscape?
+    return false unless aspect_ratio
+
+    aspect_ratio > 1.0
+  end
+
+  def portrait?
+    return false unless aspect_ratio
+
+    aspect_ratio < 1.0
+  end
+
+  def square?
+    return false unless aspect_ratio
+
+    # 浮動小数点の安全な比較
+    (aspect_ratio - 1.0).abs < FLOAT_TOLERANCE
+  end
+
+  # === ActivityPub関連メソッド ===
+
+  def activitypub_document
+    {
+      type: 'Document',
+      mediaType: content_type,
+      url: url, # Active StorageのURLまたはremote_urlを使用
+      name: description.presence || display_name,
+      width: width,
+      height: height
+    }.tap do |doc|
+      doc[:summary] = description if description.present?
+    end
+  end
+
   private
 
   def generate_video_preview_url
@@ -232,6 +278,9 @@ class MediaAttachment < ApplicationRecord
     require 'open3'
     require 'base64'
 
+    # SSRF防止: リモートURLのプロトコルとホストを検証
+    return nil unless validate_url_for_ssrf!(remote_url)
+
     # 出力サムネイルファイル
     output_file = Tempfile.new(['remote_thumbnail', '.jpg'])
     output_file.close
@@ -277,11 +326,6 @@ class MediaAttachment < ApplicationRecord
     cached_url != remote_url # キャッシュに成功した場合はtrue
   end
 
-  # ローカルファイルかどうかの判定
-  def local_file?
-    file.attached?
-  end
-
   # ローカルストレージのファイルパス（MediaController用）
   def storage_path
     return nil unless file.attached?
@@ -290,46 +334,6 @@ class MediaAttachment < ApplicationRecord
     # ローカルストレージサービス使用時のパス形式: xx/xx/xxxxxxxxxxxxxxxxxxxx
     blob_key = file.blob.key
     "#{blob_key[0, 2]}/#{blob_key[2, 2]}/#{blob_key}"
-  end
-
-  def aspect_ratio
-    return nil unless width.present? && height.present? && height.positive?
-
-    (width.to_f / height).round(2)
-  end
-
-  def landscape?
-    return false unless aspect_ratio
-
-    aspect_ratio > 1.0
-  end
-
-  def portrait?
-    return false unless aspect_ratio
-
-    aspect_ratio < 1.0
-  end
-
-  def square?
-    return false unless aspect_ratio
-
-    # 浮動小数点の安全な比較
-    (aspect_ratio - 1.0).abs < FLOAT_TOLERANCE
-  end
-
-  # === ActivityPub関連メソッド ===
-
-  def activitypub_document
-    {
-      type: 'Document',
-      mediaType: content_type,
-      url: url, # Active StorageのURLまたはremote_urlを使用
-      name: description.presence || display_name,
-      width: width,
-      height: height
-    }.tap do |doc|
-      doc[:summary] = description if description.present?
-    end
   end
 
   def set_defaults

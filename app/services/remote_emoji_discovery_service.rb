@@ -2,6 +2,7 @@
 
 class RemoteEmojiDiscoveryService
   include HTTParty
+  include SsrfProtection
 
   def initialize
     @discovered_emojis = []
@@ -66,6 +67,8 @@ class RemoteEmojiDiscoveryService
 
     return nil unless nodeinfo_link
 
+    return nil unless validate_url_for_ssrf!(nodeinfo_link['href'])
+
     nodeinfo_response = HTTParty.get(nodeinfo_link['href'], timeout: 10)
     return nil unless nodeinfo_response.success?
 
@@ -77,6 +80,7 @@ class RemoteEmojiDiscoveryService
 
   def fetch_emojis_from_endpoint(domain, endpoint)
     Rails.logger.info "📡 Fetching emojis from endpoint: #{endpoint}"
+    return unless validate_url_for_ssrf!(endpoint)
 
     response = HTTParty.get(endpoint, timeout: 15)
     return unless response.success?

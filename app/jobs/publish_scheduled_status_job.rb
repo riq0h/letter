@@ -3,12 +3,15 @@
 class PublishScheduledStatusJob < ApplicationJob
   queue_as :default
 
+  retry_on StandardError, wait: :exponentially_longer, attempts: 3
+
   def perform(scheduled_status_id)
     scheduled_status = ScheduledStatus.find_by(id: scheduled_status_id)
-    return unless scheduled_status
+    unless scheduled_status
+      Rails.logger.warn "予約投稿が見つかりません (ID: #{scheduled_status_id})"
+      return
+    end
 
     scheduled_status.publish!
-  rescue StandardError => e
-    Rails.logger.error "予約投稿実行エラー (ID: #{scheduled_status_id}): #{e.message}"
   end
 end

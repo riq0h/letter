@@ -10,7 +10,7 @@ module QuotePostHandler
       content: params[:status] || '',
       summary: params[:spoiler_text],
       sensitive: params[:sensitive] == 'true',
-      language: params[:language] || current_user.locale || 'ja',
+      language: params[:language] || current_user.locale || Rails.application.config.activitypub.default_locale,
       local: true
     }
 
@@ -26,8 +26,9 @@ module QuotePostHandler
                                                 quote_ap_id: quoted_status.ap_id
                                               ))
 
-    # AP IDの設定
-    quote_status.ap_id = "#{Rails.application.config.activitypub.base_url}/users/#{current_user.username}/statuses/#{quote_status.id}"
+    # Snowflake IDで一意な仮AP IDを生成（save前はidがnilのため）
+    snowflake_id = Letter::Snowflake.generate
+    quote_status.ap_id = "#{Rails.application.config.activitypub.base_url}/#{snowflake_id}"
 
     quote_status
   end

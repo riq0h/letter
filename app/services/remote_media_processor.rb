@@ -3,6 +3,7 @@
 class RemoteMediaProcessor
   require 'net/http'
   require 'uri'
+  include SsrfProtection
 
   def self.process_attachments(activity_pub_object, attachments_data)
     attachments_data.each do |attachment_data|
@@ -15,6 +16,7 @@ class RemoteMediaProcessor
   def self.process_single_attachment(activity_pub_object, attachment_data)
     image_url = attachment_data['url']
     return unless image_url
+    return unless new.send(:validate_url_for_ssrf!, image_url)
 
     uri = URI(image_url)
     response = Net::HTTP.get_response(uri)

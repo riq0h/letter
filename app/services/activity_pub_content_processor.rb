@@ -34,9 +34,11 @@ class ActivityPubContentProcessor
       linked_content = apply_url_links_to_html(normalized_content)
       mention_linked_content = apply_mention_links_to_html(linked_content)
     else
-      escaped_text = ERB::Util.html_escape(ActionView::Base.full_sanitizer.sanitize(content).strip).gsub("\n", '<br>')
+      escaped_text = ERB::Util.html_escape(ActionView::Base.full_sanitizer.sanitize(content).strip)
       linked_content = apply_url_links(escaped_text)
       mention_linked_content = apply_mention_links(linked_content)
+      # URLリンク化の後に改行を<br>に変換（URL内に<br>が混入するのを防ぐ）
+      mention_linked_content = mention_linked_content.gsub("\n", '<br>')
     end
     # ActivityPub標準に従ってpタグで囲む
     wrapped_content = wrap_content_in_p(mention_linked_content)
@@ -114,7 +116,7 @@ class ActivityPubContentProcessor
     # メンション抽出ロジック
     return unless content.include?('@')
 
-    mention_pattern = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/
+    mention_pattern = /@([a-zA-Z0-9_.-]+)(?:@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?/
     content.scan(mention_pattern) do |username, domain|
       create_mention(username, domain)
     end

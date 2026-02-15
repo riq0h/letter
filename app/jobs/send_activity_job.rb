@@ -5,6 +5,9 @@ class SendActivityJob < ApplicationJob
 
   queue_as :default
 
+  retry_on Net::OpenTimeout, Net::ReadTimeout, wait: :exponentially_longer, attempts: 3
+  discard_on ActiveRecord::RecordNotFound
+
   # Activity配信ジョブ
   # @param activity_id [String] 送信するActivityのID
   # @param target_inboxes [Array<String>] 配信先Inbox URLの配列
@@ -20,10 +23,13 @@ class SendActivityJob < ApplicationJob
       delivered_at: Time.current,
       delivery_attempts: @activity.delivery_attempts + 1
     )
-  rescue ActiveRecord::RecordNotFound
-    Rails.logger.error "❌ Activity #{activity_id} not found"
   rescue StandardError => e
-    handle_job_error(e, activity_id)
+    Rails.logger.error "💥 SendActivityJob error for activity #{activity_id}: #{e.message}"
+    @activity&.update(
+      delivery_attempts: (@activity.delivery_attempts || 0) + 1,
+      last_delivery_error: "#{e.class}: #{e.message}"
+    )
+    raise # Active Job のretry_onに委譲
   end
 
   private
@@ -68,7 +74,7 @@ class SendActivityJob < ApplicationJob
     end
 
     {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => activity.ap_id,
       'type' => 'Update',
       'actor' => activity.actor.ap_id,
@@ -77,43 +83,6 @@ class SendActivityJob < ApplicationJob
       'to' => build_activity_audience(activity.object, :to),
       'cc' => build_activity_audience(activity.object, :cc)
     }
-  end
-
-  def log_delivery_result(success, inbox_url); end
-
-  def handle_job_error(error, activity_id)
-    log_error_details(error, activity_id)
-    update_activity_error_info(error)
-    handle_retry_logic(activity_id)
-  end
-
-  def log_error_details(error, activity_id)
-    Rails.logger.error "💥 SendActivityJob error for activity #{activity_id}: #{error.message}"
-    Rails.logger.error error.backtrace.first(5).join("\n")
-  end
-
-  def update_activity_error_info(error)
-    @activity&.update!(
-      delivery_attempts: @activity.delivery_attempts + 1,
-      last_delivery_error: "#{error.class}: #{error.message}"
-    )
-  end
-
-  def handle_retry_logic(activity_id)
-    if executions < 3
-      retry_job(wait: exponential_backoff)
-    else
-      handle_permanent_failure(activity_id)
-    end
-  end
-
-  def handle_permanent_failure(activity_id)
-    Rails.logger.error "💥 SendActivityJob failed permanently for activity #{activity_id}"
-    @activity&.update!(last_delivery_error: "Permanent failure after #{executions} attempts")
-  end
-
-  def exponential_backoff
-    (executions**2).minutes
   end
 
   # 利用不可能なサーバかチェック
@@ -145,7 +114,6 @@ class SendActivityJob < ApplicationJob
     # 410応答でドメインが利用不可能にマークされた場合の特別処理
     Rails.logger.warn "🚫 Domain marked unavailable due to 410 response: #{inbox_url}" if result[:code] == 410 && result[:domain_marked_unavailable]
 
-    log_delivery_result(success, inbox_url)
     success
   end
 end

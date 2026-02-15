@@ -10,6 +10,7 @@ module Search
     include ActivityPubVisibilityHelper
     include ActivityPubHelper
     include ActivityPubUtilityHelpers
+    include SsrfProtection
 
     def initialize
       @web_finger_service = WebFingerService.new
@@ -210,7 +211,10 @@ module Search
       return [] if domain.blank?
 
       begin
-        uri = URI("https://#{domain}/api/v1/directory")
+        url = "https://#{domain}/api/v1/directory"
+        return [] unless validate_url_for_ssrf!(url)
+
+        uri = URI(url)
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = true
         http.read_timeout = 5

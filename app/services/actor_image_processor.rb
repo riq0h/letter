@@ -5,6 +5,9 @@ require 'net/http'
 require 'digest'
 
 class ActorImageProcessor
+  include SsrfProtection
+  include BlobStorage
+
   AVATAR_SIZE = 400
   AVATAR_THUMBNAIL_SIZE = 48
 
@@ -15,38 +18,16 @@ class ActorImageProcessor
   def attach_avatar_with_folder(io:, filename:, content_type:)
     processed_io = process_avatar_image(io)
 
-    if ENV['S3_ENABLED'] == 'true'
-      custom_key = "avatar/#{SecureRandom.hex(16)}"
-      blob = ActiveStorage::Blob.create_and_upload!(
-        io: processed_io,
-        filename: filename,
-        content_type: content_type,
-        service_name: :cloudflare_r2,
-        key: custom_key
-      )
-      actor.avatar.attach(blob)
-    else
-      actor.avatar.attach(io: processed_io, filename: filename, content_type: content_type)
-    end
+    blob = create_storage_blob(io: processed_io, filename: filename, content_type: content_type, folder: 'avatar')
+    actor.avatar.attach(blob)
 
     # アバター更新をActivityPubで配信
     distribute_profile_update_after_image_change('avatar')
   end
 
   def attach_header_with_folder(io:, filename:, content_type:)
-    if ENV['S3_ENABLED'] == 'true'
-      custom_key = "header/#{SecureRandom.hex(16)}"
-      blob = ActiveStorage::Blob.create_and_upload!(
-        io: io,
-        filename: filename,
-        content_type: content_type,
-        service_name: :cloudflare_r2,
-        key: custom_key
-      )
-      actor.header.attach(blob)
-    else
-      actor.header.attach(io: io, filename: filename, content_type: content_type)
-    end
+    blob = create_storage_blob(io: io, filename: filename, content_type: content_type, folder: 'header')
+    actor.header.attach(blob)
 
     # ヘッダ更新をActivityPubで配信
     distribute_profile_update_after_image_change('header')
@@ -173,6 +154,7 @@ class ActorImageProcessor
   # リモート画像の可用性をチェック
   def remote_image_accessible?(url)
     return false if url.blank?
+    return false unless validate_url_for_ssrf!(url)
 
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)

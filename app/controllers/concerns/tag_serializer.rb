@@ -8,7 +8,7 @@ module TagSerializer
   def serialized_tag(tag, include_history: true)
     result = {
       name: tag.name,
-      url: "#{request.base_url}/tags/#{tag.name}"
+      url: "#{Rails.application.config.activitypub.base_url}/tags/#{tag.name}"
     }
 
     result[:history] = if include_history

@@ -12,7 +12,7 @@
     </time>
   <% end %>
 <% else %>
-  <%= link_to post.ap_id, 
+  <%= link_to safe_external_url(post.ap_id),
               class: "post-card-time-link",
               data: { turbo_frame: "_top" } do %>
     <time datetime="<%= published_at.iso8601 %>" title="<%= l(published_at, format: :long) %>">

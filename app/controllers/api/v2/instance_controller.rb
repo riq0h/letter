@@ -3,6 +3,8 @@
 module Api
   module V2
     class InstanceController < Api::BaseController
+      include VapidKeyHelper
+      include AccountSerializer
       # GET /api/v2/instance
       def show
         render json: instance_v2_serializer
@@ -55,43 +57,15 @@ module Api
             max_featured_tags: 10
           },
           statuses: {
-            max_characters: 500,
+            max_characters: Rails.application.config.activitypub.character_limit,
             max_media_attachments: 4,
             characters_reserved_per_url: 23
           },
           media_attachments: {
-            supported_mime_types: [
-              'image/jpeg',
-              'image/png',
-              'image/gif',
-              'image/heic',
-              'image/heif',
-              'image/webp',
-              'image/avif',
-              'video/webm',
-              'video/mp4',
-              'video/quicktime',
-              'video/ogg',
-              'audio/wave',
-              'audio/wav',
-              'audio/x-wav',
-              'audio/x-pn-wave',
-              'audio/ogg',
-              'audio/vorbis',
-              'audio/mpeg',
-              'audio/mp3',
-              'audio/webm',
-              'audio/flac',
-              'audio/aac',
-              'audio/m4a',
-              'audio/x-m4a',
-              'audio/mp4',
-              'audio/3gpp',
-              'video/x-ms-asf'
-            ],
-            image_size_limit: 10_485_760,
+            supported_mime_types: MediaAttachmentCreationService::ALLOWED_MIME_TYPES,
+            image_size_limit: MediaAttachment::MAX_IMAGE_SIZE,
             image_matrix_limit: 16_777_216,
-            video_size_limit: 41_943_040,
+            video_size_limit: MediaAttachment::MAX_VIDEO_SIZE,
             video_frame_rate_limit: 60,
             video_matrix_limit: 2_304_000
           },
@@ -110,32 +84,7 @@ module Api
 
         {
           email: load_instance_setting('contact_email') || '',
-          account: serialize_contact_account(admin_actor)
-        }
-      end
-
-      def serialize_contact_account(actor)
-        {
-          id: actor.id.to_s,
-          username: actor.username,
-          acct: actor.username,
-          display_name: actor.display_name || actor.username,
-          locked: false,
-          bot: false,
-          discoverable: true,
-          group: false,
-          created_at: actor.created_at.iso8601,
-          note: actor.note || '',
-          url: actor.public_url || actor.ap_id || '',
-          avatar: actor.avatar_url || '',
-          avatar_static: actor.avatar_url || '',
-          header: actor.header_url || '',
-          header_static: actor.header_url || '',
-          followers_count: 0,
-          following_count: 0,
-          statuses_count: actor.posts_count || 0,
-          emojis: [],
-          fields: []
+          account: serialized_account(admin_actor)
         }
       end
 
@@ -148,19 +97,6 @@ module Api
         when 'instance_contact_email', 'contact_email'
           InstanceConfig.get('instance_contact_email')
         end
-      end
-
-      def vapid_public_key
-        raw_key = ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
-        return nil unless raw_key
-
-        # PEM形式のBase64をデコードしてWebPush用のURLsafeBase64に変換
-        pem_data = Base64.decode64(raw_key)
-        ec_key = OpenSSL::PKey::EC.new(pem_data)
-        public_key_uncompressed = ec_key.public_key.to_bn.to_s(2)
-
-        # 65バイト（0x04を含む）のuncompressed P-256公開キーをWebPush用にエンコード
-        Base64.urlsafe_encode64(public_key_uncompressed).tr('=', '')
       end
     end
   end

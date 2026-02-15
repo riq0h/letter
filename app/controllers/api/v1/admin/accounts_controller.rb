@@ -5,6 +5,7 @@ module Api
     module Admin
       class AccountsController < Api::BaseController
         include AdminAuthorization
+        include AccountSerializer
 
         before_action :doorkeeper_authorize!
         before_action :require_admin!
@@ -58,10 +59,6 @@ module Api
           render_not_found('Account')
         end
 
-        def render_error(message, status)
-          render json: { error: message }, status: status
-        end
-
         def admin_account_json(account)
           {
             id: account.id.to_s,
@@ -77,28 +74,7 @@ module Api
             disabled: false,
             approved: true,
             locale: 'ja',
-            account: basic_account_json(account)
-          }
-        end
-
-        def basic_account_json(account)
-          {
-            id: account.id.to_s,
-            username: account.username,
-            acct: account.acct,
-            display_name: account.display_name_or_username,
-            locked: account.manually_approves_followers,
-            bot: false,
-            created_at: account.created_at.iso8601,
-            note: account.note || '',
-            url: account.public_url,
-            avatar: account.avatar_url,
-            header: account.header_url,
-            followers_count: account.followers_count || 0,
-            following_count: account.following_count || 0,
-            statuses_count: account.posts_count || 0,
-            emojis: [],
-            fields: []
+            account: serialized_account(account)
           }
         end
       end

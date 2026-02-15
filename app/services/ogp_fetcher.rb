@@ -5,6 +5,9 @@ require 'httparty'
 
 class OgpFetcher
   include HTTParty
+  include SsrfProtection
+
+  MAX_BODY_SIZE = 1.megabyte
 
   default_timeout 10
   headers 'User-Agent' => InstanceConfig.user_agent(:web)
@@ -15,9 +18,11 @@ class OgpFetcher
 
   def fetch(url)
     return nil unless valid_url?(url)
+    return nil unless validate_url_for_ssrf!(url)
 
     response = self.class.get(url)
     return nil unless response.success?
+    return nil if response.body.nil? || response.body.bytesize > MAX_BODY_SIZE
 
     parse_ogp(response.body, url)
   rescue StandardError => e

@@ -167,7 +167,7 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <% if custom_emojis.prev_page %>
-              <%= link_to config_custom_emojis_path(params.to_unsafe_h.merge(page: custom_emojis.prev_page)), 
+              <%= link_to config_custom_emojis_path({ tab: params[:tab], q: params[:q], category: params[:category], domain: params[:domain], page: custom_emojis.prev_page }), 
                   class: "btn-secondary btn-sm" do %>
                 ← 前
               <% end %>
@@ -180,7 +180,7 @@
             </span>
             
             <% if custom_emojis.next_page %>
-              <%= link_to config_custom_emojis_path(params.to_unsafe_h.merge(page: custom_emojis.next_page)), 
+              <%= link_to config_custom_emojis_path({ tab: params[:tab], q: params[:q], category: params[:category], domain: params[:domain], page: custom_emojis.next_page }), 
                   class: "btn-secondary btn-sm" do %>
                 次 →
               <% end %>

@@ -84,4 +84,24 @@ module ErrorResponseHelper
   def render_invalid_action(reason)
     render json: { error: reason }, status: :unprocessable_entity
   end
+
+  # モデルバリデーションエラー（オブジェクトのerrorsを返す）
+  def render_validation_error(object_or_message = nil)
+    case object_or_message
+    when String
+      render json: { error: object_or_message }, status: :unprocessable_entity
+    when nil
+      render json: { error: 'Validation failed', details: current_user.errors.full_messages }, status: :unprocessable_entity
+    else
+      render json: { error: 'Validation failed', details: object_or_message.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
+  # 汎用エラーハンドリング（JSONレスポンス付き）
+  def handle_general_error(error, context = nil)
+    log_prefix = context || self.class.name.demodulize.downcase.gsub('controller', '')
+    Rails.logger.error "#{log_prefix.capitalize} processing error: #{error.message}"
+    Rails.logger.error error.backtrace.first(5).join("\n")
+    render json: { error: 'Internal server error' }, status: :internal_server_error
+  end
 end

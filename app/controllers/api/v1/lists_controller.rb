@@ -4,6 +4,7 @@ module Api
   module V1
     class ListsController < Api::BaseController
       include AccountSerializer
+      include ListSerializer
 
       before_action :doorkeeper_authorize!
       before_action :require_user!
@@ -27,8 +28,7 @@ module Api
         if list.save
           render json: serialized_list(list)
         else
-          render json: { error: 'Validation failed', details: list.errors.full_messages },
-                 status: :unprocessable_entity
+          render_validation_error(list)
         end
       end
 
@@ -37,8 +37,7 @@ module Api
         if @list.update(list_params)
           render json: serialized_list(@list)
         else
-          render json: { error: 'Validation failed', details: @list.errors.full_messages },
-                 status: :unprocessable_entity
+          render_validation_error(@list)
         end
       end
 
@@ -59,7 +58,7 @@ module Api
 
       # POST /api/v1/lists/:id/accounts
       def add_accounts
-        account_ids = Array(params[:account_ids])
+        account_ids = Array(params[:account_ids]).first(100)
 
         return render_validation_failed('No account IDs provided') if account_ids.blank?
 
@@ -74,7 +73,7 @@ module Api
 
       # DELETE /api/v1/lists/:id/accounts
       def remove_accounts
-        account_ids = Array(params[:account_ids])
+        account_ids = Array(params[:account_ids]).first(100)
 
         return render_validation_failed('No account IDs provided') if account_ids.blank?
 
@@ -98,17 +97,6 @@ module Api
       def list_params
         params.permit(:title, :replies_policy, :exclusive)
       end
-
-      def serialized_list(list)
-        {
-          id: list.id.to_s,
-          title: list.title,
-          replies_policy: list.replies_policy,
-          exclusive: list.exclusive
-        }
-      end
-
-      # AccountSerializer から継承されたメソッドを使用
     end
   end
 end

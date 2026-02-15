@@ -36,7 +36,7 @@ class OutboxController < ApplicationController
     activities = fetch_outbox_activities(actor)
 
     {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => actor.outbox_url,
       'type' => 'OrderedCollection',
       'totalItems' => activities.count,

@@ -5,7 +5,7 @@ class SharedInboxesController < ApplicationController
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
   include ActivityPubFollowHandlers
-  include GeneralErrorHandler
+  include ErrorResponseHelper
 
   # CSRFトークン無効化（外部からのPOST）
   skip_before_action :verify_authenticity_token
@@ -90,6 +90,20 @@ class SharedInboxesController < ApplicationController
   end
 
   def handle_regular_activity
+    # ドメインブロックチェック（ターゲットが特定できている場合）
+    if @target_actor&.local? && @sender
+      if @target_actor.blocking?(@sender)
+        Rails.logger.info "🚫 Blocked actor #{@sender.ap_id} tried to send #{@activity['type']} via shared inbox"
+        head :forbidden
+        return
+      end
+      if @sender.domain && @target_actor.domain_blocking?(@sender.domain)
+        Rails.logger.info "🚫 Domain blocked actor #{@sender.ap_id} (#{@sender.domain}) tried to send #{@activity['type']} via shared inbox"
+        head :forbidden
+        return
+      end
+    end
+
     # 通常のActivityPub活動処理（既存のInboxControllerと同様）
     case @activity['type']
     when 'Create'

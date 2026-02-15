@@ -6,15 +6,15 @@ RSpec.describe Actor, type: :model do
   describe 'associations' do
     it { is_expected.to have_many(:objects).dependent(:destroy) }
     it { is_expected.to have_many(:activities).dependent(:destroy) }
-    it { is_expected.to have_many(:followers).through(:follower_relationships) }
-    it { is_expected.to have_many(:following).through(:following_relationships) }
+    it { is_expected.to have_many(:followers).through(:reverse_follows) }
+    it { is_expected.to have_many(:following).through(:follows) }
   end
 
   describe 'validations' do
     let(:actor) { build(:actor) }
 
     it 'validates username format' do
-      actor.username = 'invalid-username'
+      actor.username = 'invalid username!'
       expect(actor).not_to be_valid
       expect(actor.errors[:username]).to include('is invalid')
     end
@@ -287,11 +287,12 @@ RSpec.describe Actor, type: :model do
         activity = actor.generate_follow_activity(target_actor, follow_id)
 
         expect(activity).to include(
-          '@context' => 'https://www.w3.org/ns/activitystreams',
           'type' => 'Follow',
           'actor' => actor.ap_id,
           'object' => target_actor.ap_id
         )
+        expect(activity['@context']).to be_an(Array)
+        expect(activity['@context'].first).to eq('https://www.w3.org/ns/activitystreams')
         expect(activity['id']).to be_present
       end
     end

@@ -82,8 +82,7 @@ class ActivityPubActivityDistributor
   end
 
   def generate_activity_id
-    snowflake_id = Letter::Snowflake.generate
-    "#{Rails.application.config.activitypub.base_url}/#{snowflake_id}"
+    ApIdGeneration.generate_ap_id
   end
 
   def queue_activity_delivery(activity)

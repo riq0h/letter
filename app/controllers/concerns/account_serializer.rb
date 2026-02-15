@@ -13,6 +13,10 @@ module AccountSerializer
              .merge(count_attributes(account))
              .merge(metadata_attributes)
 
+    # アカウント固有のフラグを設定
+    result[:suspended] = account.suspended? if account.respond_to?(:suspended?)
+    result[:roles] = account.admin? ? [{ id: '1', name: 'Admin', color: '' }] : [] if is_self
+
     if lightweight
       # 軽量版：検索専用の簡素化データ
       result[:fields] = []
@@ -58,13 +62,16 @@ module AccountSerializer
       followers_count: account.followers_count || 0,
       following_count: account.following_count || 0,
       statuses_count: account.posts_count || 0,
-      last_status_at: nil # N+1回避のため一時的に無効化
+      last_status_at: account_last_status_at(account)
     }
   end
 
   def metadata_attributes
     {
       noindex: false,
+      suspended: false,
+      moved: nil,
+      roles: [],
       emojis: [],
       fields: []
     }
@@ -105,7 +112,7 @@ module AccountSerializer
           name: field['name'] || '',
           value: format_field_value_for_api(field['value'] || ''),
           value_html: format_field_value_for_client(field['value'] || ''),
-          verified_at: nil
+          verified_at: field['verified_at'] || field['verifiedAt']
         }
       end
     rescue JSON::ParserError
@@ -122,7 +129,8 @@ module AccountSerializer
   end
 
   def account_last_status_at(account)
-    account.last_posted_at&.to_date&.iso8601
+    latest = account.objects.where(object_type: %w[Note Question]).order(published_at: :desc).pick(:published_at)
+    latest&.to_date&.iso8601
   end
 
   def self_account_attributes(account)
@@ -130,11 +138,19 @@ module AccountSerializer
       source: {
         privacy: 'public',
         sensitive: false,
-        language: 'ja',
+        language: account_language(account),
         note: account.note || '',
         fields: account_fields(account)
       }
     }
+  end
+
+  def account_language(account)
+    if account.respond_to?(:language) && account.language.present?
+      account.language
+    else
+      Rails.application.config.activitypub.default_locale
+    end
   end
 
   def default_avatar_url

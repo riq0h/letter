@@ -10,6 +10,7 @@ class ActorSerializer
 
   def to_activitypub(request = nil)
     base_activitypub_data(request)
+      .merge(activitypub_migration_data)
       .merge(activitypub_links(request))
       .merge(activitypub_images(request))
       .merge(activitypub_attachments)
@@ -31,7 +32,13 @@ class ActorSerializer
         {
           'schema' => 'http://schema.org#',
           'PropertyValue' => 'schema:PropertyValue',
-          'value' => 'schema:value'
+          'value' => 'schema:value',
+          'toot' => 'http://joinmastodon.org/ns#',
+          'indexable' => 'toot:indexable',
+          'focalPoint' => {
+            '@container' => '@list',
+            '@id' => 'toot:focalPoint'
+          }
         }
       ],
       'type' => actor.actor_type || 'Person',
@@ -41,8 +48,18 @@ class ActorSerializer
       'summary' => convert_emoji_html_to_shortcode(auto_link_urls(actor.note || '')),
       'url' => actor_url,
       'discoverable' => actor.discoverable,
+      'indexable' => actor.discoverable || false,
       'manuallyApprovesFollowers' => actor.manually_approves_followers
     }
+  end
+
+  def activitypub_migration_data
+    data = {}
+    # movedTo: アカウント移行先（現在は未実装だがフィールドを公開）
+    data['movedTo'] = nil
+    # alsoKnownAs: このアカウントの別名リスト
+    data['alsoKnownAs'] = []
+    data
   end
 
   def activitypub_links(request = nil)
@@ -81,11 +98,14 @@ class ActorSerializer
       attachments = links.filter_map do |link|
         next if link['name'].blank? || link['value'].blank?
 
-        {
+        attachment = {
           'type' => 'PropertyValue',
           'name' => convert_emoji_html_to_shortcode(link['name']),
           'value' => format_profile_link_value_for_activitypub(link['value'])
         }
+        verified = link['verified_at'] || link['verifiedAt']
+        attachment['verified_at'] = verified if verified
+        attachment
       end
 
       attachments.empty? ? {} : { 'attachment' => attachments }
@@ -114,13 +134,8 @@ class ActorSerializer
       end
     end
 
-    # emojis抽出
-    emoji_regex = /:([a-zA-Z0-9_]+):/
-    shortcodes = text_content.scan(emoji_regex).flatten.uniq
-    return [] if shortcodes.empty?
-
-    # ローカル絵文字のみを対象
-    emojis = CustomEmoji.enabled.local.where(shortcode: shortcodes)
+    # EmojiPresenter経由で絵文字を抽出
+    emojis = EmojiPresenter.extract_emojis_from(text_content)
     emojis.map(&:to_ap)
   rescue StandardError => e
     Rails.logger.warn "Failed to extract actor emojis for actor #{actor.id}: #{e.message}"
@@ -143,19 +158,8 @@ class ActorSerializer
     end
   end
 
-  def convert_emoji_html_to_shortcode(text)
-    return text if text.blank?
-
-    # <img ... alt=":shortcode:" ...> を :shortcode: に変換
-    text.gsub(/<img[^>]*alt=":([^"]+):"[^>]*\/?>/, ':\1:')
-  end
-
   def get_base_url(_request = nil)
     # 常に設定からのドメインを使用（.envで設定されたACTIVITYPUB_DOMAINを優先）
     build_url_from_config
-  end
-
-  def build_url_from_config
-    Rails.application.config.activitypub.base_url
   end
 end

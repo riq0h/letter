@@ -3,17 +3,30 @@
 class SseConnectionManager
   include Singleton
 
+  MAX_CONNECTIONS_PER_USER = 5
+  STALE_CONNECTION_THRESHOLD = 24.hours
+
   def initialize
     @connections = {}
     @mutex = Mutex.new
+    @last_cleanup = Time.current
   end
 
   def register_connection(user_id, stream_type, connection)
     @mutex.synchronize do
       key = connection_key(user_id, stream_type)
       @connections[key] ||= []
+
+      # ユーザ毎の接続数制限: 最も古い接続を閉じる
+      user_keys = @connections.keys.select { |k| k.include?("user_#{user_id}") }
+      total_user_connections = user_keys.sum { |k| @connections[k]&.size || 0 }
+      evict_oldest_connection(user_keys) if total_user_connections >= MAX_CONNECTIONS_PER_USER
+
       @connections[key] << connection
       Rails.logger.info "🔗 SSE connection registered: #{key} (total: #{@connections[key].size})"
+
+      # 定期的にスタートコネクションをクリーンアップ
+      cleanup_stale_connections_if_needed
     end
   end
 
@@ -110,6 +123,45 @@ class SseConnectionManager
       key.start_with?('user_')
     else
       false
+    end
+  end
+
+  def evict_oldest_connection(user_keys)
+    user_keys.each do |key|
+      next if @connections[key].blank?
+
+      oldest = @connections[key].shift
+      begin
+        oldest.close if oldest.respond_to?(:close)
+      rescue StandardError
+        nil
+      end
+      @connections.delete(key) if @connections[key].empty?
+      Rails.logger.info "🔌 Evicted oldest SSE connection for: #{key}"
+      break
+    end
+  end
+
+  def cleanup_stale_connections_if_needed
+    return if Time.current - @last_cleanup < 10.minutes
+
+    @last_cleanup = Time.current
+    stale_threshold = STALE_CONNECTION_THRESHOLD.ago
+
+    @connections.each do |key, connections|
+      connections.reject! do |conn|
+        if conn.respond_to?(:created_at) && conn.created_at < stale_threshold
+          begin
+            conn.close if conn.respond_to?(:close)
+          rescue StandardError
+            nil
+          end
+          true
+        else
+          false
+        end
+      end
+      @connections.delete(key) if connections.empty?
     end
   end
 

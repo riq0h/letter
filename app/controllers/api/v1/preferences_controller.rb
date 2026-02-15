@@ -18,7 +18,7 @@ module Api
         {
           default_privacy: prefs['posting:default:visibility'] || 'public',
           default_sensitive: prefs['posting:default:sensitive'] || false,
-          default_language: prefs['posting:default:language'] || 'ja',
+          default_language: prefs['posting:default:language'] || Rails.application.config.activitypub.default_locale,
           expand_spoilers: prefs['reading:expand:spoilers'] || false,
           use_blurhash: prefs['web:use_blurhash'] || true,
           use_pending_items: prefs['web:use_pending_items'] || false,

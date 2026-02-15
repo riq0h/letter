@@ -14,13 +14,7 @@ Rails.application.configure do
   end
 
   # プロトコル設定
-  config.activitypub.protocol = ENV.fetch('ACTIVITYPUB_PROTOCOL') do
-    if Rails.env.development?
-      'https'
-    else
-      'https'
-    end
-  end
+  config.activitypub.protocol = ENV.fetch('ACTIVITYPUB_PROTOCOL', 'https')
 
   # ベースURL構築
   config.activitypub.base_url = "#{config.activitypub.protocol}://#{config.activitypub.domain}"
@@ -68,11 +62,13 @@ Rails.application.configure do
   config.activitypub.require_http_signatures = Rails.env.production?
   config.activitypub.signature_algorithm = 'rsa-sha256'
 
-  # インスタンス情報（デフォルト値を設定）
+  # インスタンス情報
+  config.application_name = 'letter'
   config.instance_name = 'letter'
   config.instance_description = 'General Letter Publication System based on ActivityPub'
   config.instance_contact_email = ENV.fetch('CONTACT_EMAIL', 'admin@localhost')
   config.instance_maintainer = ENV.fetch('MAINTAINER_NAME', 'letter Administrator')
+  config.blog_footer = 'General Letter Publication System based on ActivityPub'
 
   # UI設定
   config.activitypub.default_locale = 'ja'
@@ -106,4 +102,14 @@ Rails.application.config.after_initialize do
   }
 
   Rails.logger.info "ActivityPub configured for domain: #{domain}"
+
+  # VAPID キーの検証（Web Push通知用）
+  vapid_public = ENV['VAPID_PUBLIC_KEY'] || Rails.application.credentials.dig(:vapid, :public_key)
+  vapid_private = ENV['VAPID_PRIVATE_KEY'] || Rails.application.credentials.dig(:vapid, :private_key)
+
+  if vapid_public.present? && vapid_private.present?
+    Rails.logger.info 'VAPID keys configured for Web Push notifications'
+  else
+    Rails.logger.warn 'VAPID keys not configured. Web Push notifications will be disabled.'
+  end
 end

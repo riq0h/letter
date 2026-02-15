@@ -15,7 +15,7 @@ class FollowingController < ApplicationController
     end
 
     following_collection = {
-      '@context' => 'https://www.w3.org/ns/activitystreams',
+      '@context' => Rails.application.config.activitypub.context_url,
       'id' => "#{activitypub_base_url}/users/#{@actor.username}/following",
       'type' => 'OrderedCollection',
       'totalItems' => @actor.following_count,
