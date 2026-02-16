@@ -72,13 +72,13 @@ RUN apt-get update -qq && \
     openssl \
     ncurses-bin \
     inotify-tools \
-    libvips42 \
-    libpng16-16 \
+    libvips42t64 \
+    libpng16-16t64 \
     libjpeg62-turbo \
-    libwebp7 \
-    libavformat59 \
-    libavcodec59 \
-    libavutil57 \
+    libwebp7t64 \
+    libavformat61 \
+    libavcodec61 \
+    libavutil59 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
