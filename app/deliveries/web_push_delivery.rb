@@ -4,6 +4,7 @@
 # 通知タイプ別のペイロード構築と配信ロジックを分離
 class WebPushDelivery
   include SsrfProtection
+
   def self.deliver_to_actor(actor, notification_type, title, body, options = {})
     return unless actor&.web_push_subscriptions&.any?
 

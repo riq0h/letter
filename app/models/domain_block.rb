@@ -4,7 +4,7 @@ class DomainBlock < ApplicationRecord
   belongs_to :actor
 
   validates :domain, presence: true, uniqueness: { scope: :actor_id }
-  validates :domain, format: { with: /\A[a-z0-9\.-]+\.[a-z]{2,}\z/i }
+  validates :domain, format: { with: /\A[a-z0-9.-]+\.[a-z]{2,}\z/i }
   validate :cannot_block_local_domain
 
   before_validation :normalize_domain

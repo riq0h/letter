@@ -392,7 +392,7 @@ class ActivityPubObject < ApplicationRecord
   end
 
   def update_actor_posts_count
-    actor.update_posts_count! if actor.present?
+    actor.presence&.update_posts_count!
   rescue StandardError => e
     Rails.logger.error "Failed to update actor posts count: #{e.message}"
   end

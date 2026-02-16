@@ -40,7 +40,7 @@ module Api
         else
           render json: {
             error: @scheduled_status.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          }, status: :unprocessable_content
         end
       end
 

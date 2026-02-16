@@ -27,7 +27,7 @@ class ObjectsController < ApplicationController
     @object = ActivityPubObject.find_by(id: id_param) if id_param.match?(/^\d+$/)
 
     # 見つからない場合は ap_id のパターンで検索
-    @object ||= ActivityPubObject.find_by('ap_id LIKE ?', "%/posts/#{ActiveRecord::Base.sanitize_sql_like(id_param)}")
+    @object ||= ActivityPubObject.find_by('ap_id LIKE ?', "%/posts/#{ActiveRecord::Base.sanitize_sql_like(id_param)}") # rubocop:disable Rails/FindByOrAssignmentMemoization
 
     return if @object
 

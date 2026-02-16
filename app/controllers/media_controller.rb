@@ -51,6 +51,6 @@ class MediaController < ApplicationController
 
   def sanitize_filename(filename)
     # ファイル名から危険な文字を除去
-    filename.gsub(/[^\w\-_\.]/, '_')
+    filename.gsub(/[^\w\-_.]/, '_')
   end
 end

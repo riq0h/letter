@@ -4,7 +4,7 @@ plugins:
   - rubocop-performance
 
 AllCops:
-  TargetRubyVersion: 3.4.1
+  TargetRubyVersion: 4.0
   NewCops: enable
   SuggestExtensions: false
   Exclude:
@@ -146,7 +146,7 @@ RSpec/VerifiedDoubles:
   Exclude:
     - 'spec/deliveries/streaming_delivery_spec.rb'
 
-Naming/PredicateName:
+Naming/PredicatePrefix:
   Exclude:
     - 'app/controllers/api/base_controller.rb'
     - 'app/models/activity_pub_object.rb'
@@ -156,3 +156,16 @@ Naming/PredicateName:
     - 'app/deliveries/web_push_delivery.rb'
     - 'app/models/instance_config.rb'
     - 'app/services/relay_follow_service.rb'
+
+Naming/PredicateMethod:
+  Exclude:
+    - 'app/controllers/api/base_controller.rb'
+    - 'app/models/activity_pub_object.rb'
+    - 'app/models/media_attachment.rb'
+    - 'app/services/follow_service.rb'
+    - 'app/services/web_push_notification_service.rb'
+    - 'app/deliveries/web_push_delivery.rb'
+    - 'app/models/instance_config.rb'
+    - 'app/services/relay_follow_service.rb'
+    - 'app/services/concerns/ssrf_protection.rb'
+    - 'app/services/http_signature_verifier.rb'

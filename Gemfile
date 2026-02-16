@@ -3,21 +3,22 @@
 # Gemfile
 source 'https://rubygems.org'
 
-ruby '3.4.1'
+ruby '4.0.1'
 
 # Rails 8
 gem 'bootsnap', require: false
+gem 'cgi'
 gem 'dotenv-rails'
 gem 'image_processing', '~> 1.2'
 gem 'importmap-rails'
 gem 'ostruct'
-gem 'puma', '>= 5.0'
-gem 'rails', '~> 8.0.0'
-# gem 'sassc-rails'  # TailwindCSS v4との互換性問題のため無効化
 gem 'propshaft'
+gem 'puma', '>= 5.0'
+gem 'rails', '~> 8.0'
 gem 'sqlite3', '>= 2.1'
 gem 'stimulus-rails'
 gem 'tailwindcss-rails'
+gem 'tsort'
 gem 'turbo-rails'
 
 # ActivityPub & 連合機能
@@ -25,7 +26,6 @@ gem 'addressable'
 gem 'httparty'
 gem 'json-ld'
 gem 'nokogiri'
-gem 'rsa'
 
 # 認証
 gem 'bcrypt', '~> 3.1.7'
@@ -42,7 +42,6 @@ gem 'solid_queue'
 gem 'web-push'
 
 # ユーティリティ
-gem 'active_model_serializers'
 gem 'aws-sdk-s3', require: false
 gem 'blurhash'
 gem 'foreman'

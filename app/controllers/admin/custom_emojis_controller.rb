@@ -25,7 +25,7 @@ module Admin
       if @custom_emoji.save
         redirect_to admin_custom_emojis_path, notice: t('custom_emojis.created')
       else
-        render :new, status: :unprocessable_entity
+        render :new, status: :unprocessable_content
       end
     end
 
@@ -33,7 +33,7 @@ module Admin
       if @custom_emoji.update(custom_emoji_params)
         redirect_to admin_custom_emojis_path, notice: t('custom_emojis.updated')
       else
-        render :edit, status: :unprocessable_entity
+        render :edit, status: :unprocessable_content
       end
     end
 

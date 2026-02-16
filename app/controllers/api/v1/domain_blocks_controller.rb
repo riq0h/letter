@@ -4,6 +4,7 @@ module Api
   module V1
     class DomainBlocksController < Api::BaseController
       include ApiPagination
+
       before_action :doorkeeper_authorize!
       before_action :require_user!
 

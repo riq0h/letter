@@ -40,7 +40,7 @@ RSpec.describe Api::V1::TimelinesController, type: :controller do
 
       expect(response).to have_http_status(:ok)
       json = response.parsed_body
-      ids = json.map { |s| s['id'] }
+      ids = json.pluck('id')
       expect(ids).to include(post_by_member.id.to_s)
       expect(ids).not_to include(post_by_stranger.id.to_s)
     end

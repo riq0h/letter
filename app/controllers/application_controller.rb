@@ -28,7 +28,11 @@ class ApplicationController < ActionController::Base
   def current_user
     return nil unless session[:current_user_id]
 
-    @current_user ||= Actor.find_by(id: session[:current_user_id], local: true)
+    if defined?(@current_user)
+      @current_user
+    else
+      @current_user = Actor.find_by(id: session[:current_user_id], local: true)
+    end
   end
 
   # ログイン状態判定

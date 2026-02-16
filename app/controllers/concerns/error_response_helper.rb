@@ -42,7 +42,7 @@ module ErrorResponseHelper
 
   # letter未実装機能
   def render_not_implemented(feature = 'Feature')
-    render json: { error: "#{feature} not available in letter" }, status: :unprocessable_entity
+    render json: { error: "#{feature} not available in letter" }, status: :unprocessable_content
   end
 
   # ローカルユーザ限定
@@ -52,48 +52,48 @@ module ErrorResponseHelper
 
   # 操作失敗
   def render_operation_failed(operation = 'Operation')
-    render json: { error: "#{operation} failed" }, status: :unprocessable_entity
+    render json: { error: "#{operation} failed" }, status: :unprocessable_content
   end
 
   # 詳細付きバリデーション失敗
   def render_validation_failed_with_details(message, details)
-    render json: { error: message, details: details }, status: :unprocessable_entity
+    render json: { error: message, details: details }, status: :unprocessable_content
   end
 
   # 自己操作禁止
   def render_self_action_forbidden(action)
-    render json: { error: "Cannot #{action} yourself" }, status: :unprocessable_entity
+    render json: { error: "Cannot #{action} yourself" }, status: :unprocessable_content
   end
 
   # 必須パラメータ不足
   def render_missing_parameter(parameter)
-    render json: { error: "#{parameter} parameter is required" }, status: :unprocessable_entity
+    render json: { error: "#{parameter} parameter is required" }, status: :unprocessable_content
   end
 
   # 権限不足
   def render_insufficient_permission(action)
-    render json: { error: "You can only #{action}" }, status: :unprocessable_entity
+    render json: { error: "You can only #{action}" }, status: :unprocessable_content
   end
 
   # 制限超過
   def render_limit_exceeded(limit_type)
-    render json: { error: "You have already #{limit_type} the maximum number" }, status: :unprocessable_entity
+    render json: { error: "You have already #{limit_type} the maximum number" }, status: :unprocessable_content
   end
 
   # 無効なアクション
   def render_invalid_action(reason)
-    render json: { error: reason }, status: :unprocessable_entity
+    render json: { error: reason }, status: :unprocessable_content
   end
 
   # モデルバリデーションエラー（オブジェクトのerrorsを返す）
   def render_validation_error(object_or_message = nil)
     case object_or_message
     when String
-      render json: { error: object_or_message }, status: :unprocessable_entity
+      render json: { error: object_or_message }, status: :unprocessable_content
     when nil
-      render json: { error: 'Validation failed', details: current_user.errors.full_messages }, status: :unprocessable_entity
+      render json: { error: 'Validation failed', details: current_user.errors.full_messages }, status: :unprocessable_content
     else
-      render json: { error: 'Validation failed', details: object_or_message.errors.full_messages }, status: :unprocessable_entity
+      render json: { error: 'Validation failed', details: object_or_message.errors.full_messages }, status: :unprocessable_content
     end
   end
 

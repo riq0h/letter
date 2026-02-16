@@ -48,7 +48,7 @@ class SessionsController < ApplicationController
   def login_failure
     Rails.logger.warn "⚠️ Login failure: username=#{params[:username]&.strip.inspect} ip=#{request.remote_ip}"
     flash.now[:alert] = I18n.t('auth.invalid_credentials')
-    render :new, status: :unprocessable_entity
+    render :new, status: :unprocessable_content
   end
 
   def login_user(actor)

@@ -34,7 +34,7 @@ module Api
         Actor.remote
              .where.not(id: already_following_ids)
              .where('followers_count > ?', 0) # ある程度人気のあるアカウント
-             .order('followers_count DESC, created_at DESC')
+             .order(followers_count: :desc, created_at: :desc)
              .limit(limit)
       end
 

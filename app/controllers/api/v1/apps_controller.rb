@@ -4,6 +4,7 @@ module Api
   module V1
     class AppsController < Api::BaseController
       include VapidKeyHelper
+
       before_action :doorkeeper_authorize!, only: [:verify_credentials]
 
       # POST /api/v1/apps

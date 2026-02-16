@@ -53,7 +53,7 @@ class MediaAttachmentCreationService
   end
 
   def extract_file_info(file)
-    filename = File.basename(file.original_filename.tr("\x00", '')).gsub(/[^\w.\-]/, '_')
+    filename = File.basename(file.original_filename.tr("\x00", '')).gsub(/[^\w.-]/, '_')
     # マジックバイトベースのMIMEタイプ検出を優先
     content_type = Marcel::MimeType.for(file)
     file.rewind

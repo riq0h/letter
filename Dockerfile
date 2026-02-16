@@ -1,4 +1,4 @@
-ARG RUBY_VERSION=3.4.1
+ARG RUBY_VERSION=4.0.1
 FROM ruby:$RUBY_VERSION-slim AS base
 
 # 基本システム依存関係をインストール

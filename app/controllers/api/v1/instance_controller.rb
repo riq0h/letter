@@ -4,6 +4,7 @@ module Api
   module V1
     class InstanceController < Api::BaseController
       include VapidKeyHelper
+
       # GET /api/v1/instance/peers
       def peers
         domains = Actor.where(local: false)

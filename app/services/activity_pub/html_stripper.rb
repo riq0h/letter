@@ -39,7 +39,7 @@ module ActivityPub
       mentions = []
 
       # @username@domain パターン
-      html_content.scan(/@(\w+)@([\w\.-]+)/) do |username, domain|
+      html_content.scan(/@(\w+)@([\w.-]+)/) do |username, domain|
         mentions << "#{username}@#{domain}"
       end
 

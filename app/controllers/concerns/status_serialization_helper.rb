@@ -379,7 +379,7 @@ module StatusSerializationHelper
     content.scan(/<[^>]+>/) { |_match| tags << { start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
 
     # URLパターンを探してリンク化（ただし、既存のタグ内は除外）
-    url_pattern = /(https?:\/\/[^\s<>＜＞\"']+)/
+    url_pattern = /(https?:\/\/[^\s<>＜＞"']+)/
     result = content.dup
     offset = 0
 

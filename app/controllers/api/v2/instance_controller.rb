@@ -5,6 +5,7 @@ module Api
     class InstanceController < Api::BaseController
       include VapidKeyHelper
       include AccountSerializer
+
       # GET /api/v2/instance
       def show
         render json: instance_v2_serializer

@@ -22,11 +22,11 @@ class MigrateToR2Job < ApplicationJob
     MediaAttachment.includes(file_attachment: :blob)
                    .where(active_storage_attachments: { name: 'file' })
                    .find_in_batches(batch_size: batch_size) do |batch|
-      batch.each do |media|
-        next unless media.file.attached?
+                     batch.each do |media|
+                       next unless media.file.attached?
 
-        migrate_attachment(media.file, "MediaAttachment #{media.id}")
-      end
+                       migrate_attachment(media.file, "MediaAttachment #{media.id}")
+                     end
     end
   end
 
@@ -34,22 +34,22 @@ class MigrateToR2Job < ApplicationJob
     CustomEmoji.includes(image_attachment: :blob)
                .where(active_storage_attachments: { name: 'image' })
                .find_in_batches(batch_size: batch_size) do |batch|
-      batch.each do |emoji|
-        next unless emoji.image.attached?
+                 batch.each do |emoji|
+                   next unless emoji.image.attached?
 
-        migrate_attachment(emoji.image, "CustomEmoji #{emoji.id}")
-      end
+                   migrate_attachment(emoji.image, "CustomEmoji #{emoji.id}")
+                 end
     end
   end
 
   def migrate_actor_images(batch_size)
     Actor.includes(avatar_attachment: :blob, header_attachment: :blob)
          .find_in_batches(batch_size: batch_size) do |batch|
-      batch.each do |actor|
-        migrate_attachment(actor.avatar, "Actor #{actor.id} avatar") if actor.avatar.attached?
+           batch.each do |actor|
+             migrate_attachment(actor.avatar, "Actor #{actor.id} avatar") if actor.avatar.attached?
 
-        migrate_attachment(actor.header, "Actor #{actor.id} header") if actor.header.attached?
-      end
+             migrate_attachment(actor.header, "Actor #{actor.id} header") if actor.header.attached?
+           end
     end
   end
 

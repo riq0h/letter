@@ -75,8 +75,8 @@ RSpec.describe Api::V2::NotificationsController, type: :controller do
       get :index
 
       json = response.parsed_body
-      account_ids = json['accounts'].map { |a| a['id'] }
-      status_ids = json['statuses'].map { |s| s['id'] }
+      account_ids = json['accounts'].pluck('id')
+      status_ids = json['statuses'].pluck('id')
       expect(account_ids).to include(other_user.id.to_s)
       expect(status_ids).to include(status.id.to_s)
     end
@@ -94,7 +94,7 @@ RSpec.describe Api::V2::NotificationsController, type: :controller do
       get :index, params: { types: ['favourite'] }
 
       json = response.parsed_body
-      types = json['notification_groups'].map { |g| g['type'] }
+      types = json['notification_groups'].pluck('type')
       expect(types).to include('favourite')
       expect(types).not_to include('mention')
     end
@@ -112,7 +112,7 @@ RSpec.describe Api::V2::NotificationsController, type: :controller do
       get :index, params: { exclude_types: ['favourite'] }
 
       json = response.parsed_body
-      types = json['notification_groups'].map { |g| g['type'] }
+      types = json['notification_groups'].pluck('type')
       expect(types).not_to include('favourite')
       expect(types).to include('mention')
     end

@@ -19,7 +19,7 @@ class ConfigController < ApplicationController
     else
       @config = current_instance_config
       flash.now[:alert] = I18n.t('config.update_failed')
-      render :show, status: :unprocessable_entity
+      render :show, status: :unprocessable_content
     end
   end
 
@@ -64,11 +64,11 @@ class ConfigController < ApplicationController
       rescue StandardError => e
         Rails.logger.error "Failed to create custom emoji: #{e.message}"
         @custom_emoji.errors.add(:image, 'アップロードに失敗しました')
-        render :new_custom_emoji, status: :unprocessable_entity
+        render :new_custom_emoji, status: :unprocessable_content
       end
     else
       @custom_emoji.errors.add(:image, '画像を選択してください') if image_file.blank?
-      render :new_custom_emoji, status: :unprocessable_entity
+      render :new_custom_emoji, status: :unprocessable_content
     end
   end
 
@@ -84,7 +84,7 @@ class ConfigController < ApplicationController
     if @custom_emoji.update(custom_emoji_params)
       redirect_to config_custom_emojis_path, notice: t('custom_emojis.updated')
     else
-      render :edit_custom_emoji, status: :unprocessable_entity
+      render :edit_custom_emoji, status: :unprocessable_content
     end
   end
 
