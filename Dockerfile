@@ -75,7 +75,7 @@ RUN apt-get update -qq && \
     libvips42t64 \
     libpng16-16t64 \
     libjpeg62-turbo \
-    libwebp7t64 \
+    libwebp7 \
     libavformat61 \
     libavcodec61 \
     libavutil59 \
