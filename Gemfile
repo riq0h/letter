@@ -8,6 +8,7 @@ ruby '4.0.1'
 # Rails 8
 gem 'bootsnap', require: false
 gem 'cgi'
+gem 'net-imap', '>= 0.5.11'
 gem 'dotenv-rails'
 gem 'image_processing', '~> 1.2'
 gem 'importmap-rails'

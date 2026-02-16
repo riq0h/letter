@@ -117,7 +117,7 @@ GEM
     connection_pool (3.0.2)
     crass (1.0.6)
     csv (3.3.5)
-    date (3.4.1)
+    date (3.5.1)
     debug (1.10.0)
       irb (~> 1.10)
       reline (>= 0.3.8)
@@ -220,7 +220,7 @@ GEM
     multi_xml (0.7.2)
       bigdecimal (~> 3.1)
     nanoid (2.0.0)
-    net-imap (0.5.8)
+    net-imap (0.6.3)
       date
       net-protocol
     net-pop (0.1.2)
@@ -396,7 +396,7 @@ GEM
     tailwindcss-ruby (4.1.8-x86_64-linux-gnu)
     tailwindcss-ruby (4.1.8-x86_64-linux-musl)
     thor (1.3.2)
-    timeout (0.4.3)
+    timeout (0.6.0)
     tsort (0.2.0)
     turbo-rails (2.0.13)
       actionpack (>= 7.1.0)
@@ -458,6 +458,7 @@ DEPENDENCIES
   listen (~> 3.3)
   marcel
   nanoid
+  net-imap (>= 0.5.11)
   nokogiri
   ostruct
   propshaft
@@ -483,7 +484,7 @@ DEPENDENCIES
   web-push
 
 RUBY VERSION
-   ruby 4.0.1p0
+  ruby 4.0.1p0
 
 BUNDLED WITH
-   4.0.6
+  4.0.3
