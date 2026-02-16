@@ -36,12 +36,20 @@ module Api
       # GET /api/v2/notifications/unread_count
       def unread_count
         marker = current_user.markers.for_timeline('notifications').first
-        count = if marker
-                  current_user.notifications.where('id > ?', marker.last_read_id).count
-                else
-                  current_user.notifications.count
-                end
-        render json: { count: count }
+
+        # Mastodon互換: マーカーが未設定の場合は0を返す
+        unless marker
+          render json: { count: 0 }
+          return
+        end
+
+        scope = current_user.notifications.where('id > ?', marker.last_read_id)
+        scope = scope.where(notification_type: params[:types]) if params[:types].present?
+        scope = scope.where.not(notification_type: params[:exclude_types]) if params[:exclude_types].present?
+        scope = scope.where(from_account_id: params[:account_id]) if params[:account_id].present?
+
+        limit = (params[:limit] || 1000).to_i.clamp(1, 1000)
+        render json: { count: [scope.count, limit].min }
       end
 
       private

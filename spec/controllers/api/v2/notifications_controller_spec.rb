@@ -147,21 +147,18 @@ RSpec.describe Api::V2::NotificationsController, type: :controller do
       expect(json['count']).to eq(1)
     end
 
-    it 'returns all notifications count when no marker exists' do
+    it 'returns zero when no marker exists' do
       other_user = create(:actor, local: true)
       status = create(:activity_pub_object, :note, actor: user)
       create(:notification, account: user, from_account: other_user,
                             notification_type: 'favourite', activity_type: 'ActivityPubObject',
-                            activity_id: status.id.to_s)
-      create(:notification, account: user, from_account: other_user,
-                            notification_type: 'mention', activity_type: 'ActivityPubObject',
                             activity_id: status.id.to_s)
 
       get :unread_count
 
       expect(response).to have_http_status(:ok)
       json = response.parsed_body
-      expect(json['count']).to eq(2)
+      expect(json['count']).to eq(0)
     end
   end
 end
