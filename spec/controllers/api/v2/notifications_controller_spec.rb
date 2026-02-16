@@ -127,21 +127,41 @@ RSpec.describe Api::V2::NotificationsController, type: :controller do
   end
 
   describe 'GET #unread_count' do
-    it 'returns unread count' do
+    it 'returns unread count based on marker' do
       other_user = create(:actor, local: true)
       status = create(:activity_pub_object, :note, actor: user)
-      create(:notification, account: user, from_account: other_user,
-                            notification_type: 'favourite', activity_type: 'ActivityPubObject',
-                            activity_id: status.id.to_s, read: false)
+      n1 = create(:notification, account: user, from_account: other_user,
+                                 notification_type: 'favourite', activity_type: 'ActivityPubObject',
+                                 activity_id: status.id.to_s)
       create(:notification, account: user, from_account: other_user,
                             notification_type: 'mention', activity_type: 'ActivityPubObject',
-                            activity_id: status.id.to_s, read: true)
+                            activity_id: status.id.to_s)
+
+      # マーカーで最初の通知まで既読とする
+      Marker.create!(actor: user, timeline: 'notifications', last_read_id: n1.id, version: 1)
 
       get :unread_count
 
       expect(response).to have_http_status(:ok)
       json = response.parsed_body
       expect(json['count']).to eq(1)
+    end
+
+    it 'returns all notifications count when no marker exists' do
+      other_user = create(:actor, local: true)
+      status = create(:activity_pub_object, :note, actor: user)
+      create(:notification, account: user, from_account: other_user,
+                            notification_type: 'favourite', activity_type: 'ActivityPubObject',
+                            activity_id: status.id.to_s)
+      create(:notification, account: user, from_account: other_user,
+                            notification_type: 'mention', activity_type: 'ActivityPubObject',
+                            activity_id: status.id.to_s)
+
+      get :unread_count
+
+      expect(response).to have_http_status(:ok)
+      json = response.parsed_body
+      expect(json['count']).to eq(2)
     end
   end
 end

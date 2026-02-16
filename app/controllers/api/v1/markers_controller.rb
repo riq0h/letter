@@ -65,6 +65,11 @@ module Api
           marker.increment_version!
         end
         marker.save!
+
+        # 通知マーカーの場合、該当通知を既読にする
+        if timeline == 'notifications'
+          current_user.notifications.where(read: false).where('id <= ?', last_read_id).update_all(read: true)
+        end
       rescue ActiveRecord::ActiveRecordError => e
         Rails.logger.error "Failed to save marker for #{timeline}: #{e.message}"
         raise

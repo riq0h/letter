@@ -35,7 +35,12 @@ module Api
 
       # GET /api/v2/notifications/unread_count
       def unread_count
-        count = current_user.notifications.unread.count
+        marker = current_user.markers.for_timeline('notifications').first
+        count = if marker
+                  current_user.notifications.where('id > ?', marker.last_read_id).count
+                else
+                  current_user.notifications.count
+                end
         render json: { count: count }
       end
 
