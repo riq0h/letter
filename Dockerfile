@@ -40,14 +40,12 @@ WORKDIR /app
 COPY --link Gemfile Gemfile.lock ./
 COPY --link package*.json ./
 
-# Bundlerを設定してgemをインストール
-RUN bundle config --global path /usr/local/bundle && \
-    bundle install --jobs 4 --retry 3 && \
-    bundle binstubs --all --path /usr/local/bundle/bin && \
+# gemをインストール（Ruby 4.0のDockerイメージはGEM_HOME=/usr/local/bundleを設定済み）
+RUN bundle install --jobs 4 --retry 3 && \
     rm -rf ~/.bundle/cache
 
 # Node.js依存関係をインストール
-RUN npm ci --production && \
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # アプリケーションコードをコピー
