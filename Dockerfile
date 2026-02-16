@@ -18,6 +18,7 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
     build-essential \
     git \
+    libyaml-dev \
     libsqlite3-dev \
     nodejs \
     npm \
