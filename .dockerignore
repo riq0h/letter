@@ -4,8 +4,9 @@
 /.git/
 /.gitignore
 
-# Ignore bundler config.
+# Ignore bundler config and local gems.
 /.bundle
+/vendor/bundle
 
 # Ignore all environment files.
 /.env*

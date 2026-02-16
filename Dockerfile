@@ -36,11 +36,14 @@ RUN apt-get update -qq && \
 # 作業ディレクトリを設定
 WORKDIR /app
 
+# Bundler 4.0のパス設定（ランナーステージと統一）
+ENV BUNDLE_PATH="/usr/local/bundle"
+
 # 依存関係ファイルをコピー
 COPY --link Gemfile Gemfile.lock ./
 COPY --link package*.json ./
 
-# gemをインストール（Ruby 4.0のDockerイメージはGEM_HOME=/usr/local/bundleを設定済み）
+# gemをインストール
 RUN bundle install --jobs 4 --retry 3 && \
     rm -rf ~/.bundle/cache
 
