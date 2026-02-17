@@ -16,9 +16,11 @@ module Api
         timelines.each do |timeline|
           case timeline
           when 'home'
-            markers['home'] = build_marker_response('home')
+            response = build_marker_response('home')
+            markers['home'] = response if response
           when 'notifications'
-            markers['notifications'] = build_marker_response('notifications')
+            response = build_marker_response('notifications')
+            markers['notifications'] = response if response
           end
         end
 
@@ -31,12 +33,14 @@ module Api
 
         if params[:home] && params[:home][:last_read_id]
           save_marker('home', params[:home][:last_read_id])
-          markers['home'] = build_marker_response('home')
+          response = build_marker_response('home')
+          markers['home'] = response if response
         end
 
         if params[:notifications] && params[:notifications][:last_read_id]
           save_marker('notifications', params[:notifications][:last_read_id])
-          markers['notifications'] = build_marker_response('notifications')
+          response = build_marker_response('notifications')
+          markers['notifications'] = response if response
         end
 
         render json: markers
@@ -46,7 +50,7 @@ module Api
 
       def build_marker_response(timeline)
         marker = get_marker(timeline)
-        return {} unless marker
+        return nil unless marker
 
         {
           last_read_id: marker.last_read_id.to_s,
@@ -67,9 +71,7 @@ module Api
         marker.save!
 
         # 通知マーカーの場合、該当通知を既読にする
-        if timeline == 'notifications'
-          current_user.notifications.where(read: false).where('id <= ?', last_read_id).update_all(read: true)
-        end
+        current_user.notifications.where(read: false).where(id: ..last_read_id).update_all(read: true) if timeline == 'notifications'
       rescue ActiveRecord::ActiveRecordError => e
         Rails.logger.error "Failed to save marker for #{timeline}: #{e.message}"
         raise

@@ -126,6 +126,46 @@ RSpec.describe Api::V2::NotificationsController, type: :controller do
     end
   end
 
+  describe 'POST #dismiss' do
+    it 'dismisses notifications in a group' do
+      other_user = create(:actor, local: true)
+      status = create(:activity_pub_object, :note, actor: user)
+      create(:notification, account: user, from_account: other_user,
+                            notification_type: 'favourite', activity_type: 'ActivityPubObject',
+                            activity_id: status.id.to_s)
+
+      group_key = "favourite-#{status.id}"
+      post :dismiss, params: { group_key: group_key }
+
+      expect(response).to have_http_status(:ok)
+      expect(user.notifications.count).to eq(0)
+    end
+
+    it 'returns ok even if group_key not found' do
+      post :dismiss, params: { group_key: 'nonexistent-key' }
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe 'POST #clear' do
+    it 'clears all notifications' do
+      other_user = create(:actor, local: true)
+      status = create(:activity_pub_object, :note, actor: user)
+      create(:notification, account: user, from_account: other_user,
+                            notification_type: 'favourite', activity_type: 'ActivityPubObject',
+                            activity_id: status.id.to_s)
+      create(:notification, account: user, from_account: other_user,
+                            notification_type: 'mention', activity_type: 'ActivityPubObject',
+                            activity_id: status.id.to_s)
+
+      post :clear
+
+      expect(response).to have_http_status(:ok)
+      expect(user.notifications.count).to eq(0)
+    end
+  end
+
   describe 'GET #unread_count' do
     it 'returns unread count based on marker' do
       other_user = create(:actor, local: true)

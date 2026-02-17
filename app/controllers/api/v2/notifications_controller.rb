@@ -33,6 +33,50 @@ module Api
         }
       end
 
+      # GET /api/v2/notifications/:group_key
+      def show
+        notifications = current_user.notifications.recent
+
+        # ActivityPubObjectsを一括取得
+        activity_pub_objects = preload_activity_pub_objects(notifications)
+
+        # group_keyに一致するグループを検索
+        target_group = nil
+        notifications.each do |notification|
+          status = resolve_notification_status(notification, activity_pub_objects)
+          group_key = build_group_key(notification, status)
+          next unless group_key == params[:group_key]
+
+          if target_group.nil?
+            target_group = create_new_group(group_key, notification, notification.from_account, status)
+          else
+            update_existing_group(target_group, notification, notification.from_account)
+          end
+        end
+
+        if target_group
+          render json: target_group
+        else
+          render json: { error: 'Record not found' }, status: :not_found
+        end
+      end
+
+      # POST /api/v2/notifications/:group_key/dismiss
+      def dismiss
+        notifications = current_user.notifications
+        target_ids = find_notification_ids_for_group(notifications, params[:group_key])
+
+        notifications.where(id: target_ids).destroy_all if target_ids.any?
+
+        head :ok
+      end
+
+      # POST /api/v2/notifications/clear
+      def clear
+        current_user.notifications.delete_all
+        head :ok
+      end
+
       # GET /api/v2/notifications/unread_count
       def unread_count
         marker = current_user.markers.for_timeline('notifications').first
@@ -43,7 +87,7 @@ module Api
           return
         end
 
-        scope = current_user.notifications.where('id > ?', marker.last_read_id)
+        scope = current_user.notifications.where('id > ?', marker.last_read_id.to_i)
         scope = scope.where(notification_type: params[:types]) if params[:types].present?
         scope = scope.where.not(notification_type: params[:exclude_types]) if params[:exclude_types].present?
         scope = scope.where(from_account_id: params[:account_id]) if params[:account_id].present?
@@ -101,7 +145,7 @@ module Api
         account_id = from_account.id.to_s
         group[:sample_account_ids] << account_id unless group[:sample_account_ids].include?(account_id)
         group[:notifications_count] += 1
-        group[:page_max_id] = notification.id.to_s if notification.id.to_s > group[:page_max_id]
+        group[:page_max_id] = notification.id.to_s if notification.id > group[:page_max_id].to_i
         group[:latest_page_notification_at] = notification.created_at.iso8601
       end
 
@@ -124,6 +168,16 @@ module Api
           "#{notification.notification_type}-#{status.id}"
         else
           "#{notification.notification_type}-#{notification.from_account_id}-#{notification.id}"
+        end
+      end
+
+      def find_notification_ids_for_group(notifications, group_key)
+        activity_pub_objects = preload_activity_pub_objects(notifications)
+
+        notifications.filter_map do |notification|
+          status = resolve_notification_status(notification, activity_pub_objects)
+          key = build_group_key(notification, status)
+          notification.id if key == group_key
         end
       end
     end
