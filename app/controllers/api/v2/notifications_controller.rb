@@ -26,11 +26,18 @@ module Api
         # Linkヘッダーを設定
         add_notification_pagination_headers(notifications, :api_v2_notifications_url)
 
-        render json: {
+        response_data = {
           accounts: groups[:accounts].values,
           statuses: groups[:statuses].values,
           notification_groups: groups[:groups]
         }
+
+        Rails.logger.info "V2 Notifications: #{groups[:statuses].count} statuses, #{groups[:groups].count} groups"
+        groups[:groups].each do |g|
+          Rails.logger.info "  group: type=#{g[:type]} status_id=#{g[:status_id].inspect}"
+        end
+
+        render json: response_data
       end
 
       # GET /api/v2/notifications/:group_key
