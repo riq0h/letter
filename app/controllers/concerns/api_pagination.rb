@@ -41,14 +41,14 @@ module ApiPagination
       when ActivityPubObject
         record.id
       when Reblog
-        # リブログの場合は一貫性のためリブログ対象オブジェクトのIDを使用
-        record[:object_id]
+        # リブログの場合はSnowflake互換のtimeline_idを使用
+        record.timeline_id
       when Hash
         # objectキーを持つハッシュのタイムラインアイテムを処理
         if record[:object].is_a?(ActivityPubObject)
           record[:object].id
         elsif record[:object].is_a?(Reblog)
-          record[:object][:object_id]
+          record[:object].timeline_id
         end
       else
         record.id if record.respond_to?(:id)

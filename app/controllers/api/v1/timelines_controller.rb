@@ -88,7 +88,7 @@ module Api
 
           # リブログ情報を追加
           {
-            id: item.id.to_s,
+            id: item.timeline_id,
             created_at: item.created_at.iso8601,
             account: serialized_account(item.actor),
             reblog: reblogged_status
