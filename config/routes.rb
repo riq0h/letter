@@ -38,7 +38,9 @@ Rails.application.routes.draw do
 
 
   # OAuth 2.0 Routes
-  use_doorkeeper
+  use_doorkeeper do
+    controllers authorizations: 'custom_authorizations'
+  end
 
   # ================================
   # キャッチオールルート（最後に配置）

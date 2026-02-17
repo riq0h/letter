@@ -81,9 +81,7 @@ module Api
         private
 
         def set_subscription
-          # まずアクセストークンで検索、なければユーザーの最新サブスクリプションにフォールバック
-          @subscription = WebPushSubscription.find_by(access_token_id: doorkeeper_token.id) ||
-                          WebPushSubscription.where(actor: current_account).order(created_at: :desc).first
+          @subscription = WebPushSubscription.find_by(access_token_id: doorkeeper_token.id)
         end
 
         def extract_subscription_params

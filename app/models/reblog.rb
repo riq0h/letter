@@ -12,13 +12,4 @@ class Reblog < ApplicationRecord
 
   tracks_object_counter :reblogs_count
   after_create :create_notification_for_reblog
-  after_commit :send_push_notification, on: :create
-
-  private
-
-  def send_push_notification
-    WebPushDelivery.deliver_reblog_notification(self)
-  rescue StandardError => e
-    Rails.logger.error "Failed to send reblog push notification: #{e.message}"
-  end
 end

@@ -26,9 +26,13 @@ module NotificationHelper
   end
 
   def apply_notification_pagination(notifications)
-    notifications = notifications.where(notifications: { id: ...(params[:max_id]) }) if params[:max_id].present?
-    notifications = notifications.where('notifications.id > ?', params[:since_id]) if params[:since_id].present?
-    notifications = notifications.where('notifications.id > ?', params[:min_id]) if params[:min_id].present?
+    max_id = params[:max_id] || params[:maxId]
+    since_id = params[:since_id] || params[:sinceId]
+    min_id = params[:min_id] || params[:minId]
+
+    notifications = notifications.where(notifications: { id: ...max_id }) if max_id.present?
+    notifications = notifications.where('notifications.id > ?', since_id) if since_id.present?
+    notifications = notifications.where('notifications.id > ?', min_id) if min_id.present?
     notifications
   end
 

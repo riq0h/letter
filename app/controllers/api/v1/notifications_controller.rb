@@ -71,15 +71,17 @@ module Api
       end
 
       def filter_by_excluded_types(notifications)
-        return notifications if params[:exclude_types].blank?
+        exclude_types = params[:exclude_types] || params[:excludeTypes]
+        return notifications if exclude_types.blank?
 
-        notifications.where.not(notification_type: params[:exclude_types])
+        notifications.where.not(notification_type: exclude_types)
       end
 
       def filter_by_account(notifications)
-        return notifications if params[:account_id].blank?
+        account_id = params[:account_id] || params[:accountId]
+        return notifications if account_id.blank?
 
-        notifications.where(from_account_id: params[:account_id])
+        notifications.where(from_account_id: account_id)
       end
 
       def notification_json_with_preloaded(notification, activity_pub_objects)

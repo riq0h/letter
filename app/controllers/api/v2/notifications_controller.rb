@@ -99,9 +99,11 @@ module Api
       private
 
       def filtered_notifications
+        exclude_types = params[:exclude_types] || params[:excludeTypes]
+
         base = current_user.notifications.includes(:from_account)
         base = base.where(notification_type: params[:types]) if params[:types].present?
-        base = base.where.not(notification_type: params[:exclude_types]) if params[:exclude_types].present?
+        base = base.where.not(notification_type: exclude_types) if exclude_types.present?
         base
       end
 
