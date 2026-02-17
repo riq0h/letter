@@ -149,9 +149,12 @@ module Api
 
         notifications.each do |notification|
           from_account = notification.from_account
-          accounts[from_account.id.to_s] = serialized_account(from_account) unless accounts.key?(from_account.id.to_s)
-
           status = resolve_notification_status(notification, activity_pub_objects)
+
+          # ステータス通知で対象ステータスが削除済みの場合はスキップ
+          next if status_notification?(notification) && notification.activity_type == 'ActivityPubObject' && status.nil?
+
+          accounts[from_account.id.to_s] = serialized_account(from_account) unless accounts.key?(from_account.id.to_s)
           statuses[status.id.to_s] = serialized_status(status) if status && !statuses.key?(status.id.to_s)
 
           group_key = build_group_key(notification, status)
