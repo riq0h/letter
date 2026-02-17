@@ -88,8 +88,8 @@ module Api
         json = notification_json(notification)
 
         # ActivityPubObjectの場合は事前読み込みデータを使用
-        if notification.activity_type == 'ActivityPubObject' && activity_pub_objects[notification.activity_id]
-          preloaded_activity = activity_pub_objects[notification.activity_id]
+        if notification.activity_type == 'ActivityPubObject' && activity_pub_objects[notification.activity_id.to_i]
+          preloaded_activity = activity_pub_objects[notification.activity_id.to_i]
           json[:status] = serialized_status(preloaded_activity) if status_notification?(notification)
         end
 
