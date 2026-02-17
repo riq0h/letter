@@ -89,24 +89,6 @@ RSpec.describe WebPushDelivery do
         expect(result).to be true
       end
 
-      it 'handles invalid subscription errors' do
-        allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
-        allow(described_class).to receive(:perform_webpush_send).and_raise(WebPush::InvalidSubscription, 'Invalid endpoint')
-
-        result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
-
-        expect(result).to be false
-      end
-
-      it 'handles expired subscription errors' do
-        allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
-        allow(described_class).to receive(:perform_webpush_send).and_raise(WebPush::ExpiredSubscription, 'Subscription expired')
-
-        result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
-
-        expect(result).to be false
-      end
-
       it 'handles general errors without destroying subscription' do
         # 事前検証を通す
         allow(described_class).to receive(:valid_webpush_keys?).and_return(true)
@@ -127,7 +109,7 @@ RSpec.describe WebPushDelivery do
       end
 
       it 'returns false without sending notification' do
-        expect(WebPush).not_to receive(:payload_send)
+        expect(AesgcmEncryption).not_to receive(:encrypt)
 
         result = described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
 
@@ -403,7 +385,7 @@ RSpec.describe WebPushDelivery do
     end
 
     it 'returns true for valid keys' do
-      allow(WebPush::Encryption).to receive(:encrypt).and_return('encrypted')
+      allow(AesgcmEncryption).to receive(:encrypt).and_return('encrypted')
 
       expect(described_class.send(:valid_webpush_keys?, valid_subscription)).to be true
     end
@@ -424,7 +406,7 @@ RSpec.describe WebPushDelivery do
       subscription = build(:web_push_subscription,
                            p256dh_key: Base64.strict_encode64('a' * 65),
                            auth_key: Base64.strict_encode64('b' * 16))
-      allow(WebPush::Encryption).to receive(:encrypt).and_raise(ArgumentError, 'Invalid key')
+      allow(AesgcmEncryption).to receive(:encrypt).and_raise(ArgumentError, 'Invalid key')
 
       expect(described_class.send(:valid_webpush_keys?, subscription)).to be false
     end
@@ -436,7 +418,7 @@ RSpec.describe WebPushDelivery do
     it 'skips notification and logs warning when keys are invalid' do
       allow(described_class).to receive(:valid_webpush_keys?).and_return(false)
       expect(Rails.logger).to receive(:warn).with(/Invalid WebPush keys.*skipping notification/)
-      expect(WebPush).not_to receive(:payload_send)
+      expect(AesgcmEncryption).not_to receive(:encrypt)
 
       result = described_class.send(:send_push_notification, subscription, payload)
       expect(result).to be false

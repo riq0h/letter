@@ -189,37 +189,11 @@ class WebPushDelivery
       log_validation_success(subscription)
       perform_webpush_send(subscription, payload)
       true
-    rescue WebPush::InvalidSubscription, WebPush::ExpiredSubscription => e
-      handle_invalid_subscription(subscription, e)
     rescue ArgumentError, OpenSSL::PKey::ECError => e
       Rails.logger.error "🔐 Encryption error for #{subscription.actor.username}: #{e.message}"
       false
     rescue StandardError => e
       handle_push_error(subscription, e)
-    end
-
-    # プッシュオプションの構築
-    def build_push_options(subscription, payload = nil, validation_mode: false)
-      options = {
-        endpoint: subscription.endpoint,
-        p256dh: subscription.p256dh_key,
-        auth: subscription.auth_key,
-        vapid: build_vapid_options,
-        ttl: 3600 * 24 * 30,
-        urgency: 'normal'
-      }
-
-      options[:message] = payload.to_json unless validation_mode
-      options
-    end
-
-    # VAPIDオプションの構築
-    def build_vapid_options
-      {
-        subject: Rails.application.config.activitypub.base_url,
-        public_key: vapid_public_key,
-        private_key: vapid_private_key
-      }
     end
 
     # 無効なキーの処理
@@ -244,26 +218,32 @@ class WebPushDelivery
         return
       end
 
-      encrypted_payload = WebPush::Encryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
-      response = send_push_request(subscription, encrypted_payload)
+      encrypted = AesgcmEncryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
+      response = send_push_request(subscription, encrypted)
       handle_push_response(subscription, response)
     end
 
-    def send_push_request(subscription, encrypted_payload)
+    def send_push_request(subscription, encrypted)
       uri = URI.parse(subscription.endpoint)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = uri.scheme == 'https'
 
       request = Net::HTTP::Post.new(uri.request_uri)
       request['Content-Type'] = 'application/octet-stream'
-      request['Content-Encoding'] = 'aes128gcm'
+      request['Content-Encoding'] = 'aesgcm'
       request['TTL'] = '2592000'
       request['Urgency'] = 'normal'
 
-      vapid_headers = build_vapid_headers(subscription.endpoint)
-      vapid_headers.each { |key, value| request[key] = value }
+      salt_base64 = Base64.urlsafe_encode64(encrypted[:salt]).tr('=', '')
+      server_pub_base64 = Base64.urlsafe_encode64(encrypted[:server_public_key]).tr('=', '')
 
-      request.body = encrypted_payload
+      request['Encryption'] = "salt=#{salt_base64}"
+
+      vapid_headers = build_vapid_headers(subscription.endpoint)
+      request['Authorization'] = vapid_headers[:authorization]
+      request['Crypto-Key'] = "dh=#{server_pub_base64};#{vapid_headers[:crypto_key]}"
+
+      request.body = encrypted[:ciphertext]
       http.request(request)
     end
 
@@ -282,13 +262,6 @@ class WebPushDelivery
       Rails.logger.error "❌ WebPush notification failed (HTTP #{response.code}): #{response.message} for #{subscription.actor.username}"
       Rails.logger.error "Response body: #{response.body}" if response.body.present?
       raise "HTTP #{response.code}: #{response.message}"
-    end
-
-    # 無効なサブスクリプションの処理
-    def handle_invalid_subscription(subscription, error)
-      Rails.logger.warn "📱 Invalid push subscription for #{subscription.actor.username}: #{error.message}"
-      subscription.destroy
-      false
     end
 
     # プッシュエラーの処理
@@ -347,7 +320,7 @@ class WebPushDelivery
 
     # WebPush検証の実行
     def perform_webpush_validation(subscription)
-      WebPush::Encryption.encrypt('validation_test', subscription.p256dh_key, subscription.auth_key)
+      AesgcmEncryption.encrypt('validation_test', subscription.p256dh_key, subscription.auth_key)
       true
     rescue ArgumentError, OpenSSL::PKey::ECError, OpenSSL::PKey::EC::Point::Error => e
       Rails.logger.warn "🔐 WebPush key validation failed: #{e.message}"
@@ -378,44 +351,9 @@ class WebPushDelivery
       )
 
       {
-        'Authorization' => "vapid t=#{token},k=#{public_key_base64}",
-        'Crypto-Key' => "p256ecdsa=#{public_key_base64}"
+        authorization: "WebPush #{token}",
+        crypto_key: "p256ecdsa=#{public_key_base64}"
       }
-    end
-
-    # 暗号化済み通知の送信
-    def send_encrypted_notification(subscription, encrypted_payload, headers)
-      require 'net/http'
-
-      unless validate_push_endpoint!(subscription.endpoint)
-        Rails.logger.warn "🛡️ SSRF: blocked encrypted push to #{subscription.endpoint[0..50]}..."
-        subscription.destroy
-        return
-      end
-
-      uri = URI.parse(subscription.endpoint)
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = uri.scheme == 'https'
-
-      request = Net::HTTP::Post.new(uri.path)
-      request['Content-Type'] = 'application/octet-stream'
-      request['Content-Encoding'] = 'aes128gcm'
-      request['TTL'] = '2592000'
-      request['Urgency'] = 'normal'
-      headers.each { |key, value| request[key] = value }
-      request.body = encrypted_payload
-
-      response = http.request(request)
-
-      if (400..499).cover?(response.code.to_i) && [408, 429].exclude?(response.code.to_i)
-        Rails.logger.warn "📱 Invalid push subscription: #{response.code}"
-        subscription.destroy
-      elsif response.code.to_i == 410
-        Rails.logger.warn "📱 Push subscription expired (HTTP 410) for #{subscription.actor.username}, removing subscription"
-        subscription.destroy
-      elsif !(200...300).cover?(response.code.to_i)
-        raise "HTTP #{response.code}: #{response.message}"
-      end
     end
   end
 end

@@ -233,7 +233,6 @@ GEM
     nokogiri (1.18.8)
       mini_portile2 (~> 2.8.2)
       racc (~> 1.4)
-    openssl (3.3.0)
     ostruct (0.6.1)
     parallel (1.27.0)
     parser (3.3.10.1)
@@ -414,9 +413,6 @@ GEM
       activemodel (>= 6.0.0)
       bindex (>= 0.4.0)
       railties (>= 6.0.0)
-    web-push (3.0.1)
-      jwt (~> 2.0)
-      openssl (~> 3.0)
     websocket-driver (0.8.0)
       base64
       websocket-extensions (>= 0.1.0)
@@ -481,7 +477,6 @@ DEPENDENCIES
   tsort
   turbo-rails
   web-console
-  web-push
 
 RUBY VERSION
   ruby 4.0.1p0

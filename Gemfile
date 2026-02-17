@@ -39,9 +39,6 @@ gem 'rack-cors'
 gem 'solid_cache'
 gem 'solid_queue'
 
-# プッシュ通知
-gem 'web-push'
-
 # ユーティリティ
 gem 'aws-sdk-s3', require: false
 gem 'blurhash'
