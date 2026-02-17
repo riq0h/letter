@@ -52,9 +52,11 @@ class SessionsController < ApplicationController
   end
 
   def login_user(actor)
+    return_to = session[:return_to]
     reset_session
     session[:current_user_id] = actor.id
     session[:logged_in_at] = Time.current
+    session[:return_to] = return_to if return_to
   end
 
   def logout_user
