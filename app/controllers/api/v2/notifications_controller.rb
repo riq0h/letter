@@ -20,6 +20,12 @@ module Api
         # ActivityPubObjectsを一括取得してN+1を回避
         activity_pub_objects = preload_activity_pub_objects(notifications)
 
+        # デバッグ: 通知の中身を確認
+        notifications.first(3).each do |n|
+          Rails.logger.info "DEBUG notif id=#{n.id} type=#{n.notification_type} activity_type=#{n.activity_type.inspect} activity_id=#{n.activity_id.inspect}"
+        end
+        Rails.logger.info "DEBUG activity_pub_objects keys=#{activity_pub_objects.keys.first(5).inspect} (#{activity_pub_objects.count} total)"
+
         # グループ化
         groups = build_notification_groups(notifications, activity_pub_objects)
 
