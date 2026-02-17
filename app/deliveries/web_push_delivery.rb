@@ -219,7 +219,17 @@ class WebPushDelivery
       end
 
       encrypted = AesgcmEncryption.encrypt(payload.to_json, subscription.p256dh_key, subscription.auth_key)
+
+      # デバッグ: 暗号化出力の詳細ログ
+      Rails.logger.info "🔍 DEBUG encrypt: endpoint=#{subscription.endpoint}"
+      Rails.logger.info "🔍 DEBUG encrypt: ciphertext_size=#{encrypted[:ciphertext].bytesize}, salt_size=#{encrypted[:salt].bytesize}, server_pub_size=#{encrypted[:server_public_key].bytesize}"
+      Rails.logger.info "🔍 DEBUG encrypt: p256dh_stored=#{subscription.p256dh_key[0..20]}... auth_stored=#{subscription.auth_key[0..10]}..."
+
       response = send_push_request(subscription, encrypted)
+
+      # デバッグ: レスポンス詳細
+      Rails.logger.info "🔍 DEBUG response: code=#{response.code} body=#{response.body&.truncate(200)}"
+
       handle_push_response(subscription, response)
     end
 

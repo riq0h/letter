@@ -25,7 +25,14 @@ module Api
 
           return render_validation_error('Missing required subscription data') if subscription_params.nil?
 
+          # 同一アクセストークンの既存サブスクリプションを削除
           WebPushSubscription.where(access_token_id: doorkeeper_token.id).destroy_all
+
+          # 同一アクターの同一エンドポイントを持つ古いサブスクリプションも削除
+          # （再ログイン時にaccess_tokenが変わっても古いサブスクリプションが残る問題を防止）
+          if subscription_params[:endpoint].present?
+            WebPushSubscription.where(actor: current_account, endpoint: subscription_params[:endpoint]).destroy_all
+          end
 
           @subscription = WebPushSubscription.new(
             actor: current_account,
