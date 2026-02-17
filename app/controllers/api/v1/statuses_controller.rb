@@ -334,7 +334,7 @@ module Api
 
         render json: {
           id: @status.id.to_s,
-          text: @status.content || '',
+          text: html_to_source_text(@status.content || ''),
           spoiler_text: @status.summary || ''
         }
       end
@@ -349,6 +349,45 @@ module Api
       end
 
       private
+
+      # HTML contentを編集用のプレーンテキストに変換
+      def html_to_source_text(html)
+        return '' if html.blank?
+
+        text = html.dup
+
+        # メンションリンクを@user@domain形式に復元
+        local_domain = Rails.application.config.activitypub.domain
+        text.gsub!(/<a\s[^>]*class="[^"]*mention[^"]*"[^>]*href="([^"]*)"[^>]*>.*?<span[^>]*>@(\w[^<]*)<\/span>.*?<\/a>/i) do
+          href = ::Regexp.last_match(1)
+          username = ::Regexp.last_match(2)
+          domain = begin
+            URI.parse(href).host
+          rescue URI::InvalidURIError
+            nil
+          end
+          if domain && domain != local_domain
+            "@#{username}@#{domain}"
+          else
+            "@#{username}"
+          end
+        end
+
+        # URLリンクをURL文字列に復元
+        text.gsub!(/<a\s[^>]*href="([^"]*)"[^>]*>[^<]*<\/a>/i, '\1')
+
+        # <br>を改行に変換
+        text.gsub!(/<br\s*\/?>/, "\n")
+
+        # 段落区切りを改行に変換
+        text.gsub!(/<\/p>\s*<p[^>]*>/, "\n\n")
+
+        # 残りのHTMLタグを除去
+        text.gsub!(/<[^>]+>/, '')
+
+        # HTMLエンティティをデコード
+        CGI.unescapeHTML(text).strip
+      end
 
       def build_status_object
         current_user.objects.build(status_creation_params)

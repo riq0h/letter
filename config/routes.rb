@@ -36,18 +36,15 @@ Rails.application.routes.draw do
   # その他のシステム統合
   # ================================
 
-
   # OAuth 2.0 Routes
-  use_doorkeeper do
-    controllers authorizations: 'custom_authorizations'
-  end
+  use_doorkeeper
 
   # ================================
   # キャッチオールルート（最後に配置）
   # ================================
-  
+
   # 404エラー用のキャッチオールルート（Active Storageパスは除外）
-  match '*path', to: 'errors#not_found', via: :all, constraints: ->(req) { 
+  match '*path', to: 'errors#not_found', via: :all, constraints: lambda { |req|
     !req.path.start_with?('/rails/active_storage')
   }
 end
