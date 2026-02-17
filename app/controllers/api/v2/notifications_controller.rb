@@ -12,38 +12,37 @@ module Api
       # GET /api/v2/notifications
       # Mastodon 4.3+ grouped notifications
       def index
+        group_limit = notification_limit_param
+
+        # Mastodon v2互換: limitはグループ数を制御する
+        # 十分なグループを得るために生の通知は多めに取得
         notifications = filtered_notifications
                         .recent
                         .then { |n| apply_notification_pagination(n) }
-                        .limit(notification_limit_param)
+                        .limit(group_limit * 5)
 
         # ActivityPubObjectsを一括取得してN+1を回避
         activity_pub_objects = preload_activity_pub_objects(notifications)
 
-        # デバッグ: 通知の中身を確認
-        notifications.first(3).each do |n|
-          Rails.logger.info "DEBUG notif id=#{n.id} type=#{n.notification_type} activity_type=#{n.activity_type.inspect} activity_id=#{n.activity_id.inspect}"
-        end
-        Rails.logger.info "DEBUG activity_pub_objects keys=#{activity_pub_objects.keys.first(5).inspect} (#{activity_pub_objects.count} total)"
+        # ステータスのインタラクションデータを一括プリロード（N+1回避）
+        statuses = activity_pub_objects.values
+        preload_interaction_data(statuses) if statuses.any?
+        preload_reply_to_data(statuses) if statuses.any?
+        preload_mentions_data(statuses) if statuses.any?
 
-        # グループ化
+        # グループ化してlimitで制限
         groups = build_notification_groups(notifications, activity_pub_objects)
+        has_more = groups[:groups].size > group_limit
+        groups[:groups] = groups[:groups].first(group_limit)
 
-        # Linkヘッダーを設定
-        add_notification_pagination_headers(notifications, :api_v2_notifications_url)
+        # Linkヘッダーを設定（グループのIDに基づく）
+        add_v2_pagination_headers(groups[:groups], group_limit, has_more)
 
-        response_data = {
+        render json: {
           accounts: groups[:accounts].values,
           statuses: groups[:statuses].values,
           notification_groups: groups[:groups]
         }
-
-        Rails.logger.info "V2 Notifications: #{groups[:statuses].count} statuses, #{groups[:groups].count} groups"
-        groups[:groups].each do |g|
-          Rails.logger.info "  group: type=#{g[:type]} status_id=#{g[:status_id].inspect}"
-        end
-
-        render json: response_data
       end
 
       # GET /api/v2/notifications/:group_key
@@ -110,6 +109,28 @@ module Api
       end
 
       private
+
+      def add_v2_pagination_headers(groups, limit, has_more)
+        return if groups.empty?
+
+        links = []
+        newest_id = groups.first[:page_max_id]
+        oldest_id = groups.last[:page_min_id]
+
+        if has_more
+          next_url = api_v2_notifications_url(max_id: oldest_id, limit: limit)
+          next_url += "&exclude_types[]=#{params[:exclude_types].join('&exclude_types[]=')}" if params[:exclude_types].present?
+          links << "<#{next_url}>; rel=\"next\""
+        end
+
+        if params[:max_id].present?
+          prev_url = api_v2_notifications_url(min_id: newest_id, limit: limit)
+          prev_url += "&exclude_types[]=#{params[:exclude_types].join('&exclude_types[]=')}" if params[:exclude_types].present?
+          links << "<#{prev_url}>; rel=\"prev\""
+        end
+
+        response.headers['Link'] = links.join(', ') if links.any?
+      end
 
       def filtered_notifications
         exclude_types = params[:exclude_types] || params[:excludeTypes]
