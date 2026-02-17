@@ -143,7 +143,7 @@ module Api
       def resolve_notification_status(notification, activity_pub_objects)
         return unless notification.activity_type == 'ActivityPubObject' && status_notification?(notification)
 
-        activity_pub_objects[notification.activity_id.to_i]
+        activity_pub_objects[notification.activity_id]
       end
 
       def accumulate_group(result, group_key, notification, from_account, status)

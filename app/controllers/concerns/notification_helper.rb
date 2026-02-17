@@ -18,7 +18,7 @@ module NotificationHelper
 
     ActivityPubObject.where(id: object_ids)
                      .includes(:actor, :media_attachments)
-                     .index_by(&:id)
+                     .index_by { |obj| obj.id.to_s }
   end
 
   def notification_limit_param
