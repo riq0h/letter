@@ -56,9 +56,9 @@ class ScheduledStatus < ApplicationRecord
 
     min_time = 5.minutes.from_now
 
-    if scheduled_at < min_time
-      errors.add(:scheduled_at, 'must be at least 5 minutes from now')
-    end
+    return unless scheduled_at < min_time
+
+    errors.add(:scheduled_at, 'must be at least 5 minutes from now')
   end
 
   def validate_params_format

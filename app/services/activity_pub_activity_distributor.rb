@@ -89,10 +89,36 @@ class ActivityPubActivityDistributor
     return unless activity.local?
 
     # フォロワーへの配信
-    SendActivityJob.perform_later(activity.id) if should_deliver_to_followers?
+    if should_deliver_to_followers?
+      inbox_urls = collect_follower_inboxes
+      SendActivityJob.perform_later(activity.id, inbox_urls) if inbox_urls.any?
+    end
 
     # リレーへの配信
-    SendActivityJob.perform_later(activity.id) if should_distribute_to_relays?
+    return unless should_distribute_to_relays?
+
+    relay_inboxes = Relay.enabled.pluck(:inbox_url).compact
+    SendActivityJob.perform_later(activity.id, relay_inboxes) if relay_inboxes.any?
+  end
+
+  def collect_follower_inboxes
+    followers = object.actor.followers.where(local: false)
+    shared_inboxes = followers.filter_map(&:shared_inbox_url).uniq
+    individual_inboxes = followers.filter_map(&:inbox_url).uniq
+
+    # shared_inboxがあるドメインの個別inboxを除外
+    shared_domains = shared_inboxes.filter_map do |url|
+      URI(url).host
+    rescue URI::InvalidURIError
+      nil
+    end
+    individual_inboxes.reject! do |url|
+      shared_domains.include?(URI(url).host)
+    rescue URI::InvalidURIError
+      false
+    end
+
+    (shared_inboxes + individual_inboxes).uniq
   end
 
   def should_deliver_to_followers?
