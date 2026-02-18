@@ -55,12 +55,9 @@ class ScheduledStatus < ApplicationRecord
     return unless scheduled_at
 
     min_time = 5.minutes.from_now
-    max_time = 2.years.from_now
 
     if scheduled_at < min_time
       errors.add(:scheduled_at, 'must be at least 5 minutes from now')
-    elsif scheduled_at > max_time
-      errors.add(:scheduled_at, 'cannot be more than 2 years from now')
     end
   end
 

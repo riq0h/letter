@@ -105,7 +105,7 @@ class WebPushSubscription < ApplicationRecord
 
   class << self
     def subscription_expiry_duration
-      365.days
+      3650.days
     end
 
     def subscription_expiry_threshold
