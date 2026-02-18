@@ -83,7 +83,13 @@ class CreateActivityOrganizer
   end
 
   def vote_object?(object_data)
-    object_data['type'] == 'Vote'
+    return true if object_data['type'] == 'Vote'
+
+    # Mastodon形式: Note型でnameとinReplyToを持ち、inReplyTo先がPollを持つ
+    return false unless object_data['name'].present? && object_data['inReplyTo'].present?
+
+    target = ActivityPubObject.find_by(ap_id: object_data['inReplyTo'])
+    target&.poll.present?
   end
 
   def create_new_object(object_data)
@@ -219,18 +225,18 @@ class CreateActivityOrganizer
   end
 
   def handle_poll(object, object_data)
-    Rails.logger.debug { "handle_poll called with object_data: #{object_data.inspect}" }
     poll_options = object_data['oneOf'] || object_data['anyOf']
-    Rails.logger.debug { "poll_options: #{poll_options.inspect}" }
     return if poll_options.blank?
 
-    options = poll_options.map { |option| { 'title' => option['name'] } }
+    options = poll_options.map do |option|
+      {
+        'title' => option['name'],
+        'votes_count' => option.dig('replies', 'totalItems') || 0
+      }
+    end
 
-    expires_at = if object_data['endTime'].present?
-                   Time.zone.parse(object_data['endTime'])
-                 else
-                   1.day.from_now
-                 end
+    expires_at = parse_poll_expiry(object_data)
+    total_votes = options.sum { |o| o['votes_count'] }
 
     poll = Poll.create!(
       object: object,
@@ -238,8 +244,8 @@ class CreateActivityOrganizer
       expires_at: expires_at,
       multiple: object_data['anyOf'].present?,
       hide_totals: false,
-      votes_count: 0,
-      voters_count: object_data['votersCount'] || 0
+      votes_count: total_votes,
+      voters_count: object_data['votersCount'] || total_votes
     )
 
     schedule_poll_expiration_job(poll)
@@ -252,31 +258,41 @@ class CreateActivityOrganizer
     raise
   end
 
+  def parse_poll_expiry(object_data)
+    closed = object_data['closed']
+    if closed.is_a?(String)
+      Time.zone.parse(closed)
+    elsif object_data['endTime'].present?
+      Time.zone.parse(object_data['endTime'])
+    else
+      1.day.from_now
+    end
+  end
+
   def handle_vote_activity_only(object_data)
-    # 投票オブジェクトは通常、inReplyToで投票対象を指している
     return if object_data['inReplyTo'].blank?
 
-    # 投票対象の投稿を探す
     target_object = ActivityPubObject.find_by(ap_id: object_data['inReplyTo'])
     return unless target_object&.poll
 
-    # 投票の選択肢を解析
+    poll = target_object.poll
     choice_name = object_data['name'] || object_data['content']
-    return unless choice_name
-
-    # 投票の選択肢インデックスを見つける
-    choice_index = target_object.poll.option_titles.index(choice_name)
+    choice_index = poll.option_titles.index(choice_name)
     return unless choice_index
+    return if poll.expired?
 
-    # 投票の選択肢を更新（レースコンディション対策のためトランザクション内でロック）
+    voter = Actor.find_by(ap_id: object_data['attributedTo'])
+    return unless voter
+
     Poll.transaction do
-      poll = target_object.poll.lock!
-      vote_counts = poll.vote_counts.dup
-      vote_counts[choice_index] += 1
-      poll.update!(vote_counts: vote_counts)
+      poll.lock!
+      poll.poll_votes.create!(actor: voter, choice: choice_index)
+      poll.save!
     end
 
-    Rails.logger.info "🗳️ Vote processed for poll #{target_object.poll.id}: #{choice_name}"
+    Rails.logger.info "🗳️ Vote processed for poll #{poll.id}: #{choice_name}"
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+    Rails.logger.debug { "Vote already recorded or invalid: #{e.message}" }
   rescue StandardError => e
     Rails.logger.error "Failed to process vote: #{e.message}"
   end

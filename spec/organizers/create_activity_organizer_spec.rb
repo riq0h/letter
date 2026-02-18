@@ -43,7 +43,7 @@ RSpec.describe CreateActivityOrganizer do
       expect(result.object).to be_nil
     end
 
-    it 'handles vote objects separately' do
+    it 'handles Vote-type objects separately' do
       vote_activity = {
         'type' => 'Create',
         'object' => {
@@ -58,6 +58,55 @@ RSpec.describe CreateActivityOrganizer do
 
       expect(result).to be_success
       expect(result.object).to be_nil
+    end
+
+    it 'detects Mastodon-style vote (Note with name pointing to poll)' do
+      local_actor = create(:actor, local: true)
+      status = create(:activity_pub_object, actor: local_actor, object_type: 'Question',
+                                            ap_id: 'https://letter.test/posts/poll1')
+      poll = create(:poll, object: status)
+
+      vote_activity = {
+        'type' => 'Create',
+        'object' => {
+          'id' => 'https://remote.example.com/notes/vote1',
+          'type' => 'Note',
+          'name' => 'Option 1',
+          'inReplyTo' => 'https://letter.test/posts/poll1',
+          'attributedTo' => sender.ap_id
+        }
+      }
+
+      expect do
+        described_class.call(vote_activity, sender)
+      end.to change(PollVote, :count).by(1)
+
+      vote = PollVote.last
+      expect(vote.poll).to eq(poll)
+      expect(vote.actor).to eq(sender)
+      expect(vote.choice).to eq(0)
+    end
+
+    it 'does not create ActivityPubObject for vote-like Notes' do
+      local_actor = create(:actor, local: true)
+      status = create(:activity_pub_object, actor: local_actor, object_type: 'Question',
+                                            ap_id: 'https://letter.test/posts/poll2')
+      create(:poll, object: status)
+
+      vote_activity = {
+        'type' => 'Create',
+        'object' => {
+          'id' => 'https://remote.example.com/notes/vote2',
+          'type' => 'Note',
+          'name' => 'Option 2',
+          'inReplyTo' => 'https://letter.test/posts/poll2',
+          'attributedTo' => sender.ap_id
+        }
+      }
+
+      expect do
+        described_class.call(vote_activity, sender)
+      end.not_to change(ActivityPubObject, :count)
     end
   end
 
@@ -128,6 +177,81 @@ RSpec.describe CreateActivityOrganizer do
       expect(poll.object).to eq(result.object)
       expect(poll.options.count).to eq(2)
       expect(poll.multiple).to be(false)
+    end
+
+    it 'extracts remote vote counts from replies.totalItems' do
+      poll_activity = {
+        'type' => 'Create',
+        'object' => {
+          'id' => 'https://example.com/polls/vote-counts',
+          'type' => 'Question',
+          'content' => 'Pick one',
+          'oneOf' => [
+            { 'name' => 'A', 'replies' => { 'totalItems' => 42 } },
+            { 'name' => 'B', 'replies' => { 'totalItems' => 18 } }
+          ],
+          'endTime' => 1.day.from_now.iso8601,
+          'votersCount' => 60
+        }
+      }
+
+      organizer = described_class.new(poll_activity, sender)
+      result = organizer.call
+
+      expect(result).to be_success
+      poll = Poll.last
+      expect(poll.votes_count).to eq(60)
+      expect(poll.voters_count).to eq(60)
+      expect(poll.options[0]['votes_count']).to eq(42)
+      expect(poll.options[1]['votes_count']).to eq(18)
+    end
+
+    it 'creates poll with closed field as expiry' do
+      poll_activity = {
+        'type' => 'Create',
+        'object' => {
+          'id' => 'https://example.com/polls/closed',
+          'type' => 'Question',
+          'content' => 'Closed poll',
+          'closed' => 2.hours.from_now.iso8601,
+          'oneOf' => [
+            { 'name' => 'X' },
+            { 'name' => 'Y' }
+          ]
+        }
+      }
+
+      organizer = described_class.new(poll_activity, sender)
+      result = organizer.call
+
+      expect(result).to be_success
+      poll = Poll.last
+      expect(poll.expires_at).to be_within(2.seconds).of(2.hours.from_now)
+    end
+
+    it 'creates already-expired remote poll' do
+      poll_activity = {
+        'type' => 'Create',
+        'object' => {
+          'id' => 'https://example.com/polls/expired',
+          'type' => 'Question',
+          'content' => 'Old poll',
+          'closed' => 1.hour.ago.iso8601,
+          'oneOf' => [
+            { 'name' => 'P', 'replies' => { 'totalItems' => 7 } },
+            { 'name' => 'Q', 'replies' => { 'totalItems' => 3 } }
+          ],
+          'votersCount' => 10
+        }
+      }
+
+      organizer = described_class.new(poll_activity, sender)
+      result = organizer.call
+
+      expect(result).to be_success
+      poll = Poll.last
+      expect(poll.expired?).to be true
+      expect(poll.votes_count).to eq(10)
     end
 
     it 'schedules expiration job for polls' do

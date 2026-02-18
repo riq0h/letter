@@ -33,7 +33,15 @@ class Poll < ApplicationRecord
   def option_votes_count(index)
     return 0 unless options.is_a?(Array) && index < options.length
 
-    poll_votes.where(choice: index).count
+    if remote_poll?
+      options[index]['votes_count'] || 0
+    else
+      poll_votes.where(choice: index).count
+    end
+  end
+
+  def remote_poll?
+    object&.actor && !object.actor.local?
   end
 
   def vote_for!(actor, choices)
@@ -104,6 +112,7 @@ class Poll < ApplicationRecord
 
   def validate_expiry_time
     return unless expires_at
+    return if remote_poll?
 
     min_expiry = 5.minutes.from_now - 10.seconds
     max_expiry = 1.month.from_now
@@ -117,6 +126,7 @@ class Poll < ApplicationRecord
 
   def validate_not_expired_on_create
     return unless expires_at && new_record?
+    return if remote_poll?
 
     return unless expires_at <= Time.current
 
@@ -124,6 +134,8 @@ class Poll < ApplicationRecord
   end
 
   def calculate_vote_counts
+    return unless object&.actor&.local?
+
     self.votes_count = poll_votes.count
     self.voters_count = poll_votes.distinct.count(:actor_id)
   end
@@ -131,14 +143,23 @@ class Poll < ApplicationRecord
   def serialize_options
     return [] unless options.is_a?(Array)
 
-    # 全投票データを一度に取得してN+1クエリを回避
-    vote_counts_by_choice = poll_votes.group(:choice).count
+    if remote_poll?
+      options.map do |option|
+        {
+          title: option['title'] || option[:title],
+          votes_count: option['votes_count'] || 0
+        }
+      end
+    else
+      # 全投票データを一度に取得してN+1クエリを回避
+      vote_counts_by_choice = poll_votes.group(:choice).count
 
-    options.each_with_index.map do |option, index|
-      {
-        title: option['title'] || option[:title],
-        votes_count: vote_counts_by_choice[index] || 0
-      }
+      options.each_with_index.map do |option, index|
+        {
+          title: option['title'] || option[:title],
+          votes_count: vote_counts_by_choice[index] || 0
+        }
+      end
     end
   end
 end

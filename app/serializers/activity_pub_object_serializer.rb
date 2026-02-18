@@ -64,6 +64,7 @@ class ActivityPubObjectSerializer
   def add_poll_data(data)
     data['type'] = 'Question'
     data['endTime'] = poll.expires_at.iso8601 if poll.expires_at
+    data['closed'] = poll.expires_at.iso8601 if poll.expires_at && poll.expired?
     data['votersCount'] = poll.voters_count || 0
 
     if poll.multiple

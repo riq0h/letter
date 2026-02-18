@@ -74,6 +74,9 @@ module ActivityPubObjectHandlers
     # メディア添付の更新処理
     update_object_attachments(object, object_data)
 
+    # Poll投票数の更新処理
+    update_poll_from_remote(object, object_data)
+
     Rails.logger.info "📝 Object updated: #{object.id}"
   end
 
@@ -160,6 +163,27 @@ module ActivityPubObjectHandlers
 
   def authorized_to_delete?(object)
     object&.actor == @sender
+  end
+
+  def update_poll_from_remote(object, object_data)
+    return unless object.poll
+
+    poll_options = object_data['oneOf'] || object_data['anyOf']
+    return unless poll_options.is_a?(Array)
+
+    vote_counts = poll_options.map { |opt| opt.dig('replies', 'totalItems') || 0 }
+
+    updated_options = object.poll.options.each_with_index.map do |option, index|
+      option.merge('votes_count' => vote_counts[index] || 0)
+    end
+
+    object.poll.update_columns(
+      options: updated_options,
+      votes_count: vote_counts.sum,
+      voters_count: object_data['votersCount'] || vote_counts.sum
+    )
+
+    Rails.logger.info "📊 Poll updated with remote vote counts for object #{object.id}"
   end
 
   # 可視性判定
