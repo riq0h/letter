@@ -206,7 +206,7 @@ main() {
     
     # 依存関係の確認（インストールはDockerfileで完了済み）
     echo "依存関係の確認中..."
-    if bundle check > /dev/null 2>&1; then
+    if BUNDLE_FROZEN=true bundle check > /dev/null 2>&1; then
         echo "OK: 依存関係が正常です"
     else
         echo "WARNING: 依存関係に問題がありますが続行します"
