@@ -57,7 +57,11 @@ class SendActivityJob < ApplicationJob
   def build_activity_data(activity)
     case activity.activity_type
     when 'Create'
-      ActivityBuilders::CreateActivityBuilder.new(activity).build
+      if vote_activity?(activity)
+        ActivityBuilders::VoteActivityBuilder.new(activity).build
+      else
+        ActivityBuilders::CreateActivityBuilder.new(activity).build
+      end
     when 'Announce'
       ActivityBuilders::AnnounceActivityBuilder.new(activity).build
     when 'Update'
@@ -104,6 +108,16 @@ class SendActivityJob < ApplicationJob
     false
   rescue URI::InvalidURIError
     Rails.logger.error "🔗 Invalid inbox URI: #{inbox_url}"
+    false
+  end
+
+  # Voteアクティビティかどうかを判定
+  def vote_activity?(activity)
+    return false if activity.raw_data.blank?
+
+    parsed = JSON.parse(activity.raw_data)
+    parsed.key?('vote_choice')
+  rescue JSON::ParserError
     false
   end
 

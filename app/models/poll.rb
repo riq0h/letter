@@ -84,13 +84,29 @@ class Poll < ApplicationRecord
       expires_at: expires_at.iso8601,
       expired: expired?,
       multiple: multiple,
-      votes_count: votes_count,
-      voters_count: multiple ? voters_count : votes_count,
+      votes_count: total_votes_count,
+      voters_count: total_voters_count,
       options: serialize_options,
       emojis: [],
       voted: false, # 現在のユーザに基づいてコントローラーで設定される
       own_votes: [] # 現在のユーザに基づいてコントローラーで設定される
     }
+  end
+
+  def total_votes_count
+    if remote_poll?
+      (options&.sum { |o| o['votes_count'] || 0 } || 0) + poll_votes.count
+    else
+      votes_count
+    end
+  end
+
+  def total_voters_count
+    if remote_poll?
+      (voters_count || 0) + poll_votes.distinct.count(:actor_id)
+    else
+      multiple ? voters_count : votes_count
+    end
   end
 
   private
@@ -144,10 +160,12 @@ class Poll < ApplicationRecord
     return [] unless options.is_a?(Array)
 
     if remote_poll?
-      options.map do |option|
+      local_vote_counts = poll_votes.group(:choice).count
+
+      options.each_with_index.map do |option, index|
         {
           title: option['title'] || option[:title],
-          votes_count: option['votes_count'] || 0
+          votes_count: (option['votes_count'] || 0) + (local_vote_counts[index] || 0)
         }
       end
     else
