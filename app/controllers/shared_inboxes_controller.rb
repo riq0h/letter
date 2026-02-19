@@ -7,6 +7,10 @@ class SharedInboxesController < ApplicationController
   include ActivityPubFollowHandlers
   include ErrorResponseHelper
 
+  # エラーハンドリング
+  rescue_from ActivityPub::SignatureError, with: :handle_signature_error
+  rescue_from ActivityPub::ValidationError, with: :handle_validation_error
+
   # CSRFトークン無効化（外部からのPOST）
   skip_before_action :verify_authenticity_token
 
@@ -214,5 +218,16 @@ class SharedInboxesController < ApplicationController
 
     # リレーからのUndo処理（通常はフォロー解除）
     head :accepted
+  end
+
+  def handle_signature_error(error)
+    actor_uri = @activity&.dig('actor') || 'unknown'
+    Rails.logger.warn "🔐 HTTP signature verification failed for #{actor_uri}: #{error.message}"
+    render json: { error: 'Signature verification failed' }, status: :unauthorized
+  end
+
+  def handle_validation_error(error)
+    Rails.logger.warn "❌ Validation error: #{error.message}"
+    render json: { error: error.message }, status: :unprocessable_content
   end
 end

@@ -67,6 +67,7 @@ class ActivityPubObject < ApplicationRecord
   after_destroy :create_delete_activity, if: :local?
   after_destroy :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
   after_save :create_activity_if_needed, if: :local?
+  after_commit :enqueue_pending_activity_delivery, on: :create, if: :local?
   after_commit :enqueue_relay_distribution, on: :create, if: -> { local? && should_distribute_to_relays? }
 
   # === URL生成メソッド ===
@@ -368,7 +369,10 @@ class ActivityPubObject < ApplicationRecord
     return unless saved_change_to_id? # 新規作成時のみ実行
 
     existing_activity = Activity.find_by(object_ap_id: ap_id, activity_type: 'Create')
-    return existing_activity if existing_activity
+    if existing_activity
+      @pending_create_activity = existing_activity
+      return existing_activity
+    end
 
     activity = Activity.create!(
       ap_id: "#{ap_id}#create",
@@ -379,8 +383,16 @@ class ActivityPubObject < ApplicationRecord
       local: true
     )
 
-    queue_activity_delivery(activity)
+    # ジョブ登録はafter_commitで行う（トランザクション完了後）
+    @pending_create_activity = activity
     activity
+  end
+
+  def enqueue_pending_activity_delivery
+    return unless @pending_create_activity
+
+    queue_activity_delivery(@pending_create_activity)
+    @pending_create_activity = nil
   end
 
   def create_delete_activity

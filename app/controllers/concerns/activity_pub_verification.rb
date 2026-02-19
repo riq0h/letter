@@ -94,17 +94,34 @@ module ActivityPubVerification
       Rails.logger.debug { "🔀 Relay activity detected, verifying relay signature from: #{relay_actor_uri}" }
       verify_actor_uri = relay_actor_uri || actor_uri
     else
-      # 非リレー: keyIdがactivity actorと一致することを確認
-      if key_id.present?
-        key_actor_uri = key_id.sub(/#.*$/, '')
-        unless key_actor_uri == actor_uri
-          Rails.logger.warn "🔐 keyId actor (#{key_actor_uri}) does not match activity actor (#{actor_uri})"
-          raise ::ActivityPub::SignatureError, 'keyId does not match activity actor'
-        end
+      key_actor_uri = key_id&.sub(/#.*$/, '')
+      if key_actor_uri.present? && key_actor_uri != actor_uri
+        # keyIdとactorが不一致 → 転送アクティビティの可能性
+        verify_forwarded_activity(key_actor_uri, actor_uri)
+        return
       end
       verify_actor_uri = actor_uri
     end
 
+    # 通常の署名検証
+    perform_signature_verification(verify_actor_uri)
+  end
+
+  def verify_forwarded_activity(forwarder_uri, original_actor_uri)
+    Rails.logger.info "🔀 Forwarded activity: signed by #{forwarder_uri}, actor is #{original_actor_uri}"
+
+    verifier = create_signature_verifier
+    result = verifier.verify!(forwarder_uri)
+
+    unless result
+      Rails.logger.warn "🔐 Forwarded activity signature invalid for #{forwarder_uri}"
+      raise ::ActivityPub::SignatureError, 'Forwarded activity signature verification failed'
+    end
+
+    Rails.logger.info "✅ Forwarded activity accepted: #{forwarder_uri} vouching for #{original_actor_uri}"
+  end
+
+  def perform_signature_verification(verify_actor_uri)
     verifier = create_signature_verifier
 
     begin
@@ -115,7 +132,7 @@ module ActivityPubVerification
     rescue StandardError => e
       Rails.logger.warn "🔐 Signature verification error for #{verify_actor_uri}: #{e.message}"
       Rails.logger.debug { "   Error class: #{e.class}" }
-      Rails.logger.debug { "   Headers: #{signature_header}" }
+      Rails.logger.debug { "   Headers: #{request.headers['Signature']}" }
       Rails.logger.debug { "   Method: #{request.method}" }
       Rails.logger.debug { "   Path: #{request.fullpath}" }
 
