@@ -5,6 +5,7 @@ class ActivityPubObject < ApplicationRecord
   include RemoteLocalHelper
   include ActionView::Helpers::SanitizeHelper
   include TextLinkingHelper
+  include ActivityDeliveryHelper
 
   self.table_name = 'objects'
 
@@ -441,7 +442,7 @@ class ActivityPubObject < ApplicationRecord
 
     # 重複を除去して配信
     unique_inboxes = all_inboxes.uniq.compact
-    SendActivityJob.perform_later(activity.id, unique_inboxes) if unique_inboxes.any?
+    enqueue_send_activity(activity, unique_inboxes)
   end
 
   # === リレー配信関連 ===

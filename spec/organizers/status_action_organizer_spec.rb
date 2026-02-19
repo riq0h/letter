@@ -7,6 +7,14 @@ RSpec.describe StatusActionOrganizer do
   let(:status_actor) { create(:actor, :remote) }
   let(:status) { create(:activity_pub_object, actor: status_actor) }
 
+  before do
+    # トランザクションテストではafter_commitが発火しないため、
+    # enqueue_send_activityをバイパスして直接perform_laterを呼ぶ
+    allow_any_instance_of(described_class).to receive(:enqueue_send_activity) do |_obj, activity, inbox_urls|
+      SendActivityJob.perform_later(activity.id, inbox_urls) if inbox_urls.present?
+    end
+  end
+
   describe '.call' do
     context 'with like action' do
       it 'creates like activity successfully' do

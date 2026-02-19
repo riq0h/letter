@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class Follow < ApplicationRecord
+  include ActivityDeliveryHelper
+
   # === バリデーション ===
   validates :ap_id, presence: true, uniqueness: true
   validates :follow_activity_ap_id, presence: true
@@ -193,7 +195,7 @@ class Follow < ApplicationRecord
     )
 
     # Undo アクティビティを外部に送信
-    SendActivityJob.perform_later(activity.id, [target_actor.inbox_url]) if target_actor && !target_actor.local?
+    enqueue_send_activity(activity, [target_actor.inbox_url]) if target_actor && !target_actor.local?
 
     activity
   end

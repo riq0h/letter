@@ -3,6 +3,8 @@
 # ステータスアクション（いいね・リブログ処理）を統括するOrganizer
 # アクティビティ作成と配信を統合的に管理
 class StatusActionOrganizer
+  include ActivityDeliveryHelper
+
   class Result < OrganizerResult
     attr_reader :activity
 
@@ -175,7 +177,7 @@ class StatusActionOrganizer
 
     return if target_inboxes.empty?
 
-    SendActivityJob.perform_later(activity.id, target_inboxes.uniq)
+    enqueue_send_activity(activity, target_inboxes.uniq)
     Rails.logger.info "📤 Queued activity delivery for activity #{activity.id} to #{target_inboxes.uniq.count} inboxes"
   end
 end

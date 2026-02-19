@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class ActivityPubActivityDistributor
+  include ActivityDeliveryHelper
+
   def initialize(object)
     @object = object
   end
@@ -91,14 +93,14 @@ class ActivityPubActivityDistributor
     # フォロワーへの配信
     if should_deliver_to_followers?
       inbox_urls = collect_follower_inboxes
-      SendActivityJob.perform_later(activity.id, inbox_urls) if inbox_urls.any?
+      enqueue_send_activity(activity, inbox_urls)
     end
 
     # リレーへの配信
     return unless should_distribute_to_relays?
 
     relay_inboxes = Relay.enabled.pluck(:inbox_url).compact
-    SendActivityJob.perform_later(activity.id, relay_inboxes) if relay_inboxes.any?
+    enqueue_send_activity(activity, relay_inboxes)
   end
 
   def collect_follower_inboxes

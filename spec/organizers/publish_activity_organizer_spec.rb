@@ -10,6 +10,15 @@ RSpec.describe PublishActivityOrganizer do
   before do
     # フォロワー関係を設定
     create(:follow, actor: follower, target_actor: actor, accepted: true)
+
+    # トランザクションテストではafter_commitが発火しないため、
+    # enqueue_send_activityをバイパスして直接perform_laterを呼ぶ
+    allow_any_instance_of(described_class).to receive(:enqueue_send_activity) do |_obj, activity, inbox_urls|
+      SendActivityJob.perform_later(activity.id, inbox_urls) if inbox_urls.present?
+    end
+    allow_any_instance_of(ActivityPubObject).to receive(:enqueue_send_activity) do |_obj, activity, inbox_urls|
+      SendActivityJob.perform_later(activity.id, inbox_urls) if inbox_urls.present?
+    end
   end
 
   describe '.call' do

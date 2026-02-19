@@ -3,6 +3,8 @@
 # Activityの作成と配信を管理するOrganizer
 # 複数のステップ（Activity作成、配信先決定、ジョブ投入）を統括
 class PublishActivityOrganizer
+  include ActivityDeliveryHelper
+
   class Result < OrganizerResult
     attr_reader :activity
 
@@ -194,7 +196,7 @@ class PublishActivityOrganizer
     return if inbox_urls.empty?
 
     Rails.logger.info "📬 Queuing delivery to #{inbox_urls.count} follower inboxes"
-    SendActivityJob.perform_later(activity.id, inbox_urls)
+    enqueue_send_activity(activity, inbox_urls)
   end
 
   # 特定ターゲットへの配信処理
@@ -203,7 +205,7 @@ class PublishActivityOrganizer
     return unless target_actor&.inbox_url
 
     Rails.logger.info "📬 Queuing delivery to target: #{target_actor.inbox_url}"
-    SendActivityJob.perform_later(activity.id, [target_actor.inbox_url])
+    enqueue_send_activity(activity, [target_actor.inbox_url])
   end
 
   # フォロワーのInbox URL収集
