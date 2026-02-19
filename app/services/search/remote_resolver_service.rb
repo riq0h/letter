@@ -181,8 +181,8 @@ module Search
         ap_id: data['id'],
         object_type: data['type'],
         actor: actor,
-        content: data['content'],
-        content_plaintext: strip_html_tags(data['content']),
+        content: data['content'] || '',
+        content_plaintext: strip_html_tags(data['content'] || ''),
         summary: data['summary'],
         published_at: Time.zone.parse(data['published']),
         visibility: determine_visibility(data),
@@ -243,7 +243,7 @@ module Search
     def try_common_usernames(domain)
       return [] if domain.blank?
 
-      common_usernames = %w[admin info news announce bot moderator support]
+      common_usernames = %w[riq0h admin info news announce bot moderator support]
       discovered = []
 
       common_usernames.each do |username|
