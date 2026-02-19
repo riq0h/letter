@@ -7,6 +7,9 @@ class OutboxController < ApplicationController
   include ActivityDataBuilder
   include ErrorResponseHelper
 
+  PAGE_SIZE = 20
+  AP_CONTENT_TYPE = 'application/activity+json; charset=utf-8'
+
   skip_before_action :verify_authenticity_token
   before_action :set_actor
   before_action :ensure_activitypub_request
@@ -15,10 +18,11 @@ class OutboxController < ApplicationController
   # GET /users/:username/outbox
   # ActivityPub Outbox Collection を返す
   def show
-    outbox_data = build_outbox_collection(@actor)
-
-    render json: outbox_data,
-           content_type: 'application/activity+json; charset=utf-8'
+    if params[:page].present?
+      render_collection_page
+    else
+      render_collection_summary
+    end
   end
 
   private
@@ -32,34 +36,59 @@ class OutboxController < ApplicationController
     render_not_found('Actor')
   end
 
-  def build_outbox_collection(actor)
-    activities = fetch_outbox_activities(actor)
+  def render_collection_summary
+    total = outbox_base_query.count
 
-    {
+    render json: {
       '@context' => Rails.application.config.activitypub.context_url,
-      'id' => actor.outbox_url,
+      'id' => @actor.outbox_url,
       'type' => 'OrderedCollection',
-      'totalItems' => activities.count,
-      'first' => build_first_page(actor, activities)
-    }
+      'totalItems' => total,
+      'first' => "#{@actor.outbox_url}?page=true",
+      'last' => "#{@actor.outbox_url}?page=true&min_id=0"
+    }, content_type: AP_CONTENT_TYPE
   end
 
-  def fetch_outbox_activities(actor)
-    # ローカルアクターの公開アクティビティを取得
-    Activity.joins(:actor)
-            .where(actors: { id: actor.id })
-            .where(local: true)
-            .includes(:object, :actor)
-            .order(published_at: :desc)
-            .limit(20)
+  def render_collection_page
+    activities = fetch_paginated_activities
+
+    render json: build_collection_page(activities),
+           content_type: AP_CONTENT_TYPE
   end
 
-  def build_first_page(actor, activities)
-    {
+  def outbox_base_query
+    Activity.joins(:actor, :object)
+            .where(actors: { id: @actor.id })
+            .where(local: true, activity_type: 'Create')
+            .where(objects: { visibility: %w[public unlisted] })
+  end
+
+  def fetch_paginated_activities
+    query = outbox_base_query.includes(:object, :actor)
+    query = query.where(Activity.arel_table[:id].lt(params[:max_id])) if params[:max_id].present?
+    query = query.where(Activity.arel_table[:id].gt(params[:min_id])) if params[:min_id].present?
+    query.order(id: :desc).limit(PAGE_SIZE)
+  end
+
+  def build_collection_page(activities)
+    page = {
+      '@context' => Rails.application.config.activitypub.context_url,
       'type' => 'OrderedCollectionPage',
-      'id' => "#{actor.outbox_url}?page=1",
-      'partOf' => actor.outbox_url,
+      'id' => current_page_url,
+      'partOf' => @actor.outbox_url,
       'orderedItems' => activities.map { |activity| build_activity_data(activity) }
     }
+
+    page['next'] = "#{@actor.outbox_url}?page=true&max_id=#{activities.last.id}" if activities.size == PAGE_SIZE
+    page['prev'] = "#{@actor.outbox_url}?page=true&min_id=#{activities.first.id}" if params[:max_id].present? || params[:min_id].present?
+
+    page
+  end
+
+  def current_page_url
+    url = "#{@actor.outbox_url}?page=true"
+    url += "&max_id=#{params[:max_id]}" if params[:max_id].present?
+    url += "&min_id=#{params[:min_id]}" if params[:min_id].present?
+    url
   end
 end
