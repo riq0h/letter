@@ -102,7 +102,7 @@ module TextLinkingHelper
   end
 
   def escape_and_format_text(text)
-    plain_text = ActionView::Base.full_sanitizer.sanitize(text).strip
+    plain_text = CGI.unescapeHTML(ActionView::Base.full_sanitizer.sanitize(text).strip)
     # 注意: <br>変換はURLリンク化の後に行う（apply_url_linksが<br>を跨いでマッチするのを防ぐため）
     ERB::Util.html_escape(plain_text)
   end

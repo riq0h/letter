@@ -34,7 +34,8 @@ class ActivityPubContentProcessor
       linked_content = apply_url_links_to_html(normalized_content)
       mention_linked_content = apply_mention_links_to_html(linked_content)
     else
-      escaped_text = ERB::Util.html_escape(ActionView::Base.full_sanitizer.sanitize(content).strip)
+      plain_text = CGI.unescapeHTML(ActionView::Base.full_sanitizer.sanitize(content).strip)
+      escaped_text = ERB::Util.html_escape(plain_text)
       linked_content = apply_url_links(escaped_text)
       mention_linked_content = apply_mention_links(linked_content)
       # URLリンク化の後に改行を<br>に変換（URL内に<br>が混入するのを防ぐ）

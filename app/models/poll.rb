@@ -8,7 +8,7 @@ class Poll < ApplicationRecord
   validates :expires_at, presence: true
   validates :options, presence: true
   validate :validate_options_format
-  validate :validate_expiry_time
+  validate :validate_expiry_time, on: :create
   validate :validate_not_expired_on_create, on: :create
 
   scope :expired, -> { where(expires_at: ...Time.current) }
