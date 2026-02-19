@@ -10,11 +10,11 @@ class TimelineQuery
     followed_ids = user.followed_actors.pluck(:id) + [user.id]
 
     statuses = base_timeline_query.where(actors: { id: followed_ids })
-    statuses = apply_pagination_filters(statuses).limit(limit * 10)
+    statuses = apply_pagination_filters(statuses).limit(limit * 5)
 
     reblogs = fetch_reblogs(followed_ids)
 
-    MergedTimeline.merge(statuses, reblogs, limit * 2).to_a
+    MergedTimeline.merge(statuses, reblogs, limit).to_a
   end
 
   def build_public_timeline
@@ -71,7 +71,7 @@ class TimelineQuery
                     .where(objects: { visibility: %w[public unlisted] })
                     .includes(object: %i[actor media_attachments poll], actor: {})
                     .order('reblogs.created_at DESC')
-    apply_reblog_pagination_filters(reblogs).limit(limit * 10)
+    apply_reblog_pagination_filters(reblogs).limit(limit * 5)
   end
 
   def apply_pagination_filters(query)
@@ -83,17 +83,25 @@ class TimelineQuery
 
   def apply_reblog_pagination_filters(query)
     if params[:max_id].present?
-      max_time = Letter::Snowflake.extract_timestamp(params[:max_id])
-      query = query.where(reblogs: { created_at: ...max_time })
+      max_time = snowflake_to_time(params[:max_id])
+      query = query.where(reblogs: { created_at: ...max_time }) if max_time
     end
     if params[:since_id].present? && params[:min_id].blank?
-      since_time = Letter::Snowflake.extract_timestamp(params[:since_id])
-      query = query.where('reblogs.created_at > ?', since_time)
+      since_time = snowflake_to_time(params[:since_id])
+      query = query.where('reblogs.created_at > ?', since_time) if since_time
     end
     if params[:min_id].present?
-      min_time = Letter::Snowflake.extract_timestamp(params[:min_id])
-      query = query.where('reblogs.created_at > ?', min_time)
+      min_time = snowflake_to_time(params[:min_id])
+      query = query.where('reblogs.created_at > ?', min_time) if min_time
     end
     query
+  end
+
+  def snowflake_to_time(id)
+    return nil if id.blank?
+
+    Letter::Snowflake.extract_timestamp(id)
+  rescue ArgumentError, RangeError
+    nil
   end
 end

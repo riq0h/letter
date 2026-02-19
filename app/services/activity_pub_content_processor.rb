@@ -116,8 +116,15 @@ class ActivityPubContentProcessor
     # メンション抽出ロジック
     return unless content.include?('@')
 
+    # HTMLの場合は<a>タグ内のメンションパターンを除外（URL内の@をメンションと誤認しない）
+    text_for_scanning = if content.include?('<') && content.include?('>')
+                          content.gsub(/<a\b[^>]*>.*?<\/a>/mi, '')
+                        else
+                          content
+                        end
+
     mention_pattern = /@([a-zA-Z0-9_.-]+)(?:@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?/
-    content.scan(mention_pattern) do |username, domain|
+    text_for_scanning.scan(mention_pattern) do |username, domain|
       create_mention(username, domain)
     end
   end

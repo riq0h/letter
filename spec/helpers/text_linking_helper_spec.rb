@@ -63,6 +63,27 @@ RSpec.describe TextLinkingHelper, type: :helper do
       end
     end
 
+    context 'with mention-like patterns inside URLs' do
+      it 'does not break anchor tags containing mention patterns in URLs' do
+        # URL内にメンションパターンを含むコンテンツ（外部サービスのプロフィールURL等）
+        html = '🔗 <a href="https://qbox.example.com/u/@alice@remote.example.com">https://qbox.example.com/u/@alice@remote.example.com</a>'
+        result = helper.auto_link_urls(html)
+
+        # <a>タグが壊れず、hrefが維持されること
+        expect(result).to include('href="https://qbox.example.com/u/@alice@remote.example.com"')
+        # ">が露出しないこと
+        expect(result).not_to include('@alice">')
+      end
+
+      it 'preserves URL with @ in path inside existing link' do
+        html = '<a href="https://example.com/@user@domain.org/posts/1">https://example.com/@user@domain.org/posts/1</a>'
+        result = helper.auto_link_urls(html)
+
+        expect(result).to include('href="https://example.com/@user@domain.org/posts/1"')
+        expect(result).not_to include('h-card')
+      end
+    end
+
     context 'with HTML content' do
       it 'preserves existing HTML tags' do
         html = 'Check <strong>this</strong> and https://example.com'

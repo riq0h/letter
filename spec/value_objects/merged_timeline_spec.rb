@@ -149,18 +149,24 @@ RSpec.describe MergedTimeline do
 
   describe 'chronological ordering' do
     it 'sorts items by sort_id in descending order' do
-      oldest_status = create(:activity_pub_object, actor: user, published_at: 3.hours.ago)
-      newest_status = create(:activity_pub_object, actor: user, published_at: 1.hour.ago)
-      # The reblog's object is created after newest_status, so it has the highest ID
-      # The reblog's sort_id = object.id, making the reblog sort first
+      # Snowflake IDを直接指定して決定的な順序を保証する
+      oldest_id = Letter::Snowflake.generate_at(3.hours.ago, sequence: 1)
+      newest_id = Letter::Snowflake.generate_at(1.hour.ago, sequence: 1)
+
+      oldest_status = create(:activity_pub_object, actor: user, id: oldest_id)
+      newest_status = create(:activity_pub_object, actor: user, id: newest_id)
+      # reblogのsort_idはtimeline_id(created_atベース)で決まる
       middle_reblog = create(:reblog, actor: other_user,
                                       object: create(:activity_pub_object, actor: user),
                                       created_at: 2.hours.ago)
 
       merged = described_class.new([oldest_status, newest_status], [middle_reblog], 10)
 
-      expect(merged.items[0]).to eq(middle_reblog)
-      expect(merged.items[1]).to eq(newest_status)
+      # newest_status: 1時間前のSnowflake ID → 最大
+      # middle_reblog: 2時間前のtimeline_id → 中間
+      # oldest_status: 3時間前のSnowflake ID → 最小
+      expect(merged.items[0]).to eq(newest_status)
+      expect(merged.items[1]).to eq(middle_reblog)
       expect(merged.items[2]).to eq(oldest_status)
     end
   end

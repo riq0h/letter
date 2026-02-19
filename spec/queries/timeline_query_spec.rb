@@ -43,6 +43,29 @@ RSpec.describe TimelineQuery do
       expect(result.map(&:id)).to include(post1.id)
       expect(result.map(&:id)).not_to include(post2.id)
     end
+
+    it 'returns at most limit items' do
+      create_list(:activity_pub_object, 10, :note, actor: user)
+
+      query_with_limit = described_class.new(user, limit: 5)
+      result = query_with_limit.build_home_timeline
+
+      expect(result.size).to eq(5)
+    end
+
+    it 'returns at most limit items when reblogs are mixed in' do
+      stranger = create(:actor, local: true)
+      create_list(:activity_pub_object, 5, :note, actor: user)
+      3.times do
+        post = create(:activity_pub_object, :note, actor: stranger)
+        Reblog.create!(actor: other_user, object: post)
+      end
+
+      query_with_limit = described_class.new(user, limit: 5)
+      result = query_with_limit.build_home_timeline
+
+      expect(result.size).to eq(5)
+    end
   end
 
   describe '#build_public_timeline' do
@@ -86,6 +109,53 @@ RSpec.describe TimelineQuery do
       result = query.build_hashtag_timeline('nonexistent')
 
       expect(result).to be_empty
+    end
+  end
+
+  describe 'reblog pagination' do
+    before do
+      create(:follow, actor: user, target_actor: other_user)
+    end
+
+    it 'filters reblogs by max_id' do
+      old_post = create(:activity_pub_object, :note, actor: create(:actor, local: true))
+      old_reblog = Reblog.create!(actor: other_user, object: old_post, created_at: 2.hours.ago)
+
+      new_post = create(:activity_pub_object, :note, actor: create(:actor, local: true))
+      new_reblog = Reblog.create!(actor: other_user, object: new_post, created_at: 30.minutes.ago)
+
+      # new_reblogのtimeline_idをmax_idとして使い、それより古いリブログのみ返る
+      query_with_max_id = described_class.new(user, max_id: new_reblog.timeline_id)
+      result = query_with_max_id.build_home_timeline
+
+      expect(result).to include(old_reblog)
+      expect(result).not_to include(new_reblog)
+    end
+
+    it 'filters reblogs by since_id' do
+      old_post = create(:activity_pub_object, :note, actor: create(:actor, local: true))
+      Reblog.create!(actor: other_user, object: old_post, created_at: 2.hours.ago)
+
+      new_post = create(:activity_pub_object, :note, actor: create(:actor, local: true))
+      new_reblog = Reblog.create!(actor: other_user, object: new_post, created_at: 30.minutes.ago)
+
+      # 2つのリブログの中間時刻でカーソルを生成
+      cursor_id = Letter::Snowflake.generate_at(1.hour.ago)
+      query_with_since_id = described_class.new(user, since_id: cursor_id)
+      result = query_with_since_id.build_home_timeline
+
+      reblog_results = result.select { |item| item.is_a?(Reblog) }
+      expect(reblog_results).to include(new_reblog)
+    end
+
+    it 'handles invalid max_id gracefully' do
+      post = create(:activity_pub_object, :note, actor: user)
+
+      query_with_bad_id = described_class.new(user, max_id: 'invalid')
+      result = query_with_bad_id.build_home_timeline
+
+      # 不正なIDでもクラッシュせず結果を返す
+      expect(result).to include(post)
     end
   end
 

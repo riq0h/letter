@@ -356,11 +356,11 @@ module StatusSerializationHelper
           if content.include?(full_mention)
             # Mastodon標準のh-card形式でメンションを作成
             mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
-            content = content.gsub(full_mention, mention_link)
+            content = gsub_outside_a_tags(content, full_mention, mention_link)
           elsif content.include?(local_mention) && actor.local?
             # Mastodon標準のh-card形式でメンションを作成
             mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
-            content = content.gsub(local_mention, mention_link)
+            content = gsub_outside_a_tags(content, local_mention, mention_link)
           end
         end
       end
@@ -371,6 +371,36 @@ module StatusSerializationHelper
 
     # URLリンク化（既存のaタグは保持）
     apply_url_links_only(content)
+  end
+
+  # メンション置換を<a>タグの外側でのみ実行する（URL内のメンションパターンを破壊しない）
+  def gsub_outside_a_tags(content, search_text, replacement)
+    a_tag_ranges = []
+    content.scan(/<a\b[^>]*>.*?<\/a>/mi) do
+      a_tag_ranges << ($LAST_MATCH_INFO.begin(0)...$LAST_MATCH_INFO.end(0))
+    end
+
+    return content.gsub(search_text, replacement) if a_tag_ranges.empty?
+
+    result = content.dup
+    offset = 0
+    search_re = Regexp.new(Regexp.escape(search_text))
+
+    content.scan(search_re) do
+      match_start = $LAST_MATCH_INFO.begin(0)
+      match_end = $LAST_MATCH_INFO.end(0)
+
+      inside_link = a_tag_ranges.any? { |range| match_start >= range.begin && match_end <= range.end }
+
+      unless inside_link
+        actual_start = match_start + offset
+        actual_end = match_end + offset
+        result[actual_start...actual_end] = replacement
+        offset += replacement.length - search_text.length
+      end
+    end
+
+    result
   end
 
   def apply_url_links_only(content)
