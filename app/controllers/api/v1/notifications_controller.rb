@@ -13,15 +13,19 @@ module Api
       # GET /api/v1/notifications
       def index
         @notifications = filtered_notifications
-                         .recent
+                         .order(id: :desc)
                          .then { |n| apply_notification_pagination(n) }
                          .limit(notification_limit_param)
+                         .to_a
+
+        # Linkヘッダーを設定（マーカー注入前に行い、ページネーションを壊さない）
+        add_notification_pagination_headers(@notifications, :api_v1_notifications_url)
+
+        # マーカー通知がリストに含まれることを保証（Moshidon互換）
+        inject_marker_notification_if_missing!
 
         # ActivityPubObjectsを一括取得してN+1を回避
         activity_pub_objects = preload_activity_pub_objects(@notifications)
-
-        # Linkヘッダーを設定（Mastodon互換）
-        add_notification_pagination_headers(@notifications, :api_v1_notifications_url)
 
         render json: @notifications.map { |notification|
           notification_json_with_preloaded(notification, activity_pub_objects)
@@ -36,11 +40,14 @@ module Api
       # POST /api/v1/notifications/clear
       def clear
         current_user.notifications.delete_all
+        # マーカーも削除して整合性を保つ
+        current_user.markers.for_timeline('notifications').destroy_all
         head :ok
       end
 
       # POST /api/v1/notifications/:id/dismiss
       def dismiss
+        update_marker_if_needed(@notification)
         @notification.destroy!
         head :ok
       end
@@ -51,6 +58,50 @@ module Api
         @notification = current_user.notifications.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render_not_found('Notification')
+      end
+
+      # マーカー通知がレスポンスに含まれない場合、ソート位置に挿入する
+      # Moshidonはマーカーと完全一致するIDをリスト内で探すため、
+      # 欠落するとページサイズ(40)が未読数として表示される
+      def inject_marker_notification_if_missing!
+        return if @notifications.empty?
+
+        marker = current_user.markers.for_timeline('notifications').first
+        return unless marker&.last_read_id
+
+        marker_id = marker.last_read_id
+        return if @notifications.any? { |n| n.id.to_s == marker_id }
+
+        # マーカーIDがリスト範囲内（最新と最古の間）の場合のみ注入
+        newest_id = @notifications.first.id
+        oldest_id = @notifications.last.id
+        marker_id_int = marker_id.to_i
+        return unless marker_id_int < newest_id && marker_id_int >= oldest_id
+
+        marker_notification = current_user.notifications
+                                          .includes(:from_account)
+                                          .find_by(id: marker_id)
+        return unless marker_notification
+
+        # id降順のソート位置に挿入（末尾追加ではなく正しい位置に挿入）
+        insert_index = @notifications.index { |n| n.id < marker_id_int } || @notifications.size
+        @notifications.insert(insert_index, marker_notification)
+      end
+
+      # 削除対象の通知がマーカーの場合、直前の通知にマーカーを移動
+      def update_marker_if_needed(notification)
+        marker = current_user.markers.for_timeline('notifications').first
+        return unless marker&.last_read_id == notification.id.to_s
+
+        older = current_user.notifications
+                            .where(id: ...notification.id)
+                            .order(id: :desc)
+                            .first
+        if older
+          marker.update!(last_read_id: older.id.to_s)
+        else
+          marker.destroy
+        end
       end
 
       def filtered_notifications
