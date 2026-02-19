@@ -149,18 +149,15 @@ RSpec.describe PollExpirationNotifyJob, type: :job do
       end
 
       it 'attempts to fetch remote poll results' do
-        # HTTPartyのgetメソッドをスタブ
-        response_double = instance_double(HTTParty::Response)
-        allow(response_double).to receive_messages(success?: true, parsed_response: {
-                                                     'type' => 'Question',
-                                                     'oneOf' => [
-                                                       { 'name' => 'Remote Option 1', 'replies' => { 'totalItems' => 5 } },
-                                                       { 'name' => 'Remote Option 2', 'replies' => { 'totalItems' => 3 } }
-                                                     ],
-                                                     'votersCount' => 8
-                                                   })
-
-        allow(HTTParty).to receive(:get).and_return(response_double)
+        # ActivityPubHttpClientをスタブ
+        allow(ActivityPubHttpClient).to receive(:fetch_object).and_return({
+                                                                           'type' => 'Question',
+                                                                           'oneOf' => [
+                                                                             { 'name' => 'Remote Option 1', 'replies' => { 'totalItems' => 5 } },
+                                                                             { 'name' => 'Remote Option 2', 'replies' => { 'totalItems' => 3 } }
+                                                                           ],
+                                                                           'votersCount' => 8
+                                                                         })
 
         described_class.new.perform(remote_poll.id)
         remote_poll.reload
@@ -170,11 +167,8 @@ RSpec.describe PollExpirationNotifyJob, type: :job do
       end
 
       it 'handles remote fetch errors gracefully' do
-        # 失敗するHTTPリクエストをスタブ
-        response_double = instance_double(HTTParty::Response)
-        allow(response_double).to receive_messages(success?: false, code: 500)
-
-        allow(HTTParty).to receive(:get).and_return(response_double)
+        # ActivityPubHttpClientがnilを返すケース
+        allow(ActivityPubHttpClient).to receive(:fetch_object).and_return(nil)
 
         # 通知は作成される
         expect do

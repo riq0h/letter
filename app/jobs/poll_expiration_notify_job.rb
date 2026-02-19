@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 class PollExpirationNotifyJob < ApplicationJob
-  include HTTParty
-
   queue_as :default
   discard_on ActiveRecord::RecordNotFound
 
@@ -50,15 +48,12 @@ class PollExpirationNotifyJob < ApplicationJob
   end
 
   def fetch_remote_poll_results(poll)
-    response = HTTParty.get(poll.object.ap_id, {
-                              headers: activitypub_headers,
-                              timeout: 10
-                            })
+    data = ActivityPubHttpClient.fetch_object(poll.object.ap_id)
 
-    if response.success?
-      update_poll_from_remote_data(poll, response.parsed_response)
+    if data
+      update_poll_from_remote_data(poll, data)
     else
-      Rails.logger.warn "🗳️  Failed to fetch remote poll results: HTTP #{response.code}"
+      Rails.logger.warn "🗳️  Failed to fetch remote poll results for poll #{poll.id}"
     end
   rescue StandardError => e
     Rails.logger.error "🗳️  Failed to fetch remote poll results: #{e.message}"
@@ -73,7 +68,7 @@ class PollExpirationNotifyJob < ApplicationJob
 
       # 各選択肢の投票数を更新
       if poll_options.is_a?(Array)
-        vote_counts = poll_options.map { |option| option['replies']['totalItems'] || 0 }
+        vote_counts = poll_options.map { |option| option.dig('replies', 'totalItems') || 0 }
 
         # pollのoptionsを投票数で更新
         updated_options = poll.options.each_with_index.map do |option, index|
@@ -137,12 +132,5 @@ class PollExpirationNotifyJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.error "🗳️  Failed to create poll notification: #{e.message}"
     raise e
-  end
-
-  def activitypub_headers
-    {
-      'Accept' => ActivityPubHttpClient::ACCEPT_HEADERS,
-      'User-Agent' => InstanceConfig.user_agent(:activitypub)
-    }
   end
 end

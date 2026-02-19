@@ -6,7 +6,6 @@ require_relative 'concerns/featured_collection_fetching'
 require_relative 'concerns/emoji_tag_processing'
 
 class ActorFetcher
-  include HTTParty
   include ActorAttachmentProcessing
   include FeaturedCollectionFetching
   include EmojiTagProcessing
@@ -34,15 +33,12 @@ class ActorFetcher
   end
 
   def fetch_actor_data(actor_uri)
-    response = perform_actor_request(actor_uri)
-    actor_data = parse_actor_response(response)
+    actor_data = ActivityPubHttpClient.fetch_object(actor_uri)
+    raise ActivityPub::ActorFetchError, "Failed to fetch actor: #{actor_uri}" unless actor_data
+
     validate_actor_data(actor_data, actor_uri)
 
     actor_data
-  rescue JSON::ParserError => e
-    raise ActivityPub::ActorFetchError, "Invalid JSON response: #{e.message}"
-  rescue Net::TimeoutError => e
-    raise ActivityPub::ActorFetchError, "Request timeout: #{e.message}"
   end
 
   def create_actor_from_data(actor_uri, actor_data)
@@ -65,24 +61,6 @@ class ActorFetcher
   end
 
   private
-
-  def perform_actor_request(actor_uri)
-    HTTParty.get(
-      actor_uri,
-      headers: {
-        'Accept' => ActivityPubHttpClient::ACCEPT_HEADERS,
-        'User-Agent' => InstanceConfig.user_agent(:activitypub)
-      },
-      timeout: @timeout,
-      follow_redirects: true
-    )
-  end
-
-  def parse_actor_response(response)
-    raise ActivityPub::ActorFetchError, "HTTP #{response.code}: #{response.message}" unless response.success?
-
-    JSON.parse(response.body)
-  end
 
   def validate_actor_data(actor_data, expected_uri = nil)
     unless actor_data['type']&.match?(/Person|Service|Organization|Group/)
