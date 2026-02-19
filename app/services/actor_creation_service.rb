@@ -91,11 +91,24 @@ class ActorCreationService
     Rails.logger.warn "Failed to attach #{attachment_name} for actor #{actor.ap_id}: #{e.message}"
   end
 
-  def fetch_image_response(image_url)
+  def fetch_image_response(image_url, redirect_limit: 3)
     return nil unless validate_url_for_ssrf!(image_url)
+    return nil if redirect_limit <= 0
 
-    response = Net::HTTP.get_response(URI(image_url))
-    response.is_a?(Net::HTTPSuccess) ? response : nil
+    uri = URI(image_url)
+    response = Net::HTTP.get_response(uri)
+
+    case response
+    when Net::HTTPSuccess
+      response
+    when Net::HTTPRedirection
+      redirect_url = response['location']
+      return nil if redirect_url.blank?
+
+      # 相対URLの場合は元のURIから解決
+      redirect_url = URI.join(uri, redirect_url).to_s
+      fetch_image_response(redirect_url, redirect_limit: redirect_limit - 1)
+    end
   end
 
   def extract_image_metadata(response, image_url)
