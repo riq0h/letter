@@ -35,7 +35,7 @@ module AccountSerializer
       id: account.id.to_s,
       username: account.username,
       acct: account_acct(account),
-      display_name: account.display_name || account.username,
+      display_name: sanitize_plain_text(account.display_name || account.username),
       locked: account.manually_approves_followers || false,
       bot: account.actor_type == 'Service',
       discoverable: account.discoverable || false,
@@ -109,7 +109,7 @@ module AccountSerializer
       fields = JSON.parse(account.fields)
       fields.map do |field|
         {
-          name: field['name'] || '',
+          name: sanitize_field_name(field['name'] || ''),
           value: format_field_value_for_api(field['value'] || ''),
           value_html: format_field_value_for_client(field['value'] || ''),
           verified_at: field['verified_at'] || field['verifiedAt']
@@ -172,7 +172,7 @@ module AccountSerializer
   def format_field_value_for_client(value)
     return '' if value.blank?
 
-    cleaned_value = value.gsub(/<span class="invisible">[^<]*<\/span>/, '')
+    cleaned_value = sanitize_field_html(value)
     # 絵文字処理とURLリンク化を一括実行（二重処理を防止）
     parse_content_for_frontend(cleaned_value)
   end
@@ -191,24 +191,55 @@ module AccountSerializer
   def format_field_value_for_api(value)
     return '' if value.blank?
 
-    if value.include?('<a href=') || value.include?('<a href=\"') || value.match?(/<a\s+[^>]*href=/i)
-      # 既にHTMLリンクの場合は invisible span のみ除去して、他の処理はしない
-      value.gsub(/<span class="invisible">[^<]*<\/span>/, '')
-    elsif value.match?(/\Ahttps?:\/\//)
+    # まずブロック要素とinvisible spanを除去
+    cleaned = sanitize_field_html(value)
+
+    if cleaned.match?(/<a\s+[^>]*href=/i)
+      # 既にHTMLリンクが含まれている場合はそのまま返す
+      cleaned
+    elsif cleaned.match?(/\Ahttps?:\/\//)
       # プレーンURLの場合はリンク化
       domain = begin
-        URI.parse(value).host
+        URI.parse(cleaned).host
       rescue StandardError
-        value
+        cleaned
       end
-      %(<a href="#{CGI.escapeHTML(value)}" target="_blank" rel="nofollow noopener noreferrer me">#{CGI.escapeHTML(domain)}</a>)
+      %(<a href="#{CGI.escapeHTML(cleaned)}" target="_blank" rel="nofollow noopener noreferrer me">#{CGI.escapeHTML(domain)}</a>)
     else
       # プレーンテキストの場合のみエスケープ
-      CGI.escapeHTML(value)
+      CGI.escapeHTML(cleaned)
     end
   rescue URI::InvalidURIError
     CGI.escapeHTML(value)
   end
+
+  # フィールド値からブロック要素とinvisible spanを除去し、インライン要素のみ残す
+  def sanitize_field_html(value)
+    return value unless value.include?('<')
+
+    # invisible spanを除去
+    result = value.gsub(/<span class="invisible">[^<]*<\/span>/, '')
+
+    # ellipsis spanの中身だけ残す
+    result = result.gsub(/<span class="ellipsis">([^<]*)<\/span>/, '\1')
+
+    # ブロック要素のタグを除去（中身は保持）
+    result = result.gsub(/<\/?(?:p|div|section|article|blockquote|pre|ul|ol|li|h[1-6])\b[^>]*>/i, '')
+
+    # 連続する空白・改行を整理
+    result.strip.gsub(/\n+/, ' ').gsub(/\s{2,}/, ' ')
+  end
+
+  # プレーンテキスト用サニタイズ（display_name、フィールド名など）
+  # カスタム絵文字の<img>タグを:shortcode:に変換してからHTMLタグを除去
+  def sanitize_plain_text(text)
+    return text unless text.include?('<')
+
+    preserved = convert_emoji_html_to_shortcode(text)
+    ActionController::Base.helpers.strip_tags(preserved).strip
+  end
+
+  alias sanitize_field_name sanitize_plain_text
 
   # apply_url_links メソッドは TextLinkingHelper から継承
 end

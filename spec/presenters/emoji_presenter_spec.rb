@@ -171,6 +171,60 @@ RSpec.describe EmojiPresenter do
     end
   end
 
+  describe 'hyphenated shortcodes' do
+    it 'extracts shortcodes with hyphens' do
+      text = 'Hello :blob-cat: and :neko-wave:!'
+      presenter = described_class.new(text)
+
+      result = presenter.extract_shortcodes
+
+      expect(result).to contain_exactly('blob-cat', 'neko-wave')
+    end
+  end
+
+  describe 'extract shortcodes from img tags' do
+    it 'extracts shortcodes from pre-rendered emoji img tags' do
+      text = '<p>Hello <img src="https://example.com/emoji.png" alt=":blobcat:" class="custom-emoji" /> world</p>'
+      presenter = described_class.new(text)
+
+      result = presenter.extract_shortcodes
+
+      expect(result).to include('blobcat')
+    end
+
+    it 'extracts both plain shortcodes and img alt shortcodes' do
+      text = ':smile: and <img src="https://example.com/heart.png" alt=":heart:" class="custom-emoji" />'
+      presenter = described_class.new(text)
+
+      result = presenter.extract_shortcodes
+
+      expect(result).to contain_exactly('smile', 'heart')
+    end
+
+    it 'deduplicates shortcodes from both sources' do
+      text = ':blobcat: <img src="https://example.com/blobcat.png" alt=":blobcat:" class="custom-emoji" />'
+      presenter = described_class.new(text)
+
+      result = presenter.extract_shortcodes
+
+      expect(result).to eq(['blobcat'])
+    end
+  end
+
+  describe 'domain-aware lookup' do
+    it 'accepts domain parameter' do
+      presenter = described_class.new(':smile:', domain: 'mastodon.social')
+
+      expect(presenter.instance_variable_get(:@domain)).to eq('mastodon.social')
+    end
+
+    it 'passes domain via class method' do
+      expect(described_class).to receive(:new).with(':smile:', domain: 'example.com').and_call_original
+
+      described_class.extract_emojis_from(':smile:', domain: 'example.com')
+    end
+  end
+
   describe 'empty or blank text' do
     it 'handles empty string' do
       presenter = described_class.new('')
