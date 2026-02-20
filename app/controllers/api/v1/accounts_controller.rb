@@ -19,7 +19,6 @@ module Api
 
       # GET /api/v1/accounts/verify_credentials
       def verify_credentials
-        doorkeeper_authorize!
         return render_authentication_required unless current_user
 
         render json: serialized_account(current_user, is_self: true)
