@@ -160,7 +160,7 @@ module Api
       def fetch_hashtag_events(hashtag, since_id, local_only:)
         return [] if hashtag.blank?
 
-        tag = Tag.find_by(name: hashtag.downcase)
+        tag = Tag.find_by(name: hashtag.unicode_normalize(:nfkc).strip.downcase)
         return [] unless tag
 
         posts = tag.objects.joins(:actor)

@@ -35,7 +35,8 @@ class TimelineQuery
   end
 
   def build_hashtag_timeline(hashtag_name)
-    tag = Tag.find_by(name: hashtag_name)
+    normalized_name = hashtag_name.unicode_normalize(:nfkc).strip.downcase
+    tag = Tag.find_by(name: normalized_name)
     return ActivityPubObject.none unless tag
 
     statuses = base_timeline_query

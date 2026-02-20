@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/tags/:id
       def show
-        tag_name = params[:id]
+        tag_name = normalize_tag_name(params[:id])
         tag = Tag.find_by(name: tag_name)
 
         if tag
@@ -29,7 +29,7 @@ module Api
         doorkeeper_authorize! :write, :'write:follows'
         return render_authentication_required unless current_user
 
-        tag_name = params[:id]
+        tag_name = normalize_tag_name(params[:id])
         tag = find_or_create_tag(tag_name)
 
         # フォロー関係を作成（重複チェック付き）
@@ -43,7 +43,7 @@ module Api
         doorkeeper_authorize! :write, :'write:follows'
         return render_authentication_required unless current_user
 
-        tag_name = params[:id]
+        tag_name = normalize_tag_name(params[:id])
         tag = Tag.find_by(name: tag_name)
 
         if tag
@@ -61,6 +61,10 @@ module Api
       end
 
       private
+
+      def normalize_tag_name(name)
+        name.unicode_normalize(:nfkc).strip.downcase
+      end
 
       def find_or_create_tag(tag_name)
         Tag.find_or_create_by(name: tag_name) do |tag|
