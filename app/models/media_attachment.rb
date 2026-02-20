@@ -220,12 +220,13 @@ class MediaAttachment < ApplicationRecord
   def generate_remote_video_preview_url
     return default_preview_icon_url if remote_url.blank?
 
-    # Bluesky動画はデフォルトアイコンを使用
-    return default_preview_icon_url if remote_url.include?('bsky.network/xrpc/')
-
     # 外部動画のサムネイルをキャッシュ
     Rails.cache.fetch("remote_video_preview_#{id}", expires_in: 1.week) do
-      extract_remote_video_frame_as_data_url || default_preview_icon_url
+      if remote_url.include?('bsky.network/xrpc/')
+        fetch_bluesky_video_thumbnail || default_preview_icon_url
+      else
+        extract_remote_video_frame_as_data_url || default_preview_icon_url
+      end
     end
   rescue StandardError => e
     Rails.logger.error "Failed to generate remote video preview for #{id}: #{e.message}"
@@ -247,11 +248,11 @@ class MediaAttachment < ApplicationRecord
     output_file = Tempfile.new(['thumbnail', '.jpg'])
     output_file.close
 
-    # FFmpeg コマンド
+    # FFmpeg コマンド（-ssを-iの前に置くことで高速シーク）
     cmd = [
       'ffmpeg',
+      '-ss', '0',
       '-i', input_file.path,
-      '-ss', '00:00:01',
       '-vframes', '1',
       '-q:v', '2',
       '-y',
@@ -285,11 +286,11 @@ class MediaAttachment < ApplicationRecord
     output_file = Tempfile.new(['remote_thumbnail', '.jpg'])
     output_file.close
 
-    # FFmpegで直接リモートURLから1フレーム抽出
+    # FFmpegで直接リモートURLから1フレーム抽出（-ssを-iの前に置くことで高速シーク）
     cmd = [
       'ffmpeg',
+      '-ss', '0',
       '-i', remote_url,
-      '-ss', '00:00:01',
       '-vframes', '1',
       '-q:v', '2',
       '-y',
@@ -308,6 +309,27 @@ class MediaAttachment < ApplicationRecord
     end
   ensure
     output_file&.unlink
+  end
+
+  # Bluesky動画のサムネイルをvideo.bsky.appから取得
+  def fetch_bluesky_video_thumbnail
+    require 'base64'
+
+    uri = URI.parse(remote_url)
+    params = URI.decode_www_form(uri.query || '').to_h
+    did = params['did']
+    cid = params['cid']
+    return nil unless did.present? && cid.present?
+
+    thumbnail_url = "https://video.bsky.app/watch/#{CGI.escape(did)}/#{cid}/thumbnail.jpg"
+    response = HTTParty.get(thumbnail_url, timeout: 10, follow_redirects: true)
+
+    return nil unless response.success? && response.body.present?
+
+    "data:image/jpeg;base64,#{Base64.strict_encode64(response.body)}"
+  rescue StandardError => e
+    Rails.logger.warn "Failed to fetch Bluesky video thumbnail: #{e.message}"
+    nil
   end
 
   # キャッシュされたリモート画像のURLを取得（キャッシュが有効な場合）

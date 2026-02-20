@@ -200,7 +200,7 @@ class MediaAttachmentCreationService
     thumb_file = Tempfile.new(['thumb', '.jpg'])
     thumb_file.close
 
-    thumb_cmd = ['ffmpeg', '-i', file_path, '-ss', '00:00:01', '-vframes', '1', '-q:v', '2', '-y', thumb_file.path]
+    thumb_cmd = ['ffmpeg', '-ss', '0', '-i', file_path, '-vframes', '1', '-q:v', '2', '-y', thumb_file.path]
     _, _, thumb_status = Open3.capture3(*thumb_cmd)
 
     if thumb_status.success? && File.exist?(thumb_file.path)
@@ -235,6 +235,6 @@ class MediaAttachmentCreationService
     Blurhash.encode(image.width, image.height, pixels, x_components: 4, y_components: 4)
   rescue StandardError => e
     Rails.logger.warn "Failed to generate blurhash with libvips: #{e.message}"
-    'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+    'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
   end
 end

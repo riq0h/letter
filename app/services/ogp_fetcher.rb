@@ -7,7 +7,7 @@ class OgpFetcher
   include HTTParty
   include SsrfProtection
 
-  MAX_BODY_SIZE = 1.megabyte
+  MAX_BODY_SIZE = 5.megabytes
 
   default_timeout 10
   headers 'User-Agent' => InstanceConfig.user_agent(:web)
