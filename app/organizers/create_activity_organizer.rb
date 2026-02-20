@@ -127,6 +127,7 @@ class CreateActivityOrganizer
     handle_media_attachments(object, object_data)
     handle_mentions(object, object_data)
     handle_emojis(object, object_data)
+    handle_hashtags(object, object_data)
     handle_poll(object, object_data) if poll_object?(object_data)
     handle_quote_post(object, object_data) if quote_post_object?(object_data)
     handle_direct_message_conversation(object, object_data) if object.visibility == 'direct'
@@ -178,6 +179,21 @@ class CreateActivityOrganizer
   def handle_emojis(object, object_data)
     remote_domain = extract_domain_from_uri(object.ap_id)
     process_emoji_tags(object_data['tag'], domain: remote_domain)
+  end
+
+  def handle_hashtags(object, object_data)
+    tags = Array(object_data['tag'])
+    hashtag_tags = tags.select { |t| t.is_a?(Hash) && t['type'] == 'Hashtag' && t['name'].present? }
+
+    hashtag_tags.each do |hashtag_tag|
+      tag_name = hashtag_tag['name'].delete_prefix('#')
+      next if tag_name.blank?
+
+      tag = Tag.find_or_create_by_display_name(tag_name)
+      ObjectTag.find_or_create_by(object: object, tag: tag)
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to handle hashtags: #{e.message}"
   end
 
   def update_reply_count_if_needed(object)

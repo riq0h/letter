@@ -48,12 +48,12 @@ module MentionProcessor
   def process_hashtags
     tag_names = extract_hashtag_names(@status.content)
     tag_names.each do |tag_name|
-      tag = Tag.find_or_create_by(name: tag_name.downcase)
+      tag = Tag.find_or_create_by_display_name(tag_name)
       ObjectTag.find_or_create_by(object: @status, tag: tag)
     end
   end
 
   def extract_hashtag_names(content)
-    content.scan(/#([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/).flatten.uniq
+    content.scan(/#([\w\u0080-\uFFFF]+)/).flatten.uniq
   end
 end

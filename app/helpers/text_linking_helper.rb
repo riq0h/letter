@@ -9,14 +9,16 @@ module TextLinkingHelper
       sanitized = sanitize_html_for_display(text)
       linked_text = apply_url_links_to_html(sanitized)
       mention_linked_text = apply_mention_links_to_html(linked_text)
+      hashtag_linked_text = apply_hashtag_links_to_html(mention_linked_text)
     else
       escaped_text = escape_and_format_text(text)
       linked_text = apply_url_links(escaped_text)
       mention_linked_text = apply_mention_links(linked_text)
+      hashtag_linked_text = apply_hashtag_links(mention_linked_text)
       # URLリンク化の後に改行を<br>に変換（URL内に<br>が混入するのを防ぐ）
-      mention_linked_text = mention_linked_text.gsub("\n", '<br>')
+      hashtag_linked_text = hashtag_linked_text.gsub("\n", '<br>')
     end
-    mention_linked_text.html_safe
+    hashtag_linked_text.html_safe
   end
 
   # 絵文字HTMLタグ (<img ... alt=":shortcode:" ...>) をショートコード形式 (:shortcode:) に変換
@@ -119,6 +121,53 @@ module TextLinkingHelper
       "<a href=\"#{href}\" target=\"_blank\" rel=\"noopener noreferrer\" " \
         "class=\"text-gray-500 hover:text-gray-700 transition-colors\">#{display_text}</a>"
     end
+  end
+
+  def apply_hashtag_links(text)
+    base_url = Rails.application.config.activitypub.base_url
+    hashtag_pattern = /(?<=\A|[\s>])#([\w\u0080-\uFFFF]+)/
+    text.gsub(hashtag_pattern) do
+      tag_name = ::Regexp.last_match(1)
+      normalized = tag_name.unicode_normalize(:nfkc).downcase
+      tag_url = "#{base_url}/tags/#{ERB::Util.url_encode(normalized)}"
+      %(<a href="#{tag_url}" class="mention hashtag" rel="tag">#<span>#{CGI.escapeHTML(tag_name)}</span></a>)
+    end
+  end
+
+  def apply_hashtag_links_to_html(html_text)
+    base_url = Rails.application.config.activitypub.base_url
+    hashtag_pattern = /(?<=\A|[\s>])#([\w\u0080-\uFFFF]+)/
+
+    a_tag_ranges = collect_a_tag_ranges(html_text)
+
+    result = html_text.dup
+    offset = 0
+
+    html_text.scan(hashtag_pattern) do |match|
+      tag_name = match[0]
+      match_start = $LAST_MATCH_INFO.begin(0)
+      match_end = $LAST_MATCH_INFO.end(0)
+
+      # 先頭のスペース等を含まないよう、#の位置を特定
+      hash_pos = html_text.index('#', match_start)
+      next unless hash_pos
+
+      inside_a_tag = a_tag_ranges.any? { |range| hash_pos >= range[:start] && match_end <= range[:end] }
+
+      unless inside_a_tag
+        normalized = tag_name.unicode_normalize(:nfkc).downcase
+        tag_url = "#{base_url}/tags/#{ERB::Util.url_encode(normalized)}"
+        link = %(<a href="#{tag_url}" class="mention hashtag" rel="tag">#<span>#{CGI.escapeHTML(tag_name)}</span></a>)
+
+        actual_start = hash_pos + offset
+        actual_end = match_end + offset
+        original_text = "##{tag_name}"
+        result[actual_start...actual_end] = link
+        offset += link.length - original_text.length
+      end
+    end
+
+    result
   end
 
   def apply_mention_links(text)

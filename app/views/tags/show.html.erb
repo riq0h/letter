@@ -1,0 +1,38 @@
+<% content_for :title, @page_title %>
+<% content_for :description, "#{@page_title} の投稿一覧" %>
+
+<h1 class="text-xl font-bold text-gray-800 py-4 border-b border-gray-200 mb-4"><%= @page_title %></h1>
+
+<!-- 無限スクロール対応タイムライン -->
+<main id="posts-container" role="main">
+  <% if @posts.empty? %>
+    <p class="text-center text-gray-500 py-8">このタグの投稿はまだありません</p>
+  <% else %>
+    <% @posts.each do |timeline_item| %>
+      <%= render 'shared/post_card', post: timeline_item[:item] %>
+    <% end %>
+
+    <% if @more_posts_available %>
+      <%= turbo_frame_tag "load_more", src: tag_path(@tag.name, max_id: @older_max_id), loading: :lazy do %>
+        <div class="text-center py-8">
+          <div class="inline-block w-8 h-3">
+            <svg viewBox="0 0 32 12" class="w-full h-full">
+              <path d="M0,6 L6,6 L8,2 L10,10 L12,4 L14,8 L16,6 L32,6"
+                    stroke="#6B7280" stroke-width="1" fill="none">
+                <animate attributeName="stroke-dasharray"
+                         values="0,80;40,40;0,80"
+                         dur="1.5s"
+                         repeatCount="indefinite"/>
+                <animate attributeName="stroke-dashoffset"
+                         values="0;-80"
+                         dur="1.5s"
+                         repeatCount="indefinite"/>
+              </path>
+            </svg>
+          </div>
+          <p class="mt-2 text-gray-600">通信中</p>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+</main>

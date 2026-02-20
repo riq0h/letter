@@ -17,7 +17,7 @@ module ActivityBuilders
         {
           'type' => 'Hashtag',
           'href' => "#{Rails.application.config.activitypub.base_url}/tags/#{tag.name}",
-          'name' => "##{tag.name}"
+          'name' => "##{tag.display_name || tag.name}"
         }
       end
     end

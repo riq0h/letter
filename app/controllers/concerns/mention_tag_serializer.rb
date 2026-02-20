@@ -80,7 +80,7 @@ module MentionTagSerializer
     return nil unless tag&.name
 
     {
-      name: tag.name.to_s,
+      name: (tag.display_name || tag.name).to_s,
       url: "#{Rails.application.config.activitypub.base_url}/tags/#{tag.name}"
     }
   rescue StandardError => e

@@ -1,0 +1,4 @@
+<%= render 'shared/post_timeline',
+           posts: @posts,
+           more_posts_available: @more_posts_available,
+           load_more_url: @more_posts_available ? tag_path(@tag.name, max_id: @older_max_id) : nil %>

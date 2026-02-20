@@ -33,11 +33,13 @@ class ActivityPubContentProcessor
       normalized_content = normalize_html_structure(content)
       linked_content = apply_url_links_to_html(normalized_content)
       mention_linked_content = apply_mention_links_to_html(linked_content)
+      mention_linked_content = apply_hashtag_links_to_html(mention_linked_content)
     else
       plain_text = CGI.unescapeHTML(ActionView::Base.full_sanitizer.sanitize(content).strip)
       escaped_text = ERB::Util.html_escape(plain_text)
       linked_content = apply_url_links(escaped_text)
       mention_linked_content = apply_mention_links(linked_content)
+      mention_linked_content = apply_hashtag_links(mention_linked_content)
       # URLリンク化の後に改行を<br>に変換（URL内に<br>が混入するのを防ぐ）
       mention_linked_content = mention_linked_content.gsub("\n", '<br>')
     end
@@ -134,7 +136,7 @@ class ActivityPubContentProcessor
     # ハッシュタグ抽出ロジック
     return unless content.include?('#')
 
-    hashtag_pattern = /#([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/
+    hashtag_pattern = /#([\w\u0080-\uFFFF]+)/
     content.scan(hashtag_pattern) do |tag_name|
       create_hashtag(tag_name.first)
     end
@@ -172,7 +174,7 @@ class ActivityPubContentProcessor
 
   def create_hashtag(tag_name)
     # ハッシュタグ作成処理
-    tag = Tag.find_or_create_by(name: tag_name.downcase)
+    tag = Tag.find_or_create_by_display_name(tag_name)
     object.object_tags.find_or_create_by(tag: tag)
   end
 

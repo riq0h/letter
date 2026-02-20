@@ -10,6 +10,17 @@ class TimelineQuery
     followed_ids = user.followed_actors.pluck(:id) + [user.id]
 
     statuses = base_timeline_query.where(actors: { id: followed_ids })
+
+    # フォロー中タグの投稿を追加
+    followed_tag_ids = user.followed_tags.pluck(:tag_id)
+    if followed_tag_ids.any?
+      tag_object_ids = ObjectTag.where(tag_id: followed_tag_ids)
+                                .joins(object: :actor)
+                                .where(objects: { visibility: 'public', object_type: %w[Note Question] })
+                                .pluck(:object_id)
+      statuses = statuses.or(base_timeline_query.where(objects: { id: tag_object_ids })) if tag_object_ids.any?
+    end
+
     statuses = apply_pagination_filters(statuses).limit(limit * 5)
 
     reblogs = fetch_reblogs(followed_ids)

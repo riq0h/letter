@@ -164,7 +164,7 @@ RSpec.describe MediaAttachmentCreationService do
 
         blurhash = service.send(:generate_blurhash_from_vips, invalid_image)
 
-        expect(blurhash).to eq('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
+        expect(blurhash).to eq('L6PZfSi_.AyE_3t7t7R**0o#DgR4')
       end
     end
   end

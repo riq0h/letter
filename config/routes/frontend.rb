@@ -25,6 +25,9 @@ Rails.application.routes.draw do
   post '/login', to: 'sessions#create'
   delete '/logout', to: 'sessions#destroy', as: :logout
 
+  # ハッシュタグタイムライン
+  get '/tags/:name', to: 'tags#show', as: :tag
+
   # 静的ページ
   get '/about', to: 'pages#about'
 
@@ -34,7 +37,7 @@ Rails.application.routes.draw do
   # エラーページ
   get '/404', to: 'errors#not_found'
   get '/500', to: 'errors#internal_server_error'
-  
+
   # 開発環境でのテスト用
   get '/test_500', to: 'errors#test_internal_server_error' if Rails.env.development?
 end
