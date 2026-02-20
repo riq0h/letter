@@ -3,10 +3,11 @@
 # 絵文字表示ロジックを専門的に扱うPresenter
 # HTML生成とコード処理を分離
 class EmojiPresenter
-  EMOJI_REGEX = /:([a-zA-Z0-9_]+):/
+  EMOJI_REGEX = CustomEmoji::SCAN_RE
 
-  def initialize(text)
+  def initialize(text, domain: nil)
     @text = text.to_s
+    @domain = domain
     @local_emojis = {}
     @remote_emojis = {}
   end
@@ -25,9 +26,12 @@ class EmojiPresenter
     end
   end
 
-  # ショートコードを抽出
+  # ショートコードを抽出（プレーンテキストの:shortcode:と<img alt=":shortcode:">の両方に対応）
   def extract_shortcodes
-    @text.scan(EMOJI_REGEX).flatten.uniq
+    shortcodes = @text.scan(EMOJI_REGEX).flatten
+    # <img>タグのalt属性からも抽出（リモートサーバが事前レンダリング済みの場合）
+    shortcodes += @text.scan(/<img[^>]*alt=":([^"]+):"[^>]*>/i).flatten
+    shortcodes.map(&:downcase).uniq
   end
 
   # 使用されている絵文字のリストを取得
@@ -35,10 +39,21 @@ class EmojiPresenter
     shortcodes = extract_shortcodes
     return [] if shortcodes.empty?
 
-    normalized_shortcodes = shortcodes.map(&:downcase)
+    local_emojis = CustomEmoji.enabled.visible.where(shortcode: shortcodes, domain: nil)
 
-    local_emojis = CustomEmoji.enabled.visible.where(shortcode: normalized_shortcodes, domain: nil)
-    remote_emojis = CustomEmoji.enabled.remote.where(shortcode: normalized_shortcodes)
+    # ドメインが指定されている場合、そのドメインを優先して検索
+    remote_emojis = if @domain.present?
+                      domain_emojis = CustomEmoji.enabled.remote.where(shortcode: shortcodes, domain: @domain)
+                      # ドメイン指定で見つからなかったショートコードは全ドメインから検索
+                      remaining = shortcodes - domain_emojis.pluck(:shortcode)
+                      if remaining.any?
+                        domain_emojis + CustomEmoji.enabled.remote.where(shortcode: remaining)
+                      else
+                        domain_emojis
+                      end
+                    else
+                      CustomEmoji.enabled.remote.where(shortcode: shortcodes)
+                    end
 
     (local_emojis + remote_emojis).uniq(&:shortcode)
   end
@@ -50,9 +65,9 @@ class EmojiPresenter
       new(text).to_html
     end
 
-    # テキストから絵文字のリストを抽出
-    def extract_emojis_from(text)
-      new(text).used_emojis
+    # テキストから絵文字のリストを抽出（ドメイン指定可能）
+    def extract_emojis_from(text, domain: nil)
+      new(text, domain: domain).used_emojis
     end
 
     # ショートコードのみを抽出
@@ -73,9 +88,19 @@ class EmojiPresenter
 
     return @local_emojis[normalized_shortcode] if @local_emojis[normalized_shortcode]
 
-    @remote_emojis[normalized_shortcode] ||= CustomEmoji.enabled
-                                                        .remote
-                                                        .find_by(shortcode: normalized_shortcode)
+    # ドメイン指定がある場合はそのドメインを優先
+    if @domain.present?
+      @remote_emojis[normalized_shortcode] ||= CustomEmoji.enabled
+                                                          .remote
+                                                          .find_by(shortcode: normalized_shortcode, domain: @domain) ||
+                                               CustomEmoji.enabled
+                                                          .remote
+                                                          .find_by(shortcode: normalized_shortcode)
+    else
+      @remote_emojis[normalized_shortcode] ||= CustomEmoji.enabled
+                                                          .remote
+                                                          .find_by(shortcode: normalized_shortcode)
+    end
   end
 
   # 絵文字HTML要素を構築

@@ -42,7 +42,9 @@ module StatusSerializer
     # 防御的プログラミング: 常に配列を返し、nullは返さない
     return [] if status.nil? || status.content.blank?
 
-    emojis = EmojiPresenter.extract_emojis_from(status.content)
+    # 投稿者のドメインを渡して、同一ドメインの絵文字を優先検索
+    domain = status.actor&.domain
+    emojis = EmojiPresenter.extract_emojis_from(status.content, domain: domain)
     result = emojis.filter_map(&:to_activitypub) # nil エントリを除去
 
     # 常に配列であることを保証

@@ -3,8 +3,12 @@
 class CustomEmoji < ApplicationRecord
   include RemoteLocalHelper
 
+  # ショートコード検出用正規表現（EmojiFormatterから参照）
+  SHORTCODE_RE_FRAGMENT = '[a-zA-Z0-9_-]{2,}'
+  SCAN_RE = /:(#{SHORTCODE_RE_FRAGMENT}):/o
+
   # バリデーション
-  validates :shortcode, presence: true, format: { with: /\A[a-zA-Z0-9_]+\z/ }
+  validates :shortcode, presence: true, format: { with: /\A[a-zA-Z0-9_-]+\z/ }
   validates :shortcode, uniqueness: { scope: :domain, case_sensitive: false }
   validates :image_url, presence: true, if: -> { remote? }
 
@@ -148,8 +152,7 @@ class CustomEmoji < ApplicationRecord
     def from_text(text)
       return {} if text.blank?
 
-      emoji_regex = /:([a-zA-Z0-9_]+):/
-      shortcodes = text.scan(emoji_regex).flatten.uniq
+      shortcodes = text.scan(SCAN_RE).flatten.uniq
 
       return {} if shortcodes.empty?
 
