@@ -109,11 +109,14 @@ module TextLinkingHelper
 
   def apply_url_links(text)
     # 全角＜＞もURLの区切りとして扱う
-    link_pattern = /(https?:\/\/[^\s<>＜＞"']+)/
+    # www.で始まるURLもマッチ対象に含める
+    link_pattern = /(https?:\/\/[^\s<>＜＞"']+|www\.[^\s<>＜＞"']+)/
     text.gsub(link_pattern) do
       url = ::Regexp.last_match(1)
-      display_text = mask_protocol(url)
-      "<a href=\"#{url}\" target=\"_blank\" rel=\"noopener noreferrer\" " \
+      # www.で始まる場合はhttps://を補完
+      href = url.start_with?('www.') ? "https://#{url}" : url
+      display_text = mask_protocol(href)
+      "<a href=\"#{href}\" target=\"_blank\" rel=\"noopener noreferrer\" " \
         "class=\"text-gray-500 hover:text-gray-700 transition-colors\">#{display_text}</a>"
     end
   end
@@ -146,15 +149,19 @@ module TextLinkingHelper
 
     return html_text if all_urls_linked
 
-    # HTMLタグの外側にあるURLのみをリンク化する
-    # 既存のaタグ、imgタグなどを壊さないように注意深く処理
+    link_urls_outside_tags(html_text)
+  end
 
+  def link_urls_outside_tags(html_text)
     # まず、既存のHTMLタグ位置を記録
     tags = []
-    html_text.scan(/<[^>]+>/) { |match| tags << { content: match, start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
+    html_text.scan(/<[^>]+>/) { |_match| tags << { start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
 
-    # URLパターンを探してリンク化（ただし、既存のタグ内は除外）
-    url_pattern = /(https?:\/\/[^\s<>＜＞"']+)/
+    # 既存のaタグ全体の範囲を記録（タグ内テキストもリンク化対象外にする）
+    a_tag_ranges = collect_a_tag_ranges(html_text)
+
+    # www.で始まるURLもマッチ対象に含める
+    url_pattern = /(https?:\/\/[^\s<>＜＞"']+|www\.[^\s<>＜＞"']+)/
     result = html_text.dup
     offset = 0
 
@@ -162,18 +169,15 @@ module TextLinkingHelper
       url_start = $LAST_MATCH_INFO.begin(0)
       url_end = $LAST_MATCH_INFO.end(0)
 
-      # このURLが既存のHTMLタグ内にないかチェック
-      inside_tag = tags.any? do |tag|
-        url_start >= tag[:start] && url_end <= tag[:end]
-      end
+      inside_tag = tags.any? { |tag| url_start >= tag[:start] && url_end <= tag[:end] }
+      inside_a_tag = a_tag_ranges.any? { |range| url_start >= range[:start] && url_end <= range[:end] }
 
-      unless inside_tag
-        # リンク化
-        display_text = mask_protocol(url[0])
-        linked_url = "<a href=\"#{url[0]}\" target=\"_blank\" rel=\"noopener noreferrer\" " \
+      unless inside_tag || inside_a_tag
+        href = url[0].start_with?('www.') ? "https://#{url[0]}" : url[0]
+        display_text = mask_protocol(href)
+        linked_url = "<a href=\"#{href}\" target=\"_blank\" rel=\"noopener noreferrer\" " \
                      "class=\"text-gray-500 hover:text-gray-700 transition-colors\">#{display_text}</a>"
 
-        # オフセットを考慮して置換
         actual_start = url_start + offset
         actual_end = url_end + offset
         result[actual_start...actual_end] = linked_url
@@ -182,6 +186,14 @@ module TextLinkingHelper
     end
 
     result
+  end
+
+  def collect_a_tag_ranges(html_text)
+    ranges = []
+    html_text.scan(/<a\b[^>]*>.*?<\/a>/mi) do |_match|
+      ranges << { start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) }
+    end
+    ranges
   end
 
   def apply_mention_links_to_html(html_text)

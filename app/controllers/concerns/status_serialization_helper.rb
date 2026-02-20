@@ -369,6 +369,9 @@ module StatusSerializationHelper
     # 絵文字HTMLをショートコードに戻す（外部投稿の場合）
     content = parse_content_links_only(content) if content.include?('<img') && content.include?('custom-emoji')
 
+    # Mastodon形式の分割URLリンクを修正（防御的処理）
+    content = fix_split_url_links(content)
+
     # URLリンク化（既存のaタグは保持）
     apply_url_links_only(content)
   end
@@ -408,8 +411,15 @@ module StatusSerializationHelper
     tags = []
     content.scan(/<[^>]+>/) { |_match| tags << { start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) } }
 
+    # 既存のaタグ全体の範囲を記録（タグ内テキストもリンク化対象外にする）
+    a_tag_ranges = []
+    content.scan(/<a\b[^>]*>.*?<\/a>/mi) do |_match|
+      a_tag_ranges << { start: $LAST_MATCH_INFO.begin(0), end: $LAST_MATCH_INFO.end(0) }
+    end
+
     # URLパターンを探してリンク化（ただし、既存のタグ内は除外）
-    url_pattern = /(https?:\/\/[^\s<>＜＞"']+)/
+    # www.で始まるURLもマッチ対象に含める
+    url_pattern = /(https?:\/\/[^\s<>＜＞"']+|www\.[^\s<>＜＞"']+)/
     result = content.dup
     offset = 0
 
@@ -422,10 +432,16 @@ module StatusSerializationHelper
         url_start >= tag[:start] && url_end <= tag[:end]
       end
 
-      unless inside_tag
-        # リンク化
-        display_text = url[0].start_with?('https://') ? url[0].delete_prefix('https://') : url[0]
-        linked_url = %(<a href="#{url[0]}" target="_blank" rel="noopener noreferrer" ) +
+      # 既存のaタグの中（テキスト部分含む）にないかチェック
+      inside_a_tag = a_tag_ranges.any? do |range|
+        url_start >= range[:start] && url_end <= range[:end]
+      end
+
+      unless inside_tag || inside_a_tag
+        # www.で始まる場合はhttps://を補完
+        href = url[0].start_with?('www.') ? "https://#{url[0]}" : url[0]
+        display_text = href.delete_prefix('https://')
+        linked_url = %(<a href="#{href}" target="_blank" rel="noopener noreferrer" ) +
                      %(class="text-gray-500 hover:text-gray-700 transition-colors">#{display_text}</a>)
 
         # オフセットを考慮して置換
