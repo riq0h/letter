@@ -42,7 +42,7 @@ class TimelineQuery
     statuses = base_timeline_query
                .joins(:tags)
                .where(tags: { id: tag.id })
-               .where(visibility: 'public')
+    statuses = apply_hashtag_visibility_filter(statuses)
     apply_pagination_filters(statuses).limit(limit)
   end
 
@@ -64,6 +64,17 @@ class TimelineQuery
 
   def local_only?
     params[:local].present? && params[:local] != 'false'
+  end
+
+  # 認証済みユーザの場合、フォロー中アクターの非公開投稿もタグタイムラインに含める
+  def apply_hashtag_visibility_filter(statuses)
+    if user
+      followed_ids = user.followed_actors.pluck(:id) + [user.id]
+      statuses.where(visibility: 'public')
+              .or(statuses.where(visibility: 'private', actors: { id: followed_ids }))
+    else
+      statuses.where(visibility: 'public')
+    end
   end
 
   def base_timeline_query
