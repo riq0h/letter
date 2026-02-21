@@ -48,7 +48,7 @@ module MediaSerializer
       url: media_url || media.remote_url || '',
       preview_url: preview_url || (media.image? ? (media_url || media.remote_url || '') : ''),
       remote_url: media.remote_url.to_s,
-      meta: build_media_meta(media) || {},
+      meta: build_media_meta(media),
       description: media.description.to_s,
       blurhash: media.blurhash.to_s
     }
@@ -58,15 +58,15 @@ module MediaSerializer
   end
 
   def build_media_meta(media)
-    meta = {
-      original: build_original_meta(media),
-      small: build_small_meta(media)
-    }
-
-    # focalPoint（注目点座標）があれば追加
+    original = build_original_meta(media)
+    small = build_small_meta(media)
     focus = extract_focus_point(media)
-    meta[:focus] = focus if focus
 
+    # ディメンション情報もfocusもない場合はnilを返す
+    return nil if original.empty? && small.empty? && focus.nil?
+
+    meta = { original: original, small: small }
+    meta[:focus] = focus if focus
     meta
   end
 
