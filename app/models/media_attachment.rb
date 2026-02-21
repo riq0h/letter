@@ -125,8 +125,6 @@ class MediaAttachment < ApplicationRecord
       elsif remote_url.present?
         # 外部動画の場合も1秒目のフレームを取得
         generate_remote_video_preview_url
-      else
-        default_preview_icon_url
       end
     elsif file.attached?
       # 画像の場合はそのまま表示
@@ -138,9 +136,6 @@ class MediaAttachment < ApplicationRecord
     elsif image? && remote_url.present?
       # リモート画像の場合
       remote_url
-    else
-      # デフォルトのプレビューアイコン
-      default_preview_icon_url
     end
   end
 
@@ -206,31 +201,31 @@ class MediaAttachment < ApplicationRecord
   private
 
   def generate_video_preview_url
-    return default_preview_icon_url unless file.attached?
+    return nil unless file.attached?
 
     # FFmpegで1秒目のフレームを抽出してBase64エンコード
     Rails.cache.fetch("video_preview_#{id}", expires_in: 1.week) do
-      extract_video_frame_as_data_url || default_preview_icon_url
+      extract_video_frame_as_data_url
     end
   rescue StandardError => e
     Rails.logger.error "Failed to generate video preview for #{id}: #{e.message}"
-    default_preview_icon_url
+    nil
   end
 
   def generate_remote_video_preview_url
-    return default_preview_icon_url if remote_url.blank?
+    return nil if remote_url.blank?
 
     # 外部動画のサムネイルをキャッシュ
     Rails.cache.fetch("remote_video_preview_#{id}", expires_in: 1.week) do
       if remote_url.include?('bsky.network/xrpc/')
-        fetch_bluesky_video_thumbnail || default_preview_icon_url
+        fetch_bluesky_video_thumbnail
       else
-        extract_remote_video_frame_as_data_url || default_preview_icon_url
+        extract_remote_video_frame_as_data_url
       end
     end
   rescue StandardError => e
     Rails.logger.error "Failed to generate remote video preview for #{id}: #{e.message}"
-    default_preview_icon_url
+    nil
   end
 
   def extract_video_frame_as_data_url
@@ -248,10 +243,10 @@ class MediaAttachment < ApplicationRecord
     output_file = Tempfile.new(['thumbnail', '.jpg'])
     output_file.close
 
-    # FFmpeg コマンド（-ssを-iの前に置くことで高速シーク）
+    # FFmpeg コマンド（-ssを-iの前に置くことで高速シーク、1秒目で代表的なフレームを取得）
     cmd = [
       'ffmpeg',
-      '-ss', '0',
+      '-ss', '1',
       '-i', input_file.path,
       '-vframes', '1',
       '-q:v', '2',
@@ -286,10 +281,10 @@ class MediaAttachment < ApplicationRecord
     output_file = Tempfile.new(['remote_thumbnail', '.jpg'])
     output_file.close
 
-    # FFmpegで直接リモートURLから1フレーム抽出（-ssを-iの前に置くことで高速シーク）
+    # FFmpegで直接リモートURLから1フレーム抽出（-ssを-iの前に置くことで高速シーク、1秒目で代表的なフレームを取得）
     cmd = [
       'ffmpeg',
-      '-ss', '0',
+      '-ss', '1',
       '-i', remote_url,
       '-vframes', '1',
       '-q:v', '2',
@@ -457,19 +452,6 @@ class MediaAttachment < ApplicationRecord
       AUDIO_FORMATS
     else
       DOCUMENT_FORMATS
-    end
-  end
-
-  def default_preview_icon_url
-    case media_type
-    when 'video'
-      '/icons/video-preview.svg'
-    when 'audio'
-      '/icons/audio-preview.svg'
-    when 'document'
-      '/icons/document-preview.svg'
-    else
-      '/icons/file-preview.svg'
     end
   end
 
