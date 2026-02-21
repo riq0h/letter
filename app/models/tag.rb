@@ -18,6 +18,8 @@ class Tag < ApplicationRecord
   def self.find_or_create_by_display_name(original_name)
     normalized = original_name.unicode_normalize(:nfkc).strip.downcase
     tag = find_or_create_by(name: normalized)
+    return tag unless tag.persisted?
+
     tag.update_column(:display_name, original_name) if tag.display_name.blank? && original_name != normalized
     tag
   end
