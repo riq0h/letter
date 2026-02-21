@@ -457,13 +457,7 @@ class MediaAttachment < ApplicationRecord
 
   def generate_placeholder_blurhash
     # プレースホルダーとして単色のblurhashを生成
-    case media_type
-    when 'image'
-      'L6PZfSi_.AyE_3t7t7R**0o#DgR4' # 薄いグレー
-    when 'video'
-      'L4R:8|00fQ00fQfQfQfQfQfQfQfQ' # 濃いグレー
-    else
-      'L2N]?U00Rj00RjRjRjRjRjRjRjRj' # 黒
-    end
+    # RGB(128,128,128) のニュートラルグレー（4x3 components）
+    'L0Eyb[0000000000000000000000'
   end
 end
