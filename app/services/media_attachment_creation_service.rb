@@ -96,7 +96,26 @@ class MediaAttachmentCreationService
     blob = create_storage_blob(io: file, filename: file.original_filename, content_type: file.content_type, folder: 'img')
     media_attachment.file.attach(blob)
 
+    # 動画の場合はサムネイルもActive Storageに保存
+    attach_video_thumbnail(media_attachment, metadata[:thumbnail_path])
+
     media_attachment
+  end
+
+  def attach_video_thumbnail(media_attachment, thumbnail_path)
+    return unless thumbnail_path && File.exist?(thumbnail_path) && File.size(thumbnail_path).positive?
+
+    thumb_io = File.open(thumbnail_path, 'rb')
+    thumb_blob = create_storage_blob(
+      io: thumb_io,
+      filename: "thumb_#{File.basename(thumbnail_path)}",
+      content_type: 'image/jpeg',
+      folder: 'thumb'
+    )
+    media_attachment.thumbnail.attach(thumb_blob)
+  ensure
+    thumb_io&.close
+    FileUtils.rm_f(thumbnail_path) if thumbnail_path
   end
 
   def determine_media_type(content_type, filename)
@@ -189,26 +208,30 @@ class MediaAttachmentCreationService
 
     width = video_stream['width'].to_i
     height = video_stream['height'].to_i
-    blurhash = extract_blurhash_from_video(file_path)
+    blurhash, thumbnail_path = extract_blurhash_and_thumbnail(file_path)
 
-    { width: width, height: height, blurhash: blurhash }
+    { width: width, height: height, blurhash: blurhash, thumbnail_path: thumbnail_path }
   end
 
-  def extract_blurhash_from_video(file_path)
+  def extract_blurhash_and_thumbnail(file_path)
     require 'vips'
 
     thumb_file = Tempfile.new(['thumb', '.jpg'])
     thumb_file.close
 
-    thumb_cmd = ['ffmpeg', '-ss', '0', '-i', file_path, '-vframes', '1', '-q:v', '2', '-y', thumb_file.path]
+    thumb_cmd = ['ffmpeg', '-ss', '1', '-i', file_path, '-vframes', '1', '-q:v', '2', '-y', thumb_file.path]
     _, _, thumb_status = Open3.capture3(*thumb_cmd)
 
-    if thumb_status.success? && File.exist?(thumb_file.path)
+    if thumb_status.success? && File.exist?(thumb_file.path) && File.size(thumb_file.path).positive?
       image = Vips::Image.new_from_file(thumb_file.path)
-      generate_blurhash_from_vips(image)
+      blurhash = generate_blurhash_from_vips(image)
+      [blurhash, thumb_file.path]
+    else
+      [nil, nil]
     end
-  ensure
-    thumb_file&.unlink
+  rescue StandardError => e
+    Rails.logger.warn "Failed to extract video thumbnail: #{e.message}"
+    [nil, nil]
   end
 
   def generate_blurhash_from_vips(image)
@@ -235,6 +258,6 @@ class MediaAttachmentCreationService
     Blurhash.encode(image.width, image.height, pixels, x_components: 4, y_components: 4)
   rescue StandardError => e
     Rails.logger.warn "Failed to generate blurhash with libvips: #{e.message}"
-    'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    'L0Eyb[0000000000000000000000'
   end
 end

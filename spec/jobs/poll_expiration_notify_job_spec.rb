@@ -151,13 +151,13 @@ RSpec.describe PollExpirationNotifyJob, type: :job do
       it 'attempts to fetch remote poll results' do
         # ActivityPubHttpClientをスタブ
         allow(ActivityPubHttpClient).to receive(:fetch_object).and_return({
-                                                                           'type' => 'Question',
-                                                                           'oneOf' => [
-                                                                             { 'name' => 'Remote Option 1', 'replies' => { 'totalItems' => 5 } },
-                                                                             { 'name' => 'Remote Option 2', 'replies' => { 'totalItems' => 3 } }
-                                                                           ],
-                                                                           'votersCount' => 8
-                                                                         })
+                                                                            'type' => 'Question',
+                                                                            'oneOf' => [
+                                                                              { 'name' => 'Remote Option 1', 'replies' => { 'totalItems' => 5 } },
+                                                                              { 'name' => 'Remote Option 2', 'replies' => { 'totalItems' => 3 } }
+                                                                            ],
+                                                                            'votersCount' => 8
+                                                                          })
 
         described_class.new.perform(remote_poll.id)
         remote_poll.reload

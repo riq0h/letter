@@ -35,22 +35,15 @@ class MediaAttachment < ApplicationRecord
 
   # Active Storage統合
   has_one_attached :file
+  has_one_attached :thumbnail
 
   # カスタムアップロードメソッド（フォルダ構造対応）
   def attach_file_with_folder(io:, filename:, content_type:)
-    if ENV['S3_ENABLED'] == 'true'
-      custom_key = "img/#{SecureRandom.hex(16)}"
-      blob = ActiveStorage::Blob.create_and_upload!(
-        io: io,
-        filename: filename,
-        content_type: content_type,
-        service_name: :cloudflare_r2,
-        key: custom_key
-      )
-      file.attach(blob)
-    else
-      file.attach(io: io, filename: filename, content_type: content_type)
-    end
+    attach_to_storage(file, io: io, filename: filename, content_type: content_type, folder: 'img')
+  end
+
+  def attach_thumbnail_with_folder(io:, filename:, content_type: 'image/jpeg')
+    attach_to_storage(thumbnail, io: io, filename: filename, content_type: content_type, folder: 'thumb')
   end
 
   # === スコープ ===
@@ -65,6 +58,7 @@ class MediaAttachment < ApplicationRecord
   # === コールバック ===
   before_validation :set_defaults, on: :create
   before_validation :extract_metadata
+  after_commit :enqueue_thumbnail_generation, on: :create
 
   # === 判定メソッド ===
 
@@ -118,23 +112,11 @@ class MediaAttachment < ApplicationRecord
   end
 
   def preview_url
-    if video?
-      if file.attached?
-        # ローカル動画の場合は1秒目のフレームを取得
-        generate_video_preview_url
-      elsif remote_url.present?
-        # 外部動画の場合も1秒目のフレームを取得
-        generate_remote_video_preview_url
-      end
-    elsif file.attached?
-      # 画像の場合はそのまま表示
-      if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
-        "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{file.blob.key}"
-      else
-        Rails.application.routes.url_helpers.url_for(file)
-      end
+    if thumbnail.attached?
+      storage_url_for(thumbnail)
+    elsif file.attached? && image?
+      storage_url_for(file)
     elsif image? && remote_url.present?
-      # リモート画像の場合
       remote_url
     end
   end
@@ -142,12 +124,7 @@ class MediaAttachment < ApplicationRecord
   # Active Storageファイルまたはリモートファイルの公開URL
   def url
     if file.attached?
-      # Cloudflare R2のカスタムドメインを使用
-      if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
-        "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{file.blob.key}"
-      else
-        Rails.application.routes.url_helpers.url_for(file)
-      end
+      storage_url_for(file)
     else
       remote_url
     end
@@ -200,131 +177,36 @@ class MediaAttachment < ApplicationRecord
 
   private
 
-  def generate_video_preview_url
-    return nil unless file.attached?
-
-    # FFmpegで1秒目のフレームを抽出してBase64エンコード
-    Rails.cache.fetch("video_preview_#{id}", expires_in: 1.week) do
-      extract_video_frame_as_data_url
-    end
-  rescue StandardError => e
-    Rails.logger.error "Failed to generate video preview for #{id}: #{e.message}"
-    nil
-  end
-
-  def generate_remote_video_preview_url
-    return nil if remote_url.blank?
-
-    # 外部動画のサムネイルをキャッシュ
-    Rails.cache.fetch("remote_video_preview_#{id}", expires_in: 1.week) do
-      if remote_url.include?('bsky.network/xrpc/')
-        fetch_bluesky_video_thumbnail
-      else
-        extract_remote_video_frame_as_data_url
-      end
-    end
-  rescue StandardError => e
-    Rails.logger.error "Failed to generate remote video preview for #{id}: #{e.message}"
-    nil
-  end
-
-  def extract_video_frame_as_data_url
-    require 'tempfile'
-    require 'open3'
-    require 'base64'
-
-    # 入力動画ファイル
-    input_file = Tempfile.new(['input_video', File.extname(file_name)])
-    input_file.binmode
-    input_file.write(file.download)
-    input_file.close
-
-    # 出力サムネイルファイル
-    output_file = Tempfile.new(['thumbnail', '.jpg'])
-    output_file.close
-
-    # FFmpeg コマンド（-ssを-iの前に置くことで高速シーク、1秒目で代表的なフレームを取得）
-    cmd = [
-      'ffmpeg',
-      '-ss', '1',
-      '-i', input_file.path,
-      '-vframes', '1',
-      '-q:v', '2',
-      '-y',
-      output_file.path
-    ]
-
-    _, stderr, status = Open3.capture3(*cmd)
-
-    if status.success? && File.exist?(output_file.path) && File.size(output_file.path).positive?
-      # Base64エンコードしてdata URLとして返す
-      image_data = File.binread(output_file.path)
-      "data:image/jpeg;base64,#{Base64.strict_encode64(image_data)}"
+  def attach_to_storage(attachment, io:, filename:, content_type:, folder:)
+    if ENV['S3_ENABLED'] == 'true'
+      custom_key = "#{folder}/#{SecureRandom.hex(16)}"
+      blob = ActiveStorage::Blob.create_and_upload!(
+        io: io,
+        filename: filename,
+        content_type: content_type,
+        service_name: :cloudflare_r2,
+        key: custom_key
+      )
+      attachment.attach(blob)
     else
-      Rails.logger.error "FFmpeg failed: #{stderr}"
-      nil
+      attachment.attach(io: io, filename: filename, content_type: content_type)
     end
-  ensure
-    input_file&.unlink
-    output_file&.unlink
   end
 
-  def extract_remote_video_frame_as_data_url
-    require 'tempfile'
-    require 'open3'
-    require 'base64'
+  def storage_url_for(attachment)
+    return nil unless attachment.attached?
 
-    # SSRF防止: リモートURLのプロトコルとホストを検証
-    return nil unless validate_url_for_ssrf!(remote_url)
-
-    # 出力サムネイルファイル
-    output_file = Tempfile.new(['remote_thumbnail', '.jpg'])
-    output_file.close
-
-    # FFmpegで直接リモートURLから1フレーム抽出（-ssを-iの前に置くことで高速シーク、1秒目で代表的なフレームを取得）
-    cmd = [
-      'ffmpeg',
-      '-ss', '1',
-      '-i', remote_url,
-      '-vframes', '1',
-      '-q:v', '2',
-      '-y',
-      output_file.path
-    ]
-
-    _, stderr, status = Open3.capture3(*cmd)
-
-    if status.success? && File.exist?(output_file.path) && File.size(output_file.path).positive?
-      # Base64エンコードしてdata URLとして返す
-      image_data = File.binread(output_file.path)
-      "data:image/jpeg;base64,#{Base64.strict_encode64(image_data)}"
+    if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
+      "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{attachment.blob.key}"
     else
-      Rails.logger.error "Remote FFmpeg failed for #{remote_url}: #{stderr}"
-      nil
+      Rails.application.routes.url_helpers.url_for(attachment)
     end
-  ensure
-    output_file&.unlink
   end
 
-  # Bluesky動画のサムネイルをvideo.bsky.appから取得
-  def fetch_bluesky_video_thumbnail
-    require 'base64'
+  def enqueue_thumbnail_generation
+    return unless video? && !thumbnail.attached?
 
-    uri = URI.parse(remote_url)
-    params = URI.decode_www_form(uri.query || '').to_h
-    did = params['did']
-    cid = params['cid']
-    return nil unless did.present? && cid.present?
-
-    thumbnail_url = "https://video.bsky.app/watch/#{CGI.escape(did)}/#{cid}/thumbnail.jpg"
-    response = HTTParty.get(thumbnail_url, timeout: 10, follow_redirects: true)
-
-    return nil unless response.success? && response.body.present?
-
-    "data:image/jpeg;base64,#{Base64.strict_encode64(response.body)}"
-  rescue StandardError => e
-    Rails.logger.warn "Failed to fetch Bluesky video thumbnail: #{e.message}"
-    nil
+    GenerateVideoThumbnailJob.perform_later(id)
   end
 
   # キャッシュされたリモート画像のURLを取得（キャッシュが有効な場合）

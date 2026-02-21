@@ -46,7 +46,7 @@ module MediaSerializer
       id: media.id.to_s,
       type: media.media_type.to_s,
       url: media_url || media.remote_url || '',
-      preview_url: preview_url || media_url || media.remote_url || '',
+      preview_url: preview_url || (media.image? ? (media_url || media.remote_url || '') : ''),
       remote_url: media.remote_url.to_s,
       meta: build_media_meta(media) || {},
       description: media.description.to_s,
