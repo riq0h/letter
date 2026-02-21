@@ -125,7 +125,7 @@ module TextLinkingHelper
 
   def apply_hashtag_links(text)
     base_url = Rails.application.config.activitypub.base_url
-    hashtag_pattern = /(?<=\A|[\s>])#([\w\u0080-\uFFFF]+)/
+    hashtag_pattern = /(?<=\A|[\s>])#([\w\u0080-\uFFFF][\w\u0080-\uFFFF-]*)/
     text.gsub(hashtag_pattern) do
       tag_name = ::Regexp.last_match(1)
       normalized = tag_name.unicode_normalize(:nfkc).downcase
@@ -136,7 +136,7 @@ module TextLinkingHelper
 
   def apply_hashtag_links_to_html(html_text)
     base_url = Rails.application.config.activitypub.base_url
-    hashtag_pattern = /(?<=\A|[\s>])#([\w\u0080-\uFFFF]+)/
+    hashtag_pattern = /(?<=\A|[\s>])#([\w\u0080-\uFFFF][\w\u0080-\uFFFF-]*)/
 
     a_tag_ranges = collect_a_tag_ranges(html_text)
 

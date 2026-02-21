@@ -6,7 +6,7 @@ class Tag < ApplicationRecord
   has_many :usage_histories, class_name: 'TagUsageHistory', dependent: :destroy
 
   validates :name, presence: true, uniqueness: { case_sensitive: false }, length: { maximum: 100 }
-  validates :name, format: { with: /\A[\w\u0080-\uFFFF]+\z/ }
+  validates :name, format: { with: /\A[\w\u0080-\uFFFF][\w\u0080-\uFFFF-]*\z/ }
 
   before_validation :normalize_name
 
