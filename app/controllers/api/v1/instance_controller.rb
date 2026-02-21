@@ -88,7 +88,7 @@ module Api
             },
             statuses: {
               max_characters: Rails.application.config.activitypub.character_limit,
-              max_media_attachments: 4,
+              max_media_attachments: 16,
               characters_reserved_per_url: 23
             },
             media_attachments: {
