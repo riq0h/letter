@@ -47,6 +47,15 @@ module ActorAttachmentProcessing
     end
   end
 
+  # ActivityPubのfeaturedフィールドからURLを抽出
+  # bsky.brid.gy等はオブジェクトをインラインで返すため、Hashの場合はidを取得
+  def extract_featured_url(featured)
+    case featured
+    when String then featured
+    when Hash then featured['id']
+    end
+  end
+
   # HTMLコンテンツ内のエンティティをデコード（構造文字 <, >, & は保持）
   def decode_html_entities(text)
     return text if text.blank?

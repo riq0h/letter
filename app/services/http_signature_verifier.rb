@@ -169,7 +169,7 @@ class HttpSignatureVerifier
       outbox_url: actor_data['outbox'],
       followers_url: actor_data['followers'],
       following_url: actor_data['following'],
-      featured_url: actor_data['featured'],
+      featured_url: extract_featured_url(actor_data['featured']),
       public_key: public_key_data,
       raw_data: actor_data.to_json,
       fields: extract_fields_from_attachments(actor_data).to_json,

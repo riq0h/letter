@@ -137,7 +137,7 @@ module Search
         outbox_url: data['outbox'],
         followers_url: data['followers'],
         following_url: data['following'],
-        featured_url: data['featured'],
+        featured_url: extract_featured_url(data['featured']),
         public_key: data.dig('publicKey', 'publicKeyPem'),
         local: false,
         locked: data['manuallyApprovesFollowers'] || false,
