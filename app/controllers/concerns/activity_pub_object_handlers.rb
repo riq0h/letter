@@ -6,6 +6,7 @@ module ActivityPubObjectHandlers
   extend ActiveSupport::Concern
   include ActivityPubVisibilityHelper
   include ActivityPubMediaHandler
+  include ActorAttachmentProcessing
 
   private
 
@@ -32,19 +33,19 @@ module ActivityPubObjectHandlers
     end
 
     update_attrs = {
-      display_name: object_data['name'],
-      note: object_data['summary'],
+      display_name: decode_actor_display_name(object_data),
+      note: decode_actor_note(object_data),
       raw_data: object_data.to_json
     }
 
-    # fieldsが存在する場合は更新
+    # fieldsが存在する場合は更新（エンティティデコード付き）
     if object_data['attachment'].is_a?(Array)
       fields = object_data['attachment'].filter_map do |attachment|
         next unless attachment['type'] == 'PropertyValue'
 
         {
-          'name' => attachment['name'],
-          'value' => attachment['value']
+          'name' => decode_field_text(attachment['name']),
+          'value' => decode_field_text(attachment['value'])
         }
       end
       update_attrs[:fields] = fields.to_json unless fields.empty?

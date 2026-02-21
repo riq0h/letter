@@ -2,6 +2,7 @@
 
 class ActivityPubContentProcessor
   include TextLinkingHelper
+  include ActorAttachmentProcessing
 
   def initialize(object)
     @object = object
@@ -31,6 +32,7 @@ class ActivityPubContentProcessor
 
     if content.include?('<') && content.include?('>')
       normalized_content = normalize_html_structure(content)
+      normalized_content = decode_html_entities(normalized_content)
       linked_content = apply_url_links_to_html(normalized_content)
       mention_linked_content = apply_mention_links_to_html(linked_content)
       mention_linked_content = apply_hashtag_links_to_html(mention_linked_content)

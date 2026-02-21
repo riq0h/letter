@@ -38,8 +38,8 @@ class ActorCreationService
     {
       username: actor_data['preferredUsername'],
       domain: URI.parse(actor_data['id']).host,
-      display_name: actor_data['name'],
-      note: actor_data['summary'],
+      display_name: decode_actor_display_name(actor_data),
+      note: decode_actor_note(actor_data),
       ap_id: actor_data['id'],
       local: false
     }
