@@ -11,6 +11,7 @@ class Relay < ApplicationRecord
   scope :accepted, -> { enabled }
 
   before_validation :normalize_inbox_url
+  before_destroy :ensure_disabled
 
   def pending?
     state == 'pending'
@@ -40,16 +41,9 @@ class Relay < ApplicationRecord
     update!(state: 'rejected')
   end
 
-  # リレーのアクターURIを取得
+  # リレーのアクターURIを取得（DB保存値優先、未設定時はinbox_urlから導出）
   def actor_uri
-    return if inbox_url.blank?
-
-    begin
-      uri = URI.parse(inbox_url)
-      "#{uri.scheme}://#{uri.host}#{":#{uri.port}" if uri.port != uri.default_port}/actor"
-    rescue URI::InvalidURIError
-      nil
-    end
+    self[:actor_uri].presence || derive_actor_uri
   end
 
   # リレーのドメインを取得
@@ -64,6 +58,23 @@ class Relay < ApplicationRecord
   end
 
   private
+
+  def derive_actor_uri
+    return if inbox_url.blank?
+
+    uri = URI.parse(inbox_url)
+    "#{uri.scheme}://#{uri.host}#{":#{uri.port}" if uri.port != uri.default_port}/actor"
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  def ensure_disabled
+    return unless accepted?
+
+    RelayUnfollowService.new.call(self)
+  rescue StandardError => e
+    Rails.logger.error "Failed to unfollow relay on destroy: #{e.message}"
+  end
 
   def normalize_inbox_url
     return if inbox_url.blank?

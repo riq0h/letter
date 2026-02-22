@@ -449,10 +449,8 @@ class ActivityPubObject < ApplicationRecord
 
   def should_distribute_to_relays?
     return false unless object_type == 'Note'
-    return false if visibility == 'direct'
-    return false if visibility == 'private'
 
-    true
+    visibility == 'public'
   end
 
   def enqueue_relay_distribution

@@ -6,6 +6,7 @@ require_relative 'concerns/featured_collection_fetching'
 class HttpSignatureVerifier
   include ActorAttachmentProcessing
   include FeaturedCollectionFetching
+  include ActorIdentityResolver
   include SsrfProtection
 
   attr_reader :method, :path, :headers, :body
@@ -159,7 +160,7 @@ class HttpSignatureVerifier
     username = actor_data['preferredUsername'] || File.basename(uri.path)
     domain = uri.host
 
-    actor = Actor.create!(
+    attrs = {
       ap_id: actor_uri,
       username: username,
       domain: domain,
@@ -174,12 +175,19 @@ class HttpSignatureVerifier
       raw_data: actor_data.to_json,
       fields: extract_fields_from_attachments(actor_data).to_json,
       local: false
-    )
+    }
+
+    actor = Actor.create!(attrs)
 
     # Featured Collection（ピン留め投稿）を取得
     fetch_featured_collection_async(actor)
 
     actor
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+    resolved = resolve_actor_identity_conflict(actor_uri, username, domain, attrs)
+    return resolved if resolved
+
+    raise ActivityPub::SignatureError, "Actor creation failed: #{e.message}"
   end
 
   # 公開鍵解析

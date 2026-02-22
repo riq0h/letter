@@ -30,6 +30,12 @@ class RelayFollowService
       error_msg = "リレーアクター情報の取得に失敗しました: #{@relay.actor_uri}"
       Rails.logger.error error_msg
       @relay.update!(last_error: error_msg)
+      return nil
+    end
+
+    # リレーアクターの実際のURIを保存（導出値と異なる場合に備える）
+    if relay_actor_data['id'].present? && @relay.read_attribute(:actor_uri) != relay_actor_data['id']
+      @relay.update_column(:actor_uri, relay_actor_data['id'])
     end
 
     relay_actor_data

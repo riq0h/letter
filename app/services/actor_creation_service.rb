@@ -6,6 +6,7 @@ require 'stringio'
 # リモートアクターの作成を担当するサービス
 class ActorCreationService
   include ActorAttachmentProcessing
+  include ActorIdentityResolver
   include SsrfProtection
 
   def self.create_from_activitypub_data(actor_data)
@@ -13,13 +14,20 @@ class ActorCreationService
   end
 
   def create_from_activitypub_data(actor_data)
-    actor = Actor.create!(build_actor_attributes(actor_data))
+    attrs = build_actor_attributes(actor_data)
+    actor = Actor.create!(attrs)
 
     # アバターとヘッダー画像を非同期で添付
     attach_remote_images(actor, actor_data)
 
     actor
-  rescue ActiveRecord::RecordInvalid => e
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+    ap_id = actor_data['id']
+    username = actor_data['preferredUsername']
+    domain = URI.parse(ap_id).host
+    resolved = resolve_actor_identity_conflict(ap_id, username, domain, attrs)
+    return resolved if resolved
+
     Rails.logger.error "Failed to create remote actor: #{e.message}"
     nil
   end

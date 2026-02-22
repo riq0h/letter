@@ -25,9 +25,8 @@ class RelayDistributionService
   def should_distribute?(activity_pub_object)
     return false unless activity_pub_object&.object_type == 'Note'
     return false unless activity_pub_object.local?
-    return false if activity_pub_object.visibility == 'direct'
 
-    true
+    activity_pub_object.visibility == 'public'
   end
 
   def distribute_to_relay(activity_pub_object, relay)
@@ -42,6 +41,7 @@ class RelayDistributionService
     )
 
     if result[:success]
+      relay.update_column(:delivery_attempts, 0) if relay.delivery_attempts.positive?
       Rails.logger.info "✅ Successfully distributed to relay: #{relay.domain}"
     else
       Rails.logger.error "❌ Failed to distribute to relay: #{relay.domain}"

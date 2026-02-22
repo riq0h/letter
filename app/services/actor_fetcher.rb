@@ -9,6 +9,7 @@ class ActorFetcher
   include ActorAttachmentProcessing
   include FeaturedCollectionFetching
   include EmojiTagProcessing
+  include ActorIdentityResolver
   include SsrfProtection
 
   def initialize
@@ -46,7 +47,8 @@ class ActorFetcher
     username, domain = extract_actor_identity(actor_data, uri)
     public_key_pem = extract_public_key(actor_data)
 
-    actor = Actor.create!(build_actor_attributes(actor_uri, actor_data, username, domain, public_key_pem))
+    attrs = build_actor_attributes(actor_uri, actor_data, username, domain, public_key_pem)
+    actor = Actor.create!(attrs)
 
     # emoji情報を処理
     process_emoji_tags(actor_data['tag'], domain: actor.domain)
@@ -55,8 +57,11 @@ class ActorFetcher
     fetch_featured_collection_async(actor)
 
     actor
-  rescue ActiveRecord::RecordInvalid => e
-    Rails.logger.error "💾 Actor creation failed: #{e.message}"
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+    resolved = resolve_actor_identity_conflict(actor_uri, username, domain, attrs)
+    return resolved if resolved
+
+    Rails.logger.error "Actor creation failed: #{e.message}"
     raise ActivityPub::ActorFetchError, "Database error: #{e.message}"
   end
 

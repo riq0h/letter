@@ -149,25 +149,19 @@ module ActivityPubVerification
   def relay_activity?
     return false unless @activity['actor']
 
-    # 1. 直接リレーサーバからの活動（Accept/Reject等）
-    direct_relay = (Relay.accepted.to_a + Relay.pending.to_a).any? do |relay|
-      relay.actor_uri == @activity['actor']
-    end
+    active_relays = Relay.where(state: %w[accepted pending])
 
-    return true if direct_relay
+    # 1. 直接リレーサーバからの活動（Accept/Reject等）
+    return true if active_relays.any? { |relay| relay.actor_uri == @activity['actor'] }
 
     # 2. リレー経由の投稿（HTTP SignatureのkeyIdでリレーを判定）
     signature_header = request.headers['Signature']
     return false unless signature_header
 
-    # keyIdを抽出
     key_id = extract_key_id_from_signature(signature_header)
     return false unless key_id
 
-    # keyIdがリレーサーバのものかチェック
-    (Relay.accepted.to_a + Relay.pending.to_a).any? do |relay|
-      strict_relay_keyid_check(key_id, relay)
-    end
+    active_relays.any? { |relay| strict_relay_keyid_check(key_id, relay) }
   end
 
   def extract_key_id_from_signature(signature_header)

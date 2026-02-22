@@ -22,7 +22,7 @@ module Api
           week_end = i.weeks.ago.end_of_week
 
           statuses = ActivityPubObject.where(object_type: 'Note', created_at: week_start..week_end).count
-          logins = Actor.where(local: true).count # 簡易的にローカルユーザー数を返す
+          logins = Actor.where(local: true).count # 簡易的にローカルユーザ数を返す
           registrations = 0
 
           {

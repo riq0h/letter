@@ -59,16 +59,11 @@ class SharedInboxesController < ApplicationController
 
     return unless @is_relay_activity
 
-    # リレーアクターのURIとマッチするリレーを探す（accepted・pending両方を対象）
-    @relay = (Relay.accepted.to_a + Relay.pending.to_a).find do |r|
-      # 1. 直接リレーサーバからの活動の場合
+    active_relays = Relay.where(state: %w[accepted pending])
+    key_id = extract_key_id_from_signature(request.headers['Signature'].to_s)
+
+    @relay = active_relays.find do |r|
       next true if r.actor_uri == @activity['actor']
-
-      # 2. HTTP SignatureのkeyIdでリレーを判定
-      signature_header = request.headers['Signature']
-      next false unless signature_header
-
-      key_id = extract_key_id_from_signature(signature_header)
       next false unless key_id
 
       strict_relay_keyid_check(key_id, r)

@@ -763,37 +763,34 @@ RSpec.describe ActivityPubObject, type: :model do
 
   describe 'relay and distribution methods' do
     describe '#should_distribute_to_relays?' do
-      it 'returns true for public local Note objects' do
+      it 'returns true for public Note objects' do
         object = create(:activity_pub_object, local: true, visibility: 'public', object_type: 'Note')
 
-        result = object.send(:should_distribute_to_relays?)
+        expect(object.send(:should_distribute_to_relays?)).to be true
+      end
 
-        expect(result).to be true
+      it 'returns false for unlisted objects' do
+        object = create(:activity_pub_object, local: true, visibility: 'unlisted', object_type: 'Note')
+
+        expect(object.send(:should_distribute_to_relays?)).to be false
       end
 
       it 'returns false for private objects' do
         object = create(:activity_pub_object, local: true, visibility: 'private', object_type: 'Note')
 
-        result = object.send(:should_distribute_to_relays?)
-
-        expect(result).to be false
+        expect(object.send(:should_distribute_to_relays?)).to be false
       end
 
-      it 'returns true for public Note objects regardless of local status' do
-        remote_actor = create(:actor, :remote)
-        object = create(:activity_pub_object, local: false, visibility: 'public', object_type: 'Note', actor: remote_actor, ap_id: 'https://remote.example.com/notes/999')
+      it 'returns false for direct objects' do
+        object = create(:activity_pub_object, local: true, visibility: 'direct', object_type: 'Note')
 
-        result = object.send(:should_distribute_to_relays?)
-
-        expect(result).to be true
+        expect(object.send(:should_distribute_to_relays?)).to be false
       end
 
       it 'returns false for non-Note objects' do
         object = create(:activity_pub_object, local: true, visibility: 'public', object_type: 'Article')
 
-        result = object.send(:should_distribute_to_relays?)
-
-        expect(result).to be false
+        expect(object.send(:should_distribute_to_relays?)).to be false
       end
     end
   end
