@@ -157,6 +157,9 @@ module Search
 
       remote_id = Letter::Snowflake.generate
       create_activity_pub_object(data, actor, remote_id, is_pinned_only: is_pinned_only)
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+      # レースコンディション: 並行処理で同じap_idのオブジェクトが既に作成された場合
+      ActivityPubObject.find_by(ap_id: data['id'])
     rescue StandardError => e
       Rails.logger.error "リモートオブジェクト作成エラー: #{e.message}"
       Rails.logger.error e.backtrace.first(5).join("\n")
