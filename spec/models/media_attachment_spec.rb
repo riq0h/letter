@@ -135,6 +135,24 @@ RSpec.describe MediaAttachment, type: :model do
     end
   end
 
+  describe 'MIME subtype alias validation' do
+    it 'accepts video/quicktime as valid video content type' do
+      media = build(:media_attachment, :video, content_type: 'video/quicktime', file_name: 'video.mov')
+      expect(media).to be_valid
+    end
+
+    it 'accepts audio/mpeg as valid audio content type' do
+      media = build(:media_attachment, :audio, content_type: 'audio/mpeg', file_name: 'audio.mp3')
+      expect(media).to be_valid
+    end
+
+    it 'rejects unsupported content type for video' do
+      media = build(:media_attachment, :video, content_type: 'video/x-unknown')
+      expect(media).not_to be_valid
+      expect(media.errors[:content_type]).to be_present
+    end
+  end
+
   describe 'URL generation' do
     it '#url returns the remote URL when present' do
       media_attachment.remote_url = 'https://example.com/test.jpg'

@@ -4,6 +4,7 @@ require_relative '../controllers/concerns/activity_pub_visibility_helper'
 
 class RelayAnnounceProcessorJob < ApplicationJob
   include ActivityPubHelper
+  include ActivityPubMediaHandler
   include ActivityPubVisibilityHelper
   include ActivityPubUtilityHelpers
 
@@ -96,7 +97,7 @@ class RelayAnnounceProcessorJob < ApplicationJob
     # ローカルタイムラインに表示しない（リレー投稿はpublic扱い）
     visibility = 'public' if visibility == 'unlisted'
 
-    ActivityPubObject.create!(
+    object = ActivityPubObject.create!(
       ap_id: object_data['id'],
       object_type: 'Note',
       actor: actor,
@@ -108,6 +109,9 @@ class RelayAnnounceProcessorJob < ApplicationJob
       # リレー経由であることを明示
       relay_id: @relay.id
     )
+
+    handle_media_attachments(object, object_data)
+    object
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create ActivityPub object from relay: #{e.message}"
   end

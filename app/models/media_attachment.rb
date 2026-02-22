@@ -6,10 +6,18 @@ class MediaAttachment < ApplicationRecord
 
   # === 定数 ===
   MEDIA_TYPES = %w[image video audio document].freeze
-  IMAGE_FORMATS = %w[jpeg jpg png gif webp avif].freeze
+  IMAGE_FORMATS = %w[jpeg jpg png gif webp avif heic heif].freeze
   VIDEO_FORMATS = %w[mp4 webm mov avi].freeze
   AUDIO_FORMATS = %w[mp3 ogg wav flac m4a].freeze
   DOCUMENT_FORMATS = %w[pdf txt doc docx].freeze
+
+  # MIMEサブタイプとファイル拡張子のマッピング（一致しない場合）
+  MIME_SUBTYPE_ALIASES = {
+    'quicktime' => 'mov',
+    'x-msvideo' => 'avi',
+    'mpeg' => 'mp3',
+    'x-flac' => 'flac'
+  }.freeze
 
   MAX_IMAGE_SIZE = 50.megabytes
   MAX_VIDEO_SIZE = 500.megabytes
@@ -316,8 +324,9 @@ class MediaAttachment < ApplicationRecord
 
     return if valid_formats.empty?
 
-    # MIME typeから拡張子を抽出してチェック
+    # MIME typeから拡張子を抽出してチェック（サブタイプが拡張子と一致しない場合はエイリアスで変換）
     format_from_mime = content_type.split('/').last
+    format_from_mime = MIME_SUBTYPE_ALIASES.fetch(format_from_mime, format_from_mime)
 
     return if valid_formats.include?(format_from_mime)
 
