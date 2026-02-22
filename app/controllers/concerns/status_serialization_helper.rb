@@ -55,7 +55,7 @@ module StatusSerializationHelper
       pinned: pinned_by_current_user?(status),
       quoted: quoted_by_current_user?(status),
       filtered: [],
-      application: status.local? ? { name: 'Letter', website: nil } : nil
+      application: status.local? ? { name: 'letter', website: nil } : nil
     }
   end
 

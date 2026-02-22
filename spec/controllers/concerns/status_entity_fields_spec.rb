@@ -45,7 +45,7 @@ RSpec.describe 'Status entity fields' do
     it 'includes application field for local statuses' do
       result = controller_instance.send(:serialized_status, status)
       expect(result).to have_key(:application)
-      expect(result[:application]).to eq({ name: 'Letter', website: nil })
+      expect(result[:application]).to eq({ name: 'letter', website: nil })
     end
 
     it 'sets application to nil for remote statuses' do

@@ -66,7 +66,7 @@ module Api
           short_description: InstanceConfig.get('instance_description') || 'General Letter Publication System based on ActivityPub',
           description: InstanceConfig.get('instance_description') || 'General Letter Publication System based on ActivityPub',
           email: InstanceConfig.get('instance_contact_email') || Rails.application.config.instance_contact_email || '',
-          version: '0.1.0 (compatible; letter 0.1.0)',
+          version: '0.1 (compatible; letter 0.1)',
           urls: {
             streaming_api: "https://#{local_domain}/api/v1/streaming"
           },
