@@ -87,6 +87,8 @@ class QuotePost < ApplicationRecord
   end
 
   def quote_properties
+    return {} unless quoted_object
+
     {
       'quote' => quoted_object.ap_id,
       'quoteUrl' => quoted_object.ap_id,

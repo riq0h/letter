@@ -147,11 +147,12 @@ class ActivityPubObjectSerializer
 
   def add_quote_data(data)
     quote_post = object.quote_posts.first
-    return unless quote_post
+    return unless quote_post&.quoted_object
 
-    data['quoteUrl'] = quote_post.quoted_object.ap_id
-    data['_misskey_quote'] = quote_post.quoted_object.ap_id
-    data['quoteUri'] = quote_post.quoted_object.ap_id # Fedibird互換
+    quoted_ap_id = quote_post.quoted_object.ap_id
+    data['quoteUrl'] = quoted_ap_id
+    data['_misskey_quote'] = quoted_ap_id
+    data['quoteUri'] = quoted_ap_id # Fedibird互換
   end
 
   def build_interaction_policy

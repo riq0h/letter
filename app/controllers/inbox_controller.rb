@@ -4,6 +4,7 @@ class InboxController < ApplicationController
   include ActivityPubVerification
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
+  include ActivityPubCollectionHandlers
   include ErrorResponseHelper
 
   # エラーハンドリング
@@ -61,6 +62,10 @@ class InboxController < ApplicationController
       handle_like_activity
     when 'Block'
       handle_block_activity
+    when 'Add'
+      handle_add_activity
+    when 'Remove'
+      handle_remove_activity
     else
       handle_unsupported_activity
     end

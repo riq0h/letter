@@ -5,6 +5,7 @@ class SharedInboxesController < ApplicationController
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
   include ActivityPubFollowHandlers
+  include ActivityPubCollectionHandlers
   include ErrorResponseHelper
 
   # エラーハンドリング
@@ -125,6 +126,10 @@ class SharedInboxesController < ApplicationController
       handle_accept_activity
     when 'Reject'
       handle_reject_activity
+    when 'Add'
+      handle_add_activity
+    when 'Remove'
+      handle_remove_activity
     else
       Rails.logger.warn "⚠️ Unsupported activity type: #{@activity['type']}"
       head :accepted
