@@ -36,6 +36,8 @@ class QuotePost < ApplicationRecord
 
   # 引用許可ポリシーを設定（デフォルトは全員許可）
   def set_default_interaction_policy
+    return unless has_attribute?(:interaction_policy)
+
     self.interaction_policy ||= {
       'canQuote' => {
         'automaticApproval' => ['https://www.w3.org/ns/activitystreams#Public']

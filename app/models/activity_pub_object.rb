@@ -361,9 +361,20 @@ class ActivityPubObject < ApplicationRecord
 
   def requires_content?
     return false if media_attachments.any?
+    return false if raw_data_has_attachments?
 
     # Vote、Question、メディア付きオブジェクトはcontentが不要
     %w[Note Article].include?(object_type)
+  end
+
+  def raw_data_has_attachments?
+    return false if raw_data.blank?
+
+    data = JSON.parse(raw_data)
+    attachments = data['attachment']
+    attachments.is_a?(Array) && attachments.any?
+  rescue JSON::ParserError
+    false
   end
 
   def create_activity_if_needed
