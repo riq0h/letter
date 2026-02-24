@@ -188,9 +188,15 @@ module StatusSerializationHelper
       id: quoted_object.id.to_s,
       created_at: quoted_object.published_at&.iso8601,
       uri: quoted_object.ap_id,
-      url: quoted_object.public_url,
+      url: quoted_object.public_url || quoted_object.ap_id,
+      visibility: quoted_object.visibility || 'public',
+      spoiler_text: quoted_object.summary || '',
       content: parse_content_for_api_with_mentions(quoted_object),
       account: serialized_account(quoted_actor),
+      mentions: [],
+      tags: [],
+      emojis: ensure_array(serialized_emojis(quoted_object)),
+      media_attachments: ensure_array(serialized_media_attachments(quoted_object)),
       shallow_quote: quote_post.shallow_quote?
     }
   end
