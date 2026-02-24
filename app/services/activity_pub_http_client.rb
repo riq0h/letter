@@ -37,7 +37,7 @@ class ActivityPubHttpClient
   rescue JSON::ParserError => e
     Rails.logger.error "❌ Invalid JSON in ActivityPub object #{uri}: #{e.message}"
     nil
-  rescue Net::TimeoutError => e
+  rescue Net::OpenTimeout, Net::ReadTimeout => e
     Rails.logger.error "❌ Timeout fetching ActivityPub object #{uri}: #{e.message}"
     nil
   rescue StandardError => e

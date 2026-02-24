@@ -67,6 +67,9 @@ module TextLinkingHelper
       return false unless %w[http https].include?(uri.scheme)
       return false if uri.host.blank?
 
+      # 有効なTLDを持つドメインか確認（例: "www." のような不完全なドメインを除外）
+      return false unless uri.host.match?(/\.[a-z]{2,}\z/i)
+
       # Blueskyドメインは除外
       bluesky_domains = ['bsky.app', 'bsky.social', 'bsky.brid.gy']
       return false if bluesky_domains.any? { |domain| uri.host&.include?(domain) }
