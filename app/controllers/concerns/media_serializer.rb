@@ -3,6 +3,9 @@
 module MediaSerializer
   extend ActiveSupport::Concern
 
+  # Mastodon API互換のメディアタイプ（Moshidon等はこれ以外をnullとして扱う）
+  MASTODON_MEDIA_TYPES = %w[image gifv video audio].freeze
+
   private
 
   def serialized_media_attachments(status)
@@ -44,7 +47,7 @@ module MediaSerializer
 
     {
       id: media.id.to_s,
-      type: media.media_type.to_s,
+      type: mastodon_media_type(media.media_type),
       url: media_url || media.remote_url || '',
       preview_url: preview_url || (media.image? ? (media_url || media.remote_url || '') : ''),
       remote_url: media.remote_url.to_s,
@@ -109,5 +112,9 @@ module MediaSerializer
     { x: focus_x.to_f, y: focus_y.to_f }
   rescue JSON::ParserError
     nil
+  end
+
+  def mastodon_media_type(type)
+    MASTODON_MEDIA_TYPES.include?(type) ? type : 'unknown'
   end
 end
