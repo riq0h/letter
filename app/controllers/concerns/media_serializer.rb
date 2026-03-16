@@ -45,9 +45,6 @@ module MediaSerializer
       nil
     end
 
-    # bsky.brid.gy動画: video.bsky.appのURLからサムネイルを生成
-    preview_url = bsky_video_thumbnail_url(media_url || media.remote_url) if media.media_type == 'video' && preview_url.blank?
-
     {
       id: media.id.to_s,
       type: mastodon_media_type(media.media_type),
@@ -119,15 +116,5 @@ module MediaSerializer
 
   def mastodon_media_type(type)
     MASTODON_MEDIA_TYPES.include?(type) ? type : 'unknown'
-  end
-
-  # video.bsky.appのHLS URLからサムネイルURLを生成
-  def bsky_video_thumbnail_url(url)
-    return nil if url.blank?
-
-    match = url.match(/https:\/\/video\.bsky\.app\/watch\/(did:[^\/]+)\/([^\/]+)\/playlist\.m3u8/)
-    return nil unless match
-
-    "https://video.bsky.app/watch/#{match[1]}/#{match[2]}/thumbnail.jpg"
   end
 end

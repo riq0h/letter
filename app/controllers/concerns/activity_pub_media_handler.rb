@@ -22,12 +22,7 @@ module ActivityPubMediaHandler
 
   def create_media_attachment(object, attachment_data)
     url = attachment_data['url']
-
-    # bsky PDS blob URLをvideo.bsky.appのHLS URLに変換
-    # PDS blob URLはHTTP Range非対応でAndroid MediaPlayerが再生不可のため
     media_type = determine_media_type_from_attachment(attachment_data)
-    url = convert_bsky_blob_to_video_url(url) || url if media_type == 'video'
-
     file_name = extract_filename_from_url(url)
 
     media_attrs = build_media_attachment_attributes(object, attachment_data, url, media_type, file_name)
@@ -70,16 +65,6 @@ module ActivityPubMediaHandler
 
   def determine_media_type_from_content_type(content_type)
     MediaTypeDetector.determine(content_type)
-  end
-
-  # bsky PDS blob URL → video.bsky.app HLS URL変換
-  def convert_bsky_blob_to_video_url(url)
-    return nil if url.blank?
-
-    match = url.match(/\/xrpc\/com\.atproto\.sync\.getBlob\?did=(did:[^&]+)&cid=([^&\s]+)/)
-    return nil unless match
-
-    "https://video.bsky.app/watch/#{match[1]}/#{match[2]}/playlist.m3u8"
   end
 
   def determine_media_type_from_attachment(attachment_data)
