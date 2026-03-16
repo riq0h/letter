@@ -6,6 +6,7 @@ class CacheCleanupJob < ApplicationJob
 
   def perform
     cleanup_expired_cache_files
+    cleanup_cached_remote_media
     cleanup_orphaned_blobs
   rescue StandardError => e
     Rails.logger.error "CacheCleanupJob failed: #{e.message}"
@@ -35,6 +36,24 @@ class CacheCleanupJob < ApplicationJob
     end
 
     Rails.logger.info "CacheCleanupJob: purged #{expired_count} expired cache files"
+  end
+
+  # キャッシュされたリモートメディアの期限切れファイルを削除
+  def cleanup_cached_remote_media
+    stale = MediaAttachment.where(processing_status: 'cached')
+                           .where(updated_at: ...RemoteImageCacheService::CACHE_DURATION.ago)
+
+    expired_count = 0
+    stale.find_each do |media|
+      media.file.purge if media.file.attached?
+      media.thumbnail.purge if media.thumbnail.attached?
+      media.update_column(:processing_status, 'pending')
+      expired_count += 1
+    rescue StandardError => e
+      Rails.logger.warn "Failed to purge cached media #{media.id}: #{e.message}"
+    end
+
+    Rails.logger.info "CacheCleanupJob: purged #{expired_count} cached remote media files"
   end
 
   def cleanup_orphaned_blobs

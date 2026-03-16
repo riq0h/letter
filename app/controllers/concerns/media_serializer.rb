@@ -34,22 +34,14 @@ module MediaSerializer
     # メディアの存在をバリデート
     return nil unless media
 
-    media_url = begin
-      media.url
-    rescue StandardError
-      nil
-    end
-    preview_url = begin
-      media.preview_url
-    rescue StandardError
-      nil
-    end
+    resolved_url = resolve_media_url(media)
+    resolved_preview = resolve_preview_url(media)
 
     {
       id: media.id.to_s,
       type: mastodon_media_type(media.media_type),
-      url: media_url || media.remote_url || '',
-      preview_url: preview_url || (media.image? ? (media_url || media.remote_url || '') : ''),
+      url: resolved_url,
+      preview_url: resolved_preview.presence || (media.image? ? resolved_url : ''),
       remote_url: media.remote_url.to_s,
       meta: build_media_meta(media),
       description: media.description.to_s,
@@ -58,6 +50,38 @@ module MediaSerializer
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize media attachment #{media&.id}: #{e.message}"
     nil
+  end
+
+  def resolve_media_url(media)
+    if media.file.attached?
+      media.url
+    elsif media.remote_url.present?
+      media_proxy_url(media.id)
+    else
+      ''
+    end
+  rescue StandardError
+    media&.remote_url || ''
+  end
+
+  def resolve_preview_url(media)
+    if media.thumbnail.attached?
+      media.preview_url
+    elsif media.file.attached? && media.image?
+      media.url
+    elsif media.remote_url.present?
+      media_proxy_small_url(media.id)
+    end
+  rescue StandardError
+    nil
+  end
+
+  def media_proxy_url(media_id)
+    Rails.application.routes.url_helpers.media_proxy_url(media_id)
+  end
+
+  def media_proxy_small_url(media_id)
+    Rails.application.routes.url_helpers.media_proxy_small_url(media_id)
   end
 
   def build_media_meta(media)

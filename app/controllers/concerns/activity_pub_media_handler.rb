@@ -26,7 +26,11 @@ module ActivityPubMediaHandler
     file_name = extract_filename_from_url(url)
 
     media_attrs = build_media_attachment_attributes(object, attachment_data, url, media_type, file_name)
-    MediaAttachment.create!(media_attrs)
+    media = MediaAttachment.create!(media_attrs)
+
+    # リモートメディアを非同期でダウンロード・キャッシュ
+    RemoteMediaDownloadJob.perform_later(media.id)
+
     Rails.logger.info "📎 Media attachment created for object #{object.id}: #{url}"
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.warn "⚠️ Failed to create media attachment: #{e.message}"
