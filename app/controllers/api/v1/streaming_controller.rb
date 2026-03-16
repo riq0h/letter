@@ -80,7 +80,7 @@ module Api
           return
         end
 
-        events = fetch_events_since(params[:since_id].to_i)
+        events = fetch_events_since(params[:since_id].to_s)
         render json: events
       end
 
