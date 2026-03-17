@@ -68,8 +68,8 @@ module StatusEditHandler
       poll: serialize_poll(@status),
       sensitive: @status.sensitive || false,
       spoiler_text: @status.summary || '',
-      tags: @status.tags.map { |tag| serialized_tag(tag) },
-      mentions: @status.mentions.map { |mention| serialized_mention(mention) }
+      tags: @status.tags.map { |tag| serialize_tag(tag) },
+      mentions: @status.mentions.includes(:actor).map { |mention| serialize_mention(mention) }
     }
   end
 
