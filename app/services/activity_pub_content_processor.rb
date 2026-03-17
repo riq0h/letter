@@ -138,8 +138,16 @@ class ActivityPubContentProcessor
     # ハッシュタグ抽出ロジック
     return unless content.include?('#')
 
-    hashtag_pattern = /#([\w\u0080-\uFFFF][\w\u0080-\uFFFF-]*)/
-    content.scan(hashtag_pattern) do |tag_name|
+    # HTMLタグ内の#（href属性等）を除外してスキャン
+    text_for_scanning = if content.include?('<') && content.include?('>')
+                          content.gsub(/<[^>]+>/, '')
+                        else
+                          content
+                        end
+
+    # HTML実体参照内の#を除外（&#39; → #39が誤検出されるのを防ぐ）
+    hashtag_pattern = /(?<!&)#([\w\u0080-\uFFFF][\w\u0080-\uFFFF-]*)/
+    text_for_scanning.scan(hashtag_pattern) do |tag_name|
       create_hashtag(tag_name.first)
     end
   end

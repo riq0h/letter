@@ -397,16 +397,48 @@ module StatusSerializationHelper
       link = %(<a href="#{tag_url}" class="mention hashtag" rel="tag">) +
              %(#<span>#{CGI.escapeHTML(display_name)}</span></a>)
 
+      # HTML実体参照内の#を除外（&#39; の #39 を誤リンク化しない）
       # display_nameでの検索（大文字小文字を区別）
-      content = gsub_outside_a_tags(content, "##{display_name}", link) if content.include?("##{display_name}")
+      content = gsub_hashtag_outside_entities(content, "##{display_name}", link) if content.include?("##{display_name}")
 
       # 正規化名でも検索（display_nameと異なる場合のみ）
       next unless tag.name != display_name.downcase && content.include?("##{tag.name}")
 
-      content = gsub_outside_a_tags(content, "##{tag.name}", link)
+      content = gsub_hashtag_outside_entities(content, "##{tag.name}", link)
     end
 
     content
+  end
+
+  # ハッシュタグ置換をHTML実体参照とaタグの外側でのみ実行する
+  def gsub_hashtag_outside_entities(content, search_text, replacement)
+    a_tag_ranges = []
+    content.scan(/<a\b[^>]*>.*?<\/a>/mi) do
+      a_tag_ranges << ($LAST_MATCH_INFO.begin(0)...$LAST_MATCH_INFO.end(0))
+    end
+
+    result = content.dup
+    offset = 0
+    search_re = Regexp.new(Regexp.escape(search_text))
+
+    content.scan(search_re) do
+      match_start = $LAST_MATCH_INFO.begin(0)
+      match_end = $LAST_MATCH_INFO.end(0)
+
+      inside_link = a_tag_ranges.any? { |range| match_start >= range.begin && match_end <= range.end }
+
+      # HTML実体参照内の#を除外（&#39; の #39 等）
+      inside_entity = match_start.positive? && content[match_start - 1] == '&'
+
+      unless inside_link || inside_entity
+        actual_start = match_start + offset
+        actual_end = match_end + offset
+        result[actual_start...actual_end] = replacement
+        offset += replacement.length - search_text.length
+      end
+    end
+
+    result
   end
 
   # メンション置換を<a>タグの外側でのみ実行する（URL内のメンションパターンを破壊しない）
