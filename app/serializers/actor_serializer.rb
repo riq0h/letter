@@ -85,9 +85,17 @@ class ActorSerializer
 
   def activitypub_images(_request = nil)
     {
-      'icon' => actor.avatar_url ? { 'type' => 'Image', 'url' => actor.avatar_url } : nil,
-      'image' => actor.header_url ? { 'type' => 'Image', 'url' => actor.header_url } : nil
+      'icon' => build_image_object(actor.avatar_url, actor.avatar),
+      'image' => build_image_object(actor.header_url, actor.header)
     }
+  end
+
+  def build_image_object(url, attachment)
+    return nil unless url
+
+    obj = { 'type' => 'Image', 'url' => url }
+    obj['mediaType'] = attachment.blob.content_type if attachment.attached? && attachment.blob&.content_type
+    obj
   end
 
   def activitypub_attachments

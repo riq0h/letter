@@ -53,6 +53,12 @@ module Api
 
       private
 
+      def instance_icon_url
+        base_url = "#{Rails.application.config.activitypub.protocol}://#{Rails.application.config.activitypub.domain}"
+        icon_path = Rails.public_path.join('instance.png')
+        File.exist?(icon_path) ? "#{base_url}/instance.png" : nil
+      end
+
       def instance_info
         local_domain = Rails.application.config.activitypub.domain
 
@@ -113,6 +119,7 @@ module Api
               max_expiration: 2_629_746
             }
           },
+          thumbnail: instance_icon_url,
           vapid_public_key: vapid_public_key,
           contact_account: nil,
           rules: []

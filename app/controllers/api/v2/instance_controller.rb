@@ -22,7 +22,7 @@ module Api
           description: load_instance_setting('instance_description') || 'General Letter Publication System based on ActivityPub',
           usage: usage_stats,
           thumbnail: {
-            url: '',
+            url: instance_icon_url,
             blurhash: nil,
             versions: {}
           },
@@ -90,6 +90,12 @@ module Api
           email: load_instance_setting('contact_email') || '',
           account: serialized_account(admin_actor)
         }
+      end
+
+      def instance_icon_url
+        base_url = "#{Rails.application.config.activitypub.protocol}://#{Rails.application.config.activitypub.domain}"
+        icon_path = Rails.public_path.join('instance.png')
+        File.exist?(icon_path) ? "#{base_url}/instance.png" : ''
       end
 
       def load_instance_setting(key)

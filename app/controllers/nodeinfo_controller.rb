@@ -86,7 +86,8 @@ class NodeinfoController < ApplicationController
       enableEmail: false,
       enableServiceWorker: false,
       proxyAccountName: nil,
-      themeColor: '#1f2937'
+      themeColor: '#1f2937',
+      iconUrl: instance_icon_url
     }
   end
 
@@ -106,6 +107,12 @@ class NodeinfoController < ApplicationController
       mentions
       hashtags
     ]
+  end
+
+  def instance_icon_url
+    base_url = "#{Rails.application.config.activitypub.protocol}://#{Rails.application.config.activitypub.domain}"
+    icon_path = Rails.public_path.join('instance.png')
+    File.exist?(icon_path) ? "#{base_url}/instance.png" : nil
   end
 
   def instance_metadata
