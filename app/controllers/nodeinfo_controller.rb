@@ -6,7 +6,7 @@ class NodeinfoController < ApplicationController
   # GET /nodeinfo/2.1
   # NodeInfo 2.1仕様実装
   def show
-    render json: build_nodeinfo_response,
+    render json: Rails.cache.fetch('nodeinfo:2.1', expires_in: 15.minutes) { build_nodeinfo_response },
            content_type: 'application/json; charset=utf-8'
   end
 
@@ -14,9 +14,6 @@ class NodeinfoController < ApplicationController
 
   def build_nodeinfo_response
     domain = Rails.application.config.activitypub.domain
-
-    # ログでドメイン設定を確認
-    Rails.logger.info "NodeInfo: domain=#{domain}"
 
     {
       version: '2.1',

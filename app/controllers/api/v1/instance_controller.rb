@@ -7,33 +7,34 @@ module Api
 
       # GET /api/v1/instance/peers
       def peers
-        domains = Actor.where(local: false)
-                       .where.not(domain: nil)
-                       .distinct
-                       .pluck(:domain)
-                       .compact
-        render json: domains
+        render json: Rails.cache.fetch('api:v1:instance:peers', expires_in: 30.minutes) {
+          Actor.where(local: false)
+          .where.not(domain: nil)
+               .distinct
+               .pluck(:domain)
+               .compact
+        }
       end
 
       # GET /api/v1/instance/activity
       def activity
-        weeks = (0..11).map do |i|
-          week_start = i.weeks.ago.beginning_of_week
-          week_end = i.weeks.ago.end_of_week
+        render json: Rails.cache.fetch('api:v1:instance:activity', expires_in: 30.minutes) {
+          (0..11).map do |i|
+            week_start = i.weeks.ago.beginning_of_week
+            week_end = i.weeks.ago.end_of_week
 
-          statuses = ActivityPubObject.where(object_type: 'Note', created_at: week_start..week_end).count
-          logins = Actor.where(local: true).count # 簡易的にローカルユーザ数を返す
-          registrations = 0
+            statuses = ActivityPubObject.where(object_type: 'Note', created_at: week_start..week_end).count
+            logins = Actor.where(local: true).count
+            registrations = 0
 
-          {
-            week: week_start.to_i.to_s,
-            statuses: statuses.to_s,
-            logins: logins.to_s,
-            registrations: registrations.to_s
-          }
-        end
-
-        render json: weeks
+            {
+              week: week_start.to_i.to_s,
+              statuses: statuses.to_s,
+              logins: logins.to_s,
+              registrations: registrations.to_s
+            }
+          end
+        }
       end
 
       # GET /api/v1/instance/rules
