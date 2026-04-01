@@ -6,6 +6,8 @@ module Api
       include StatusSerializationHelper
       include ApiPagination
 
+      PaginationItem = Struct.new(:id)
+
       before_action :doorkeeper_authorize!, only: %i[home list]
       after_action :insert_pagination_headers
 
@@ -13,22 +15,14 @@ module Api
       def home
         return render_authentication_required unless current_user
 
-        timeline_query = TimelineQuery.new(current_user, timeline_params)
-        timeline_items = timeline_query.build_home_timeline
-
-        # リプライ先情報とインタラクション状態をプリロード
-        statuses = timeline_items.filter_map { |item| item.is_a?(Reblog) ? item.object : item }
-        preload_all_status_data(statuses)
-
-        # リブログのアクターもプリロード対象に追加
-        reblog_actors = timeline_items.filter_map { |item| item.actor if item.is_a?(Reblog) }.uniq(&:id)
-        if reblog_actors.any?
-          preload_account_emojis(reblog_actors)
-          preload_last_status_at(reblog_actors.map(&:id))
+        cache_key = "timeline:home:#{current_user.id}:#{params[:max_id]}:#{params[:since_id]}:#{params[:min_id]}:#{limit_param}"
+        cached = Rails.cache.fetch(cache_key, expires_in: 5.seconds) do
+          build_home_timeline_data
         end
 
-        @paginated_items = timeline_items
-        render json: timeline_items.map { |item| serialize_timeline_item(item) }
+        # ページネーションヘッダー用にIDリストから最小オブジェクトを構築
+        @paginated_items = cached[:pagination_ids]&.map { |id| PaginationItem.new(id) }
+        render json: cached[:json]
       end
 
       # GET /api/v1/timelines/public
@@ -70,6 +64,27 @@ module Api
       end
 
       private
+
+      def build_home_timeline_data
+        timeline_query = TimelineQuery.new(current_user, timeline_params)
+        timeline_items = timeline_query.build_home_timeline
+
+        # リプライ先情報とインタラクション状態をプリロード
+        statuses = timeline_items.filter_map { |item| item.is_a?(Reblog) ? item.object : item }
+        preload_all_status_data(statuses)
+
+        # リブログのアクターもプリロード対象に追加
+        reblog_actors = timeline_items.filter_map { |item| item.actor if item.is_a?(Reblog) }.uniq(&:id)
+        if reblog_actors.any?
+          preload_account_emojis(reblog_actors)
+          preload_last_status_at(reblog_actors.map(&:id))
+        end
+
+        {
+          json: timeline_items.map { |item| serialize_timeline_item(item) },
+          pagination_ids: extract_ids(timeline_items)
+        }
+      end
 
       def timeline_params
         params.permit(:max_id, :since_id, :min_id, :local).merge(limit: limit_param)
