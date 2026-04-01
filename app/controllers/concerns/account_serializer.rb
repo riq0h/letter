@@ -80,26 +80,34 @@ module AccountSerializer
   def account_emojis(account)
     return [] if account.display_name.blank? && account.note.blank? && account.fields.blank?
 
-    # display_nameとnoteからemoji shortcodeを抽出
     text_content = [account.display_name, account.note].compact.join(' ')
-
-    # fieldsからもemoji shortcodeを抽出
     if account.fields.present?
       begin
         fields = JSON.parse(account.fields)
-        field_content = fields.map { |f| [f['name'], f['value']].compact.join(' ') }.join(' ')
-        text_content += " #{field_content}"
+        text_content = "#{text_content} #{fields.map { |f| [f['name'], f['value']].compact.join(' ') }.join(' ')}"
       rescue JSON::ParserError
-        # JSON解析エラーの場合は無視
+        # ignore
       end
     end
 
-    # emojis抽出
-    emojis = EmojiPresenter.extract_emojis_from(text_content)
-    emojis.map(&:to_activitypub)
+    emojis = if defined?(@account_emoji_cache) && @account_emoji_cache
+               resolve_account_emojis_from_cache(text_content)
+             else
+               EmojiPresenter.extract_emojis_from(text_content)
+             end
+
+    emojis.filter_map(&:to_activitypub)
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize account emojis for actor #{account.id}: #{e.message}"
     []
+  end
+
+  def resolve_account_emojis_from_cache(text)
+    shortcodes = EmojiPresenter.extract_shortcodes_from(text)
+    shortcodes.filter_map do |code|
+      @account_emoji_cache[:local][code] ||
+        @account_emoji_cache[:remote][code]&.first
+    end.uniq(&:shortcode)
   end
 
   def account_fields(account)

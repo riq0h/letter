@@ -190,6 +190,7 @@ module Api
 
         account_ids = Array(params[:id]).map(&:to_i)
         accounts = Actor.where(id: account_ids)
+        preload_relationships(account_ids)
 
         # すべての要求されたIDに対してrelationshipを返す（存在しないものは空のrelationship）
         relationships = account_ids.map do |id|

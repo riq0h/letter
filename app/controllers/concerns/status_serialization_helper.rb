@@ -350,6 +350,31 @@ module StatusSerializationHelper
     @emoji_cache = { local: local_emojis, remote: remote_emojis }
   end
 
+  # アカウント絵文字をバルクでプリロード
+  def preload_account_emojis(actors)
+    all_shortcodes = Set.new
+
+    actors.each do |actor|
+      text = [actor.display_name, actor.note].compact.join(' ')
+      if actor.fields.present?
+        begin
+          fields = JSON.parse(actor.fields)
+          text = "#{text} #{fields.map { |f| [f['name'], f['value']].compact.join(' ') }.join(' ')}"
+        rescue JSON::ParserError
+          # ignore
+        end
+      end
+      all_shortcodes.merge(EmojiPresenter.extract_shortcodes_from(text))
+    end
+
+    return if all_shortcodes.empty?
+
+    local = CustomEmoji.enabled.visible.where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
+    remote = CustomEmoji.enabled.remote.where(shortcode: all_shortcodes.to_a).group_by(&:shortcode)
+
+    @account_emoji_cache = { local: local, remote: remote }
+  end
+
   # ステータス表示に必要な全データを一括プリロード（N+1回避）
   def preload_all_status_data(statuses)
     return if statuses.blank?
@@ -360,7 +385,9 @@ module StatusSerializationHelper
     preload_link_previews(statuses)
     preload_mentions_data(statuses)
     preload_emojis_data(statuses)
-    preload_last_status_at(statuses.filter_map(&:actor_id).uniq)
+    actors = statuses.filter_map(&:actor).uniq(&:id)
+    preload_last_status_at(actors.map(&:id))
+    preload_account_emojis(actors)
   end
 
   # moshidon互換性のためのヘルパーメソッド
