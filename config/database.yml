@@ -1,13 +1,12 @@
 default: &default
   adapter: sqlite3
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 20 } %>
-  timeout: 60000
+  timeout: 5000
   default_transaction_mode: :immediate
   application_name: letter
   pragma:
     journal_mode: :wal
     synchronous: :normal
-    busy_timeout: 5000
     cache_size: 20000
     foreign_keys: :on
     temp_store: :memory
@@ -56,7 +55,6 @@ production:
     pragma:
       journal_mode: :wal
       synchronous: :normal
-      busy_timeout: 5000
       journal_size_limit: 67108864
       wal_autocheckpoint: 1000
       cache_size: 50000
@@ -72,7 +70,6 @@ production:
     pragma:
       journal_mode: :wal
       synchronous: :normal
-      busy_timeout: 5000
       journal_size_limit: 67108864
       wal_autocheckpoint: 1000
       cache_size: 10000
@@ -88,7 +85,8 @@ production:
     pragma:
       journal_mode: :wal
       synchronous: :normal
-      busy_timeout: 5000
+      journal_size_limit: 67108864
+      wal_autocheckpoint: 1000
       cache_size: 10000
       foreign_keys: :on
       temp_store: :memory
