@@ -257,16 +257,16 @@ module StatusSerializationHelper
     reply_to_ap_ids = statuses.filter_map(&:in_reply_to_ap_id).uniq
     return unless reply_to_ap_ids.any?
 
-    # 一度のクエリでリプライ先の情報を取得
+    # 一度のクエリでリプライ先の情報を取得（actor_idはカラムなのでincludesは不要）
     reply_objects = ActivityPubObject.where(ap_id: reply_to_ap_ids)
-                                     .includes(:actor)
+                                     .select(:id, :ap_id, :actor_id)
                                      .index_by(&:ap_id)
 
     # キャッシュ用のハッシュを構築
     @reply_to_cache = reply_objects.transform_values do |obj|
       {
         id: obj.id,
-        actor_id: obj.actor&.id
+        actor_id: obj.actor_id
       }
     end
   end
@@ -275,7 +275,10 @@ module StatusSerializationHelper
   def preload_quote_data(statuses)
     status_ids = statuses.map(&:id)
     quote_posts = QuotePost.where(object_id: status_ids)
-                           .includes(quoted_object: :actor)
+                           .includes(quoted_object: [
+                                       { actor: { avatar_attachment: :blob, header_attachment: :blob } },
+                                       { media_attachments: { file_attachment: :blob, thumbnail_attachment: :blob } }
+                                     ])
                            .to_a
 
     @quote_cache = {}
@@ -303,13 +306,16 @@ module StatusSerializationHelper
     end
   end
 
-  # mentionsをバルクでプリロード
+  # mentionsをキャッシュ用ハッシュに整理（base queryで既にプリロード済みのデータを使用）
   def preload_mentions_data(statuses)
-    status_ids = statuses.map(&:id)
-    mentions = Mention.where(object_id: status_ids).includes(:actor).to_a
     @mentions_cache = {}
-    mentions.each do |mention|
-      (@mentions_cache[mention[:object_id]] ||= []) << mention
+    statuses.each do |status|
+      next unless status.respond_to?(:mentions)
+
+      # base_timeline_queryのincludesで既にロード済みのmentionsを使用（追加クエリなし）
+      status.mentions.each do |mention|
+        (@mentions_cache[mention[:object_id]] ||= []) << mention
+      end
     end
   end
 
@@ -332,18 +338,24 @@ module StatusSerializationHelper
     # 一括クエリでカスタム絵文字を取得
     local_emojis = CustomEmoji.enabled.visible.where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
 
+    # リモート絵文字を一括クエリで取得（ドメインごとの個別クエリを回避）
     remote_emojis = {}
-    domain_shortcodes.each do |domain, codes|
-      CustomEmoji.enabled.remote.where(shortcode: codes.to_a, domain: domain).find_each do |emoji|
-        remote_emojis["#{emoji.shortcode}:#{domain}"] = emoji
+    all_remote_domains = domain_shortcodes.keys
+    all_remote_codes = domain_shortcodes.values.flat_map(&:to_a).uniq
+    if all_remote_codes.any?
+      CustomEmoji.enabled.remote
+                 .where(shortcode: all_remote_codes, domain: all_remote_domains)
+                 .find_each do |emoji|
+                   remote_emojis["#{emoji.shortcode}:#{emoji.domain}"] = emoji
       end
-    end
 
-    # ドメイン指定なしのリモート絵文字もフォールバック用に取得
-    remaining = all_shortcodes - local_emojis.keys - remote_emojis.values.map(&:shortcode)
-    if remaining.any?
-      CustomEmoji.enabled.remote.where(shortcode: remaining.to_a).find_each do |emoji|
-        remote_emojis["#{emoji.shortcode}:"] ||= emoji
+      # フォールバック用：まだ見つかっていないショートコードをドメイン無指定で検索
+      found_shortcodes = remote_emojis.values.to_set(&:shortcode)
+      remaining = all_shortcodes - local_emojis.keys - found_shortcodes
+      if remaining.any?
+        CustomEmoji.enabled.remote.where(shortcode: remaining.to_a).find_each do |emoji|
+          remote_emojis["#{emoji.shortcode}:"] ||= emoji
+        end
       end
     end
 

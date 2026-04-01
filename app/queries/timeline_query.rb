@@ -80,7 +80,8 @@ class TimelineQuery
   def base_timeline_query
     query = ActivityPubObject.joins(:actor)
                              .includes(actor: { avatar_attachment: :blob, header_attachment: :blob },
-                                       media_attachments: [], poll: [], tags: [],
+                                       media_attachments: { file_attachment: :blob, thumbnail_attachment: :blob },
+                                       poll: [], tags: [],
                                        mentions: { actor: { avatar_attachment: :blob, header_attachment: :blob } })
                              .where(object_type: %w[Note Question])
                              .where(is_pinned_only: false)
@@ -95,7 +96,8 @@ class TimelineQuery
                     .where(actor_id: followed_ids)
                     .where(objects: { visibility: %w[public unlisted] })
                     .includes(object: [{ actor: { avatar_attachment: :blob, header_attachment: :blob } },
-                                       :media_attachments, :poll, :tags,
+                                       { media_attachments: { file_attachment: :blob, thumbnail_attachment: :blob } },
+                                       :poll, :tags,
                                        { mentions: { actor: { avatar_attachment: :blob, header_attachment: :blob } } }],
                               actor: { avatar_attachment: :blob, header_attachment: :blob })
                     .order('reblogs.created_at DESC')
