@@ -49,6 +49,8 @@ module MentionProcessor
     tag_names = extract_hashtag_names(@status.content)
     tag_names.each do |tag_name|
       tag = Tag.find_or_create_by_display_name(tag_name)
+      next unless tag
+
       ObjectTag.find_or_create_by(object: @status, tag: tag)
     end
   end

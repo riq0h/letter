@@ -190,6 +190,8 @@ class CreateActivityOrganizer
       next if tag_name.blank?
 
       tag = Tag.find_or_create_by_display_name(tag_name)
+      next unless tag
+
       ObjectTag.find_or_create_by(object: object, tag: tag)
     end
   rescue StandardError => e

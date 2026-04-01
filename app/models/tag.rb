@@ -15,10 +15,11 @@ class Tag < ApplicationRecord
   scope :recent, -> { order(updated_at: :desc) }
 
   # display_nameを保持しつつ正規化された名前でfind_or_create
+  # バリデーション失敗時はnilを返す（呼び出し元でnilチェック必須）
   def self.find_or_create_by_display_name(original_name)
     normalized = original_name.unicode_normalize(:nfkc).strip.downcase
     tag = find_or_create_by(name: normalized)
-    return tag unless tag.persisted?
+    return nil unless tag.persisted?
 
     tag.update_column(:display_name, original_name) if tag.display_name.blank? && original_name != normalized
     tag

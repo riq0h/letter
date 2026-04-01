@@ -2,7 +2,7 @@ default: &default
   adapter: sqlite3
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 20 } %>
   timeout: 60000
-  default_transaction_mode: :deferred
+  default_transaction_mode: :immediate
   application_name: letter
   pragma:
     journal_mode: :wal

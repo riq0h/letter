@@ -185,6 +185,8 @@ class ActivityPubContentProcessor
   def create_hashtag(tag_name)
     # ハッシュタグ作成処理
     tag = Tag.find_or_create_by_display_name(tag_name)
+    return unless tag
+
     object.object_tags.find_or_create_by(tag: tag)
   end
 
