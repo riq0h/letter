@@ -36,22 +36,22 @@ class UserTimelineQuery
   def exclude_blocked_users(query)
     return query unless blocked_actor_ids.any?
 
-    query.where.not(actors: { id: blocked_actor_ids })
+    query.where.not(actor_id: blocked_actor_ids)
   end
 
   def exclude_muted_users(query)
     return query unless muted_actor_ids.any?
 
-    query.where.not(actors: { id: muted_actor_ids })
+    query.where.not(actor_id: muted_actor_ids)
   end
 
   def exclude_domain_blocked_users(query)
     return query unless blocked_domains.any?
 
-    query.where(
-      'actors.domain IS NULL OR actors.domain NOT IN (?)',
-      blocked_domains
-    )
+    domain_blocked_actor_ids = Actor.where(domain: blocked_domains).pluck(:id)
+    return query unless domain_blocked_actor_ids.any?
+
+    query.where.not(actor_id: domain_blocked_actor_ids)
   end
 
   def exclude_direct_messages(query)

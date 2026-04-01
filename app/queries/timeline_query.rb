@@ -9,7 +9,7 @@ class TimelineQuery
   def build_home_timeline
     followed_ids = user.followed_actors.pluck(:id) + [user.id]
 
-    statuses = base_timeline_query.where(actors: { id: followed_ids })
+    statuses = base_timeline_query.where(actor_id: followed_ids)
 
     # フォロー中タグの投稿を追加
     followed_tag_ids = user.followed_tags.pluck(:tag_id)
@@ -30,7 +30,7 @@ class TimelineQuery
 
   def build_public_timeline
     statuses = base_timeline_query.where(visibility: 'public')
-    statuses = statuses.where(actors: { local: true }) if local_only?
+    statuses = statuses.where(actor_id: Actor.where(local: true).select(:id)) if local_only?
     apply_pagination_filters(statuses).limit(limit)
   end
 
@@ -50,7 +50,7 @@ class TimelineQuery
     member_ids = list.list_memberships.pluck(:actor_id)
     return ActivityPubObject.none if member_ids.empty?
 
-    statuses = base_timeline_query.where(actors: { id: member_ids })
+    statuses = base_timeline_query.where(actor_id: member_ids)
     apply_pagination_filters(statuses).limit(limit)
   end
 
@@ -71,15 +71,14 @@ class TimelineQuery
     if user
       followed_ids = user.followed_actors.pluck(:id) + [user.id]
       statuses.where(visibility: 'public')
-              .or(statuses.where(visibility: 'private', actors: { id: followed_ids }))
+              .or(statuses.where(visibility: 'private', actor_id: followed_ids))
     else
       statuses.where(visibility: 'public')
     end
   end
 
   def base_timeline_query
-    query = ActivityPubObject.joins(:actor)
-                             .includes(actor: { avatar_attachment: :blob, header_attachment: :blob },
+    query = ActivityPubObject.includes(actor: { avatar_attachment: :blob, header_attachment: :blob },
                                        media_attachments: { file_attachment: :blob, thumbnail_attachment: :blob },
                                        poll: [], tags: [],
                                        mentions: { actor: { avatar_attachment: :blob, header_attachment: :blob } })
