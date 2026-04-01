@@ -2,10 +2,12 @@ default: &default
   adapter: sqlite3
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 20 } %>
   timeout: 60000
+  default_transaction_mode: :immediate
   application_name: letter
   pragma:
     journal_mode: :wal
     synchronous: :normal
+    busy_timeout: 5000
     cache_size: 20000
     foreign_keys: :on
     temp_store: :memory
@@ -49,34 +51,44 @@ production:
   primary:
     <<: *default
     database: storage/production.sqlite3
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 }.to_i * ENV.fetch("WEB_CONCURRENCY") { 4 }.to_i %>
     application_name: letter
     pragma:
       journal_mode: :wal
       synchronous: :normal
+      busy_timeout: 5000
+      journal_size_limit: 67108864
+      wal_autocheckpoint: 1000
       cache_size: 50000
       foreign_keys: :on
       temp_store: :memory
       mmap_size: 536870912
-  
+
   queue:
     <<: *default
     database: storage/queue_production.sqlite3
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 }.to_i * ENV.fetch("WEB_CONCURRENCY") { 4 }.to_i %>
     application_name: letter
     pragma:
       journal_mode: :wal
       synchronous: :normal
+      busy_timeout: 5000
+      journal_size_limit: 67108864
+      wal_autocheckpoint: 1000
       cache_size: 10000
       foreign_keys: :on
       temp_store: :memory
       mmap_size: 268435456
-  
+
   cache:
     <<: *default
     database: storage/cache_production.sqlite3
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 }.to_i * ENV.fetch("WEB_CONCURRENCY") { 4 }.to_i %>
     application_name: letter
     pragma:
       journal_mode: :wal
       synchronous: :normal
+      busy_timeout: 5000
       cache_size: 10000
       foreign_keys: :on
       temp_store: :memory
