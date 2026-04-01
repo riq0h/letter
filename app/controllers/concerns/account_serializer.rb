@@ -49,11 +49,14 @@ module AccountSerializer
   end
 
   def image_attributes(account)
+    avatar = account.avatar_url || default_avatar_url
+    header = account.header_url || default_header_url
+
     {
-      avatar: account.avatar_url || default_avatar_url,
-      avatar_static: account.avatar_url || default_avatar_url,
-      header: account.header_url || default_header_url,
-      header_static: account.header_url || default_header_url
+      avatar: avatar,
+      avatar_static: avatar,
+      header: header,
+      header_static: header
     }
   end
 
