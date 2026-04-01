@@ -24,8 +24,8 @@ services:
       FORCE_SSL: ${FORCE_SSL:-true}
       
       # パフォーマンス設定
-      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
-      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-10}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
       
       # ポート設定
       PORT: 3001

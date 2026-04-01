@@ -35,7 +35,9 @@ module Api
 
       # GET /api/v1/notifications/:id
       def show
-        render json: notification_json(@notification)
+        activity_pub_objects = preload_activity_pub_objects([@notification])
+        preload_all_status_data(activity_pub_objects.values) if activity_pub_objects.any?
+        render json: notification_json_with_preloaded(@notification, activity_pub_objects)
       end
 
       # POST /api/v1/notifications/clear
