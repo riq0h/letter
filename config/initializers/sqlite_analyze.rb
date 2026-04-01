@@ -12,8 +12,6 @@ ActiveSupport.on_load(:active_record) do
       retries = 0
       begin
         ActiveRecord::Base.connection_pool.with_connection do |conn|
-          # スキャン行数を制限して高速に完了させ、ロック保持時間を短縮
-          conn.execute('PRAGMA analysis_limit=1000')
           conn.execute('ANALYZE')
           Rails.logger.info '[SQLite] ANALYZE completed successfully'
         end
