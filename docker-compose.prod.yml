@@ -30,8 +30,8 @@ services:
       # ポート設定
       PORT: 3001
       
-    # 本番環境では名前付きボリュームのみ使用
     volumes:
+      - .:/app
       - storage:/app/storage
       - logs:/app/log
       - uploads:/app/public/uploads

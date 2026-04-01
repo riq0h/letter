@@ -137,34 +137,17 @@ module Api
       end
 
       def notification_json_with_preloaded(notification, activity_pub_objects)
-        json = notification_json(notification)
+        status = if status_notification?(notification) && notification.activity_type == 'ActivityPubObject'
+                   activity_pub_objects[notification.activity_id]
+                 end
 
-        # ActivityPubObjectの場合は事前読み込みデータを使用
-        if notification.activity_type == 'ActivityPubObject' && activity_pub_objects[notification.activity_id]
-          preloaded_activity = activity_pub_objects[notification.activity_id]
-          json[:status] = serialized_status(preloaded_activity) if status_notification?(notification)
-        end
-
-        json
-      end
-
-      def notification_json(notification)
         {
           id: notification.id.to_s,
           type: notification.notification_type,
           created_at: notification.created_at.iso8601,
           account: serialized_account(notification.from_account),
-          status: status_json_if_present(notification)
+          status: status ? serialized_status(status) : nil
         }
-      end
-
-      def status_json_if_present(notification)
-        return nil unless status_notification?(notification)
-
-        status = notification.activity
-        return nil unless status.is_a?(ActivityPubObject)
-
-        serialized_status(status)
       end
     end
   end

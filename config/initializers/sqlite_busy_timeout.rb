@@ -7,7 +7,7 @@ ActiveSupport.on_load(:active_record) do
   ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend(Module.new do
     def configure_connection
       super
-      raw_connection.busy_timeout(5000)
+      raw_connection.busy_timeout(15_000)
     end
   end)
 end
