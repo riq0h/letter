@@ -21,7 +21,7 @@ class TimelineQuery
       statuses = statuses.or(base_timeline_query.where(objects: { id: tag_object_ids })) if tag_object_ids.any?
     end
 
-    statuses = apply_pagination_filters(statuses).limit(limit * 5)
+    statuses = apply_pagination_filters(statuses).limit(limit * 2)
 
     reblogs = fetch_reblogs(followed_ids)
 
@@ -101,7 +101,7 @@ class TimelineQuery
                                        { mentions: { actor: { avatar_attachment: :blob, header_attachment: :blob } } }],
                               actor: { avatar_attachment: :blob, header_attachment: :blob })
                     .order('reblogs.created_at DESC')
-    apply_reblog_pagination_filters(reblogs).limit(limit * 5)
+    apply_reblog_pagination_filters(reblogs).limit(limit * 2)
   end
 
   def apply_pagination_filters(query)

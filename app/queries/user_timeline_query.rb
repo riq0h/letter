@@ -67,12 +67,7 @@ class UserTimelineQuery
     query.where(
       '(objects.in_reply_to_ap_id IS NULL) OR ' \
       '(objects.id IN (SELECT object_id FROM mentions WHERE actor_id = ?)) OR ' \
-      '(EXISTS (' \
-      'SELECT 1 FROM objects reply_objects ' \
-      'INNER JOIN actors reply_actors ON reply_objects.actor_id = reply_actors.id ' \
-      'WHERE reply_objects.ap_id = objects.in_reply_to_ap_id ' \
-      'AND reply_actors.id IN (?)' \
-      '))',
+      '(EXISTS (SELECT 1 FROM objects r WHERE r.ap_id = objects.in_reply_to_ap_id AND r.actor_id IN (?)))',
       user.id,
       followed_actor_ids
     )
