@@ -6,9 +6,9 @@ module Api
       # Mastodon API準拠 - カスタム絵文字一覧取得
       # GET /api/v1/custom_emojis
       def index
-        emojis = CustomEmoji.enabled.alphabetical.includes(:image_attachment)
-
-        render json: emojis.map(&:to_activitypub)
+        render json: Rails.cache.fetch('api:v1:custom_emojis', expires_in: 1.hour) {
+          CustomEmoji.enabled.alphabetical.includes(:image_attachment).map(&:to_activitypub)
+        }
       end
     end
   end

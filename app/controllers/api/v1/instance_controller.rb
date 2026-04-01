@@ -48,7 +48,7 @@ module Api
         response.headers['Sunset'] = 'Tue, 31 Dec 2024 23:59:59 GMT'
         response.headers['Link'] = '</api/v2/instance>; rel="successor-version"'
 
-        render json: instance_info
+        render json: Rails.cache.fetch('api:v1:instance', expires_in: 5.minutes) { instance_info }
       end
 
       private
@@ -61,9 +61,6 @@ module Api
 
       def instance_info
         local_domain = Rails.application.config.activitypub.domain
-
-        # ログでドメイン設定を確認
-        Rails.logger.info "Instance API v1: domain=#{local_domain}"
 
         {
           domain: local_domain,

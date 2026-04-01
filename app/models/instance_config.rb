@@ -78,6 +78,8 @@ class InstanceConfig < ApplicationRecord
       Rails.cache.delete("instance_config:#{key}")
     end
     Rails.cache.delete('instance_config:all')
+    Rails.cache.delete('api:v1:instance')
+    Rails.cache.delete('api:v2:instance')
   end
 
   # 外部データソースからの設定移行

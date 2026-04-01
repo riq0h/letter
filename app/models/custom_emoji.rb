@@ -126,6 +126,7 @@ class CustomEmoji < ApplicationRecord
   def update_cache
     Rails.cache.delete('custom_emojis')
     Rails.cache.delete("custom_emojis:#{domain}")
+    Rails.cache.delete('api:v1:custom_emojis')
   end
 
   class << self

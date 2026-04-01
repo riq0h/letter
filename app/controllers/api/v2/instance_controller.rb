@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v2/instance
       def show
-        render json: instance_v2_serializer
+        render json: Rails.cache.fetch('api:v2:instance', expires_in: 5.minutes) { instance_v2_serializer }
       end
 
       private
