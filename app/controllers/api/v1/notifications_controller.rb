@@ -28,6 +28,11 @@ module Api
         activity_pub_objects = preload_activity_pub_objects(@notifications)
         preload_all_status_data(activity_pub_objects.values) if activity_pub_objects.any?
 
+        # 通知送信者のアカウント絵文字・最終投稿日もプリロード
+        from_accounts = @notifications.filter_map(&:from_account).uniq(&:id)
+        preload_account_emojis(from_accounts)
+        preload_last_status_at(from_accounts.map(&:id))
+
         render json: @notifications.map { |notification|
           notification_json_with_preloaded(notification, activity_pub_objects)
         }

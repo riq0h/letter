@@ -151,7 +151,12 @@ module AccountSerializer
                                .group(:actor_id)
                                .maximum(:published_at)
 
-    @last_status_at_cache = results.transform_values { |v| v&.to_date&.iso8601 }
+    new_cache = results.transform_values { |v| v&.to_date&.iso8601 }
+    if defined?(@last_status_at_cache) && @last_status_at_cache
+      @last_status_at_cache.merge!(new_cache)
+    else
+      @last_status_at_cache = new_cache
+    end
   end
 
   def self_account_attributes(account)

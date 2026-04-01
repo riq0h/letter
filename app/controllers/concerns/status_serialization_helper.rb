@@ -372,7 +372,12 @@ module StatusSerializationHelper
     local = CustomEmoji.enabled.visible.where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
     remote = CustomEmoji.enabled.remote.where(shortcode: all_shortcodes.to_a).group_by(&:shortcode)
 
-    @account_emoji_cache = { local: local, remote: remote }
+    if defined?(@account_emoji_cache) && @account_emoji_cache
+      @account_emoji_cache[:local].merge!(local)
+      @account_emoji_cache[:remote].merge!(remote)
+    else
+      @account_emoji_cache = { local: local, remote: remote }
+    end
   end
 
   # ステータス表示に必要な全データを一括プリロード（N+1回避）

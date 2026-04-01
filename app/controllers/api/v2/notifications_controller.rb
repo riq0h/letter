@@ -27,6 +27,11 @@ module Api
         # ステータスの全データを一括プリロード（N+1回避）
         preload_all_status_data(activity_pub_objects.values) if activity_pub_objects.any?
 
+        # 通知送信者のアカウント絵文字・最終投稿日もプリロード
+        from_accounts = notifications.filter_map(&:from_account).uniq(&:id)
+        preload_account_emojis(from_accounts)
+        preload_last_status_at(from_accounts.map(&:id))
+
         # グループ化してlimitで制限
         groups = build_notification_groups(notifications, activity_pub_objects)
         has_more = groups[:groups].size > group_limit

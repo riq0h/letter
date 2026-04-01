@@ -20,6 +20,13 @@ module Api
         statuses = timeline_items.filter_map { |item| item.is_a?(Reblog) ? item.object : item }
         preload_all_status_data(statuses)
 
+        # リブログのアクターもプリロード対象に追加
+        reblog_actors = timeline_items.filter_map { |item| item.actor if item.is_a?(Reblog) }.uniq(&:id)
+        if reblog_actors.any?
+          preload_account_emojis(reblog_actors)
+          preload_last_status_at(reblog_actors.map(&:id))
+        end
+
         @paginated_items = timeline_items
         render json: timeline_items.map { |item| serialize_timeline_item(item) }
       end
