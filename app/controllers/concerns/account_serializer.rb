@@ -129,8 +129,21 @@ module AccountSerializer
   end
 
   def account_last_status_at(account)
+    return @last_status_at_cache[account.id] if defined?(@last_status_at_cache) && @last_status_at_cache
+
     latest = account.objects.where(object_type: %w[Note Question]).order(published_at: :desc).pick(:published_at)
     latest&.to_date&.iso8601
+  end
+
+  # 複数アカウントのlast_status_atを一括取得
+  def preload_last_status_at(actor_ids)
+    return if actor_ids.blank?
+
+    results = ActivityPubObject.where(actor_id: actor_ids, object_type: %w[Note Question])
+                               .group(:actor_id)
+                               .maximum(:published_at)
+
+    @last_status_at_cache = results.transform_values { |v| v&.to_date&.iso8601 }
   end
 
   def self_account_attributes(account)

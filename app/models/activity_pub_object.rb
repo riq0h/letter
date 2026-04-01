@@ -62,14 +62,15 @@ class ActivityPubObject < ApplicationRecord
   before_save :extract_plaintext
   before_save :set_conversation_id
   after_create :process_text_content, if: -> { content.present? }
-  after_create :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
-  after_create :deliver_to_streaming, if: -> { object_type == 'Note' }
   after_update :process_text_content, if: -> { local? && saved_change_to_content? }
   after_destroy :create_delete_activity, if: :local?
-  after_destroy :update_actor_posts_count, if: -> { local? && object_type == 'Note' }
   after_save :create_activity_if_needed, if: :local?
+  # トランザクション完了後に実行するコールバック（DBロック保持時間を最小化）
   after_commit :enqueue_pending_activity_delivery, on: :create, if: :local?
   after_commit :enqueue_relay_distribution, on: :create, if: -> { local? && should_distribute_to_relays? }
+  after_commit :update_actor_posts_count, on: :create, if: -> { local? && object_type == 'Note' }
+  after_commit :update_actor_posts_count_on_destroy, on: :destroy, if: -> { local? && object_type == 'Note' }
+  after_commit :deliver_to_streaming, on: :create, if: -> { object_type == 'Note' }
 
   # === URL生成メソッド ===
   def public_url
@@ -420,6 +421,8 @@ class ActivityPubObject < ApplicationRecord
   rescue StandardError => e
     Rails.logger.error "Failed to update actor posts count: #{e.message}"
   end
+
+  alias update_actor_posts_count_on_destroy update_actor_posts_count
 
   # Update活動を作成してActivityPub配信
   def create_update_activity

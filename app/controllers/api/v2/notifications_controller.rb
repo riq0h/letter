@@ -24,11 +24,8 @@ module Api
         # ActivityPubObjectsを一括取得してN+1を回避
         activity_pub_objects = preload_activity_pub_objects(notifications)
 
-        # ステータスのインタラクションデータを一括プリロード（N+1回避）
-        statuses = activity_pub_objects.values
-        preload_interaction_data(statuses) if statuses.any?
-        preload_reply_to_data(statuses) if statuses.any?
-        preload_mentions_data(statuses) if statuses.any?
+        # ステータスの全データを一括プリロード（N+1回避）
+        preload_all_status_data(activity_pub_objects.values) if activity_pub_objects.any?
 
         # グループ化してlimitで制限
         groups = build_notification_groups(notifications, activity_pub_objects)

@@ -42,16 +42,28 @@ module StatusSerializer
     # 防御的プログラミング: 常に配列を返し、nullは返さない
     return [] if status.nil? || status.content.blank?
 
-    # 投稿者のドメインを渡して、同一ドメインの絵文字を優先検索
-    domain = status.actor&.domain
-    emojis = EmojiPresenter.extract_emojis_from(status.content, domain: domain)
-    result = emojis.filter_map(&:to_activitypub) # nil エントリを除去
+    emojis = if defined?(@emoji_cache) && @emoji_cache
+               resolve_emojis_from_cache(status)
+             else
+               domain = status.actor&.domain
+               EmojiPresenter.extract_emojis_from(status.content, domain: domain)
+             end
 
-    # 常に配列であることを保証
+    result = emojis.filter_map(&:to_activitypub)
     result.is_a?(Array) ? result : []
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize emojis for status #{status&.id}: #{e.message}"
-    Rails.logger.warn "Backtrace: #{e.backtrace.first(3).join(', ')}"
     [] # エラー時は常に空配列を返す
+  end
+
+  def resolve_emojis_from_cache(status)
+    shortcodes = EmojiPresenter.extract_shortcodes_from(status.content)
+    domain = status.actor&.domain
+
+    shortcodes.filter_map do |code|
+      @emoji_cache[:local][code] ||
+        @emoji_cache[:remote]["#{code}:#{domain}"] ||
+        @emoji_cache[:remote]["#{code}:"]
+    end.uniq(&:shortcode)
   end
 end

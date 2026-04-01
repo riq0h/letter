@@ -108,9 +108,12 @@ module Api
         user_posts = current_user.objects
                                  .where('id > ?', since_id)
                                  .where(object_type: 'Note')
-                                 .includes(:media_attachments)
+                                 .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                  .recent
                                  .limit(20)
+                                 .to_a
+
+        preload_all_status_data(user_posts)
 
         events = user_posts.map do |post|
           {
@@ -127,9 +130,12 @@ module Api
         posts = ActivityPubObject.joins(:actor)
                                  .where('objects.id > ?', since_id)
                                  .where(visibility: 'public', object_type: 'Note')
-                                 .includes(:actor, :media_attachments)
+                                 .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                  .recent
                                  .limit(20)
+                                 .to_a
+
+        preload_all_status_data(posts)
 
         posts.map do |post|
           {
@@ -144,9 +150,12 @@ module Api
         posts = ActivityPubObject.joins(:actor)
                                  .where('objects.id > ?', since_id)
                                  .where(visibility: 'public', object_type: 'Note', local: true)
-                                 .includes(:actor, :media_attachments)
+                                 .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                  .recent
                                  .limit(20)
+                                 .to_a
+
+        preload_all_status_data(posts)
 
         posts.map do |post|
           {
@@ -167,9 +176,12 @@ module Api
                    .where('objects.id > ?', since_id)
                    .where(visibility: 'public', object_type: 'Note')
                    .where(local_only ? { local: true } : {})
-                   .includes(:actor, :media_attachments)
+                   .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                    .recent
                    .limit(20)
+                   .to_a
+
+        preload_all_status_data(posts)
 
         posts.map do |post|
           {
@@ -190,9 +202,12 @@ module Api
                                  .where('objects.id > ?', since_id)
                                  .where(actor_id: member_ids)
                                  .where(object_type: 'Note')
-                                 .includes(:actor, :media_attachments)
+                                 .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                  .recent
                                  .limit(20)
+                                 .to_a
+
+        preload_all_status_data(posts)
 
         posts.map do |post|
           {
@@ -214,23 +229,25 @@ module Api
       end
 
       def fetch_recent_events(limit)
-        case params[:stream]
-        when 'user'
-          current_user.objects
-                      .where(object_type: 'Note')
-                      .includes(:actor, :media_attachments)
-                      .recent.limit(limit)
-                      .map { |post| { id: post.id, event: 'update', payload: serialize_status(post).to_json } }
-        when 'public', 'public:local'
-          scope = ActivityPubObject.joins(:actor)
-                                   .where(visibility: 'public', object_type: 'Note')
-                                   .includes(:actor, :media_attachments)
-          scope = scope.where(local: true) if params[:stream] == 'public:local'
-          scope.recent.limit(limit)
-               .map { |post| { id: post.id, event: 'update', payload: serialize_status(post).to_json } }
-        else
-          []
-        end
+        posts = case params[:stream]
+                when 'user'
+                  current_user.objects
+                              .where(object_type: 'Note')
+                              .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
+                              .recent.limit(limit).to_a
+                when 'public', 'public:local'
+                  scope = ActivityPubObject.joins(:actor)
+                                           .where(visibility: 'public', object_type: 'Note')
+                                           .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
+                  scope = scope.where(local: true) if params[:stream] == 'public:local'
+                  scope.recent.limit(limit).to_a
+                else
+                  []
+                end
+
+        preload_all_status_data(posts) if posts.any?
+
+        posts.map { |post| { id: post.id, event: 'update', payload: serialize_status(post).to_json } }
       end
 
       def serialize_status(status)

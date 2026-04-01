@@ -14,7 +14,7 @@ module Api
       def index
         bookmarks = current_user.bookmarks
                                 .joins(:object)
-                                .includes(object: %i[actor media_attachments mentions tags poll])
+                                .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }])
                                 .order(id: :desc)
 
         bookmarks = apply_collection_pagination(bookmarks, 'bookmarks')
@@ -23,6 +23,7 @@ module Api
 
         @paginated_items = bookmarks
         statuses = bookmarks.map(&:object)
+        preload_all_status_data(statuses)
         render json: statuses.map { |status| serialized_status(status) }
       end
     end

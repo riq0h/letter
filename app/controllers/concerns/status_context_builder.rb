@@ -8,23 +8,29 @@ module StatusContextBuilder
   def build_ancestors(status)
     return [] unless status.in_reply_to_ap_id
 
-    ancestors = []
-    current_status = status
-
-    # 祖先を遡って収集（最大深度制限）
-    depth = 0
+    # まずap_idチェーンを辿ってIDを収集
+    ap_ids = []
+    current_ap_id = status.in_reply_to_ap_id
     max_depth = 10
 
-    while current_status.in_reply_to_ap_id && depth < max_depth
-      parent = ActivityPubObject.find_by(ap_id: current_status.in_reply_to_ap_id)
+    max_depth.times do
+      break if current_ap_id.blank?
+
+      ap_ids << current_ap_id
+      parent = ActivityPubObject.select(:in_reply_to_ap_id).find_by(ap_id: current_ap_id)
       break unless parent
 
-      ancestors.unshift(parent)
-      current_status = parent
-      depth += 1
+      current_ap_id = parent.in_reply_to_ap_id
     end
 
-    ancestors
+    return [] if ap_ids.empty?
+
+    # 一括取得してap_id順に並べ替え
+    objects = ActivityPubObject.where(ap_id: ap_ids)
+                               .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
+                               .index_by(&:ap_id)
+
+    ap_ids.reverse.filter_map { |ap_id| objects[ap_id] }
   rescue StandardError
     []
   end
@@ -32,7 +38,7 @@ module StatusContextBuilder
   def build_descendants(status)
     # 直接的な返信を取得
     direct_replies = ActivityPubObject.where(in_reply_to_ap_id: status.ap_id)
-                                      .includes(:actor, :media_attachments, :mentions, :tags, :poll)
+                                      .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                       .order(:published_at)
 
     descendants = []
@@ -52,7 +58,7 @@ module StatusContextBuilder
     return [] if current_depth >= max_depth
 
     replies = ActivityPubObject.where(in_reply_to_ap_id: status.ap_id)
-                               .includes(:actor, :media_attachments, :mentions, :tags, :poll)
+                               .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                .order(:published_at)
 
     descendants = []

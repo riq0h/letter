@@ -32,11 +32,7 @@ module Api
 
         # 関連データを一括プリロード
         all_statuses = ancestors + descendants
-        preload_reply_to_data(all_statuses)
-        preload_interaction_data(all_statuses)
-        preload_quote_data(all_statuses)
-        preload_link_previews(all_statuses)
-        preload_mentions_data(all_statuses)
+        preload_all_status_data(all_statuses)
 
         render json: {
           ancestors: ancestors.map { |status| serialized_status(status) },
@@ -60,6 +56,7 @@ module Api
           @poll_data = poll_params
         end
 
+        success = false
         ActiveRecord::Base.transaction do
           unless @status.save
             render_validation_error(@status)
@@ -80,8 +77,10 @@ module Api
 
           handle_direct_message_conversation if @status.visibility == 'direct'
 
-          render json: serialized_status(@status), status: :created
+          success = true
         end
+
+        render json: serialized_status(@status), status: :created if success
       end
 
       # POST /api/v1/statuses/:id/favourite
@@ -412,7 +411,7 @@ module Api
 
       def set_status
         @status = ActivityPubObject.where(object_type: %w[Note Question])
-                                   .includes(:poll)
+                                   .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                    .find(params[:id])
       end
 

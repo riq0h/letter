@@ -64,17 +64,6 @@ module Api
 
       private
 
-      # タイムライン表示に必要な全データを一括プリロード
-      def preload_all_status_data(statuses)
-        return if statuses.blank?
-
-        preload_reply_to_data(statuses)
-        preload_interaction_data(statuses)
-        preload_quote_data(statuses)
-        preload_link_previews(statuses)
-        preload_mentions_data(statuses)
-      end
-
       def timeline_params
         params.permit(:max_id, :since_id, :min_id, :local).merge(limit: limit_param)
       end

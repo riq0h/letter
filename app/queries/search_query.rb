@@ -68,7 +68,7 @@ class SearchQuery
                      .where(actor_id: target_actor_id)
                      .where(object_type: 'Note')
                      .where(visibility: %w[public unlisted])
-                     .includes(:actor)
+                     .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                      .order('objects.id DESC')
   end
 
@@ -79,7 +79,7 @@ class SearchQuery
     return [] if object_ids.empty?
 
     ActivityPubObject.where(id: object_ids)
-                     .includes(:actor)
+                     .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                      .order('objects.id DESC')
   end
 
@@ -107,7 +107,7 @@ class SearchQuery
     return [] if object_ids.empty?
 
     ActivityPubObject.where(id: object_ids)
-                     .includes(:actor)
+                     .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                      .order('objects.id DESC')
   end
 
@@ -116,7 +116,7 @@ class SearchQuery
     return [] if object_ids.empty?
 
     ActivityPubObject.where(id: object_ids)
-                     .includes(:actor)
+                     .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                      .order('objects.id DESC')
   end
 

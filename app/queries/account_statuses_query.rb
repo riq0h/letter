@@ -13,7 +13,7 @@ class AccountStatusesQuery
 
   def pinned_only
     pinned_relation = @account.pinned_statuses
-                              .includes(object: %i[actor media_attachments mentions tags poll])
+                              .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }])
                               .joins(:object)
 
     # 可視性フィルタリングを適用
@@ -46,7 +46,7 @@ class AccountStatusesQuery
   end
 
   def with_includes
-    @relation = @relation.includes(:poll, :actor, :media_attachments, :mentions, :tags)
+    @relation = @relation.includes(:poll, :actor, :media_attachments, :tags, mentions: :actor)
     self
   end
 

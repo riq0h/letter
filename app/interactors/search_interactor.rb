@@ -167,7 +167,7 @@ class SearchInteractor
 
     # 文字列IDが返された場合はActivityPubObjectに変換
     if results.first.is_a?(String)
-      ActivityPubObject.where(id: results).includes(:actor).order('objects.id DESC')
+      ActivityPubObject.where(id: results).includes(:actor, :media_attachments, :tags, :poll, mentions: :actor).order('objects.id DESC')
     else
       results
     end

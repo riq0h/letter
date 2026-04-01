@@ -313,6 +313,56 @@ module StatusSerializationHelper
     end
   end
 
+  # 絵文字をバルクでプリロード
+  def preload_emojis_data(statuses)
+    all_shortcodes = Set.new
+    domain_shortcodes = Hash.new { |h, k| h[k] = Set.new }
+
+    statuses.each do |status|
+      next if status.content.blank?
+
+      shortcodes = EmojiPresenter.extract_shortcodes_from(status.content)
+      all_shortcodes.merge(shortcodes)
+      domain = status.actor&.domain
+      domain_shortcodes[domain].merge(shortcodes) if domain.present?
+    end
+
+    return if all_shortcodes.empty?
+
+    # 一括クエリでカスタム絵文字を取得
+    local_emojis = CustomEmoji.enabled.visible.where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
+
+    remote_emojis = {}
+    domain_shortcodes.each do |domain, codes|
+      CustomEmoji.enabled.remote.where(shortcode: codes.to_a, domain: domain).find_each do |emoji|
+        remote_emojis["#{emoji.shortcode}:#{domain}"] = emoji
+      end
+    end
+
+    # ドメイン指定なしのリモート絵文字もフォールバック用に取得
+    remaining = all_shortcodes - local_emojis.keys - remote_emojis.values.map(&:shortcode)
+    if remaining.any?
+      CustomEmoji.enabled.remote.where(shortcode: remaining.to_a).find_each do |emoji|
+        remote_emojis["#{emoji.shortcode}:"] ||= emoji
+      end
+    end
+
+    @emoji_cache = { local: local_emojis, remote: remote_emojis }
+  end
+
+  # ステータス表示に必要な全データを一括プリロード（N+1回避）
+  def preload_all_status_data(statuses)
+    return if statuses.blank?
+
+    preload_reply_to_data(statuses)
+    preload_interaction_data(statuses)
+    preload_quote_data(statuses)
+    preload_link_previews(statuses)
+    preload_mentions_data(statuses)
+    preload_emojis_data(statuses)
+    preload_last_status_at(statuses.filter_map(&:actor_id).uniq)
+  end
+
   # moshidon互換性のためのヘルパーメソッド
   def ensure_array(value)
     return [] if value.nil?
@@ -335,8 +385,13 @@ module StatusSerializationHelper
     content = normalize_mention_html(content)
 
     # 既存のmentionレコードを使って正確なリンクを生成（ただし、既にリンク化済みの場合はスキップ）
-    if status.mentions.any?
-      status.mentions.includes(:actor).find_each do |mention|
+    mentions = if defined?(@mentions_cache) && @mentions_cache
+                 @mentions_cache[status.id] || []
+               else
+                 status.mentions.includes(:actor).to_a
+               end
+    if mentions.any?
+      mentions.each do |mention|
         actor = mention.actor
         # フルメンション形式とローカルメンション形式の両方に対応
         # ローカルユーザの場合はdomainがnilなので、適切に処理
@@ -353,21 +408,21 @@ module StatusSerializationHelper
                                  content.include?(%(>@#{actor.username}</a>)) ||
                                  content.include?(%(<span class="p-nickname">@#{actor.username}</span>))
 
-        unless mention_already_linked
-          # XSS防止: リモートアクターのap_idやusernameをHTMLエスケープ
-          safe_ap_id = CGI.escapeHTML(actor.ap_id.to_s)
-          safe_username = CGI.escapeHTML(actor.username.to_s)
+        next if mention_already_linked
 
-          # ドメイン付きメンションを優先的に処理
-          if content.include?(full_mention)
-            # Mastodon標準のh-card形式でメンションを作成
-            mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
-            content = gsub_outside_a_tags(content, full_mention, mention_link)
-          elsif content.include?(local_mention) && actor.local?
-            # Mastodon標準のh-card形式でメンションを作成
-            mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
-            content = gsub_outside_a_tags(content, local_mention, mention_link)
-          end
+        # XSS防止: リモートアクターのap_idやusernameをHTMLエスケープ
+        safe_ap_id = CGI.escapeHTML(actor.ap_id.to_s)
+        safe_username = CGI.escapeHTML(actor.username.to_s)
+
+        # ドメイン付きメンションを優先的に処理
+        if content.include?(full_mention)
+          # Mastodon標準のh-card形式でメンションを作成
+          mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
+          content = gsub_outside_a_tags(content, full_mention, mention_link)
+        elsif content.include?(local_mention) && actor.local?
+          # Mastodon標準のh-card形式でメンションを作成
+          mention_link = %(<a href="#{safe_ap_id}" class="h-card mention"><span class="p-nickname">@#{safe_username}</span></a>)
+          content = gsub_outside_a_tags(content, local_mention, mention_link)
         end
       end
     end

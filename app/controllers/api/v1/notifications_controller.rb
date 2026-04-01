@@ -26,6 +26,7 @@ module Api
 
         # ActivityPubObjectsを一括取得してN+1を回避
         activity_pub_objects = preload_activity_pub_objects(@notifications)
+        preload_all_status_data(activity_pub_objects.values) if activity_pub_objects.any?
 
         render json: @notifications.map { |notification|
           notification_json_with_preloaded(notification, activity_pub_objects)

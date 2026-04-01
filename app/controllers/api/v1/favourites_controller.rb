@@ -14,7 +14,7 @@ module Api
       def index
         favourites = current_user.favourites
                                  .joins(:object)
-                                 .includes(object: %i[actor media_attachments mentions tags poll])
+                                 .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }])
                                  .order(id: :desc)
 
         favourites = apply_collection_pagination(favourites, 'favourites')
@@ -23,6 +23,7 @@ module Api
 
         @paginated_items = favourites
         statuses = favourites.map(&:object)
+        preload_all_status_data(statuses)
         render json: statuses.map { |status| serialized_status(status) }
       end
     end

@@ -17,7 +17,7 @@ module NotificationHelper
     return {} if object_ids.empty?
 
     ActivityPubObject.where(id: object_ids)
-                     .includes(:actor, :media_attachments)
+                     .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                      .index_by { |obj| obj.id.to_s }
   end
 
