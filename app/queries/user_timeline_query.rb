@@ -48,10 +48,10 @@ class UserTimelineQuery
   def exclude_domain_blocked_users(query)
     return query unless blocked_domains.any?
 
-    domain_blocked_actor_ids = Actor.where(domain: blocked_domains).pluck(:id)
-    return query unless domain_blocked_actor_ids.any?
-
-    query.where.not(actor_id: domain_blocked_actor_ids)
+    query.where(
+      'actors.domain IS NULL OR actors.domain NOT IN (?)',
+      blocked_domains
+    )
   end
 
   def exclude_direct_messages(query)

@@ -30,7 +30,7 @@ class TimelineQuery
 
   def build_public_timeline
     statuses = base_timeline_query.where(visibility: 'public')
-    statuses = statuses.where(actor_id: Actor.where(local: true).select(:id)) if local_only?
+    statuses = statuses.where(actors: { local: true }) if local_only?
     apply_pagination_filters(statuses).limit(limit)
   end
 
@@ -78,7 +78,8 @@ class TimelineQuery
   end
 
   def base_timeline_query
-    query = ActivityPubObject.includes(actor: { avatar_attachment: :blob, header_attachment: :blob },
+    query = ActivityPubObject.joins(:actor)
+                             .includes(actor: { avatar_attachment: :blob, header_attachment: :blob },
                                        media_attachments: { file_attachment: :blob, thumbnail_attachment: :blob },
                                        poll: [], tags: [],
                                        mentions: { actor: { avatar_attachment: :blob, header_attachment: :blob } })
