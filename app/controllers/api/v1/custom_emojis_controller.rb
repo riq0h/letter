@@ -7,7 +7,7 @@ module Api
       # GET /api/v1/custom_emojis
       def index
         render json: Rails.cache.fetch('api:v1:custom_emojis', expires_in: 1.hour) {
-          CustomEmoji.enabled.alphabetical.includes(:image_attachment).map(&:to_activitypub)
+          CustomEmoji.local.enabled.alphabetical.includes(:image_attachment).map(&:to_activitypub)
         }
       end
     end
