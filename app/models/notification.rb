@@ -48,8 +48,8 @@ class Notification < ApplicationRecord
   validates :activity_id, presence: true
 
   # コールバック
-  after_create :send_push_notification
-  after_create :deliver_to_streaming
+  after_commit :send_push_notification, on: :create
+  after_commit :deliver_to_streaming, on: :create
 
   # スコープ
   scope :unread, -> { where(read: false) }
