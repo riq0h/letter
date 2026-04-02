@@ -12,9 +12,20 @@ class AccountStatusesQuery
   end
 
   def pinned_only
+    # リモートアクターのピン投稿が古い場合、バックグラウンドで再取得
+    refresh_pinned_if_stale unless @account.local?
+
     pinned_relation = @account.pinned_statuses
                               .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }])
                               .joins(:object)
+
+    # ピン投稿がなくリモートアクターの場合、その場でフェッチ
+    if pinned_relation.empty? && !@account.local? && @account.featured_url.present?
+      FeaturedCollectionFetcher.new.fetch_for_actor(@account)
+      pinned_relation = @account.pinned_statuses.reload
+                                .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }])
+                                .joins(:object)
+    end
 
     # 可視性フィルタリングを適用
     pinned_relation = apply_visibility_filters_to_pinned(pinned_relation)
@@ -83,6 +94,16 @@ class AccountStatusesQuery
     pinned_relation = pinned_relation.where.not(objects: { visibility: 'direct' })
 
     pinned_relation.where(objects: { visibility: allowed_visibility_levels })
+  end
+
+  def refresh_pinned_if_stale
+    return if @account.featured_url.blank?
+
+    last_update = @account.pinned_statuses.maximum(:updated_at)
+    return if last_update && last_update > 1.day.ago
+
+    @account.pinned_statuses.destroy_all
+    FeaturedCollectionFetcher.new.fetch_for_actor(@account)
   end
 
   def allowed_visibility_levels

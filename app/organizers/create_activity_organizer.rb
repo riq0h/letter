@@ -137,7 +137,6 @@ class CreateActivityOrganizer
 
   def update_related_data(object)
     update_reply_count_if_needed(object)
-    update_pin_posts_if_needed(object.actor)
   end
 
   def poll_object?(object_data)

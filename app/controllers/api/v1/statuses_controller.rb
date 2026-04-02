@@ -2,7 +2,7 @@
 
 module Api
   module V1
-    class StatusesController < Api::BaseController
+    class StatusesController < Api::BaseController # rubocop:disable Metrics/ClassLength
       include StatusSerializationHelper
       include ApiPagination
       include StatusActions
@@ -56,28 +56,37 @@ module Api
           @poll_data = poll_params
         end
 
+        retries = 0
         success = false
-        ActiveRecord::Base.transaction do
-          unless @status.save
-            render_validation_error(@status)
-            raise ActiveRecord::Rollback
+        begin
+          ActiveRecord::Base.transaction do
+            unless @status.save
+              render_validation_error(@status)
+              raise ActiveRecord::Rollback
+            end
+
+            # DB IDが確定したのでAP IDを設定
+            base_url = Rails.application.config.activitypub.base_url
+            @status.update_column(:ap_id, "#{base_url}/users/#{current_user.username}/posts/#{@status.id}")
+
+            process_mentions_and_tags
+
+            # 投票を作成（ステータス保存後）
+            if @poll_data.present?
+              poll = create_poll_for_status_with_data(@poll_data)
+              raise ActiveRecord::Rollback unless poll
+            end
+
+            handle_direct_message_conversation if @status.visibility == 'direct'
+
+            success = true
           end
+        rescue ActiveRecord::StatementInvalid => e
+          raise unless e.message.include?('database is locked') && retries < 3
 
-          # DB IDが確定したのでAP IDを設定
-          base_url = Rails.application.config.activitypub.base_url
-          @status.update_column(:ap_id, "#{base_url}/users/#{current_user.username}/posts/#{@status.id}")
-
-          process_mentions_and_tags
-
-          # 投票を作成（ステータス保存後）
-          if @poll_data.present?
-            poll = create_poll_for_status_with_data(@poll_data)
-            raise ActiveRecord::Rollback unless poll
-          end
-
-          handle_direct_message_conversation if @status.visibility == 'direct'
-
-          success = true
+          retries += 1
+          sleep(0.5 * retries)
+          retry
         end
 
         render json: serialized_status(@status), status: :created if success
