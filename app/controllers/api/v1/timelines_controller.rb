@@ -16,7 +16,7 @@ module Api
         return render_authentication_required unless current_user
 
         cache_key = "timeline:home:#{current_user.id}:#{params[:max_id]}:#{params[:since_id]}:#{params[:min_id]}:#{limit_param}"
-        cached = Rails.cache.fetch(cache_key, expires_in: 10.seconds, race_condition_ttl: 5.seconds) do
+        cached = Rails.cache.fetch(cache_key, expires_in: 5.seconds) do
           retries = 0
           begin
             build_home_timeline_data

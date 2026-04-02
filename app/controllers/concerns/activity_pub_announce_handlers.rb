@@ -55,12 +55,14 @@ module ActivityPubAnnounceHandlers
   end
 
   def create_new_announce(target_object)
+    reblog = nil
     ActiveRecord::Base.transaction do
       reblog = create_reblog_record(target_object)
       announce_activity = create_announce_activity_record(target_object)
 
       log_announce_creation(reblog, announce_activity, target_object)
     end
+    HomeFeedManager.add_reblog(reblog) if reblog
   rescue ActiveRecord::RecordNotUnique
     Rails.logger.info '📢 Announce already exists (concurrent request)'
   end

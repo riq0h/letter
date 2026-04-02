@@ -31,12 +31,14 @@ class AnnounceProcessorJob < ApplicationJob
   def create_announce_records(target_object)
     return if announce_already_exists?(target_object)
 
+    reblog = nil
     ActiveRecord::Base.transaction do
       reblog = create_reblog_record(target_object)
       announce_activity = create_announce_activity_record(target_object)
 
       Rails.logger.info "📢 Background Announce created: Reblog #{reblog.id}, Activity #{announce_activity.id}"
     end
+    HomeFeedManager.add_reblog(reblog) if reblog
   end
 
   def announce_already_exists?(target_object)

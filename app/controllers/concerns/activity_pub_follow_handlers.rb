@@ -247,6 +247,7 @@ module ActivityPubFollowHandlers
         # 関連するNotificationも削除
         remove_reblog_notification(reblog, target_object)
 
+        HomeFeedManager.remove_reblog(reblog.id)
         reblog.destroy!
         Rails.logger.info "🔄 Announce undone: removed reblog #{reblog.id} for object #{target_object.ap_id}"
       end

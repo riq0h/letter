@@ -149,6 +149,7 @@ module ActivityPubObjectHandlers
     object = ActivityPubObject.find_by(ap_id: object_id)
 
     if authorized_to_delete?(object)
+      HomeFeedManager.remove_by_object(object.id)
       object.destroy!
       Rails.logger.info "🗑️ Object deleted: #{object_id}"
     else
