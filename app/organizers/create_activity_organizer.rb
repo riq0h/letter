@@ -50,7 +50,7 @@ class CreateActivityOrganizer
     process_object_associations(object, object_data)
     update_related_data(object)
 
-    HomeFeedManager.add_status(object)
+    # HomeFeedへの追加はActivityPubObjectのafter_commitで実行される
 
     Rails.logger.info "📝 Object created: #{object.id}"
     success(object)

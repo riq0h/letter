@@ -71,6 +71,7 @@ class ActivityPubObject < ApplicationRecord
   after_commit :update_actor_posts_count, on: :create, if: -> { local? && object_type == 'Note' }
   after_commit :update_actor_posts_count_on_destroy, on: :destroy, if: -> { local? && object_type == 'Note' }
   after_commit :deliver_to_streaming, on: :create, if: -> { object_type == 'Note' }
+  after_commit :add_to_home_feed, on: :create, if: -> { %w[Note Question].include?(object_type) }
 
   # === URL生成メソッド ===
   def public_url
@@ -474,6 +475,10 @@ class ActivityPubObject < ApplicationRecord
   end
 
   # === リアルタイムストリーミング配信 ===
+
+  def add_to_home_feed
+    HomeFeedManager.add_status(self)
+  end
 
   def deliver_to_streaming
     return unless object_type == 'Note'
