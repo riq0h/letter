@@ -111,7 +111,7 @@ class RelayAnnounceProcessorJob < ApplicationJob
     )
 
     handle_media_attachments(object, object_data)
-    # HomeFeedへの追加はActivityPubObjectのafter_commitで実行される
+    HomeFeedManager.add_status(object)
     object
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create ActivityPub object from relay: #{e.message}"

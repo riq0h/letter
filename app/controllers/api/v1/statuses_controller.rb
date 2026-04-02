@@ -89,7 +89,10 @@ module Api
           retry
         end
 
-        render json: serialized_status(@status), status: :created if success
+        return unless success
+
+        HomeFeedManager.add_status(@status)
+        render json: serialized_status(@status), status: :created
       end
 
       # POST /api/v1/statuses/:id/favourite

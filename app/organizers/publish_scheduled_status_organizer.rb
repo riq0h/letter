@@ -39,7 +39,7 @@ class PublishScheduledStatusOrganizer
       # スケジュール済みステータスを削除
       @scheduled_status.destroy!
 
-      # HomeFeedへの追加はActivityPubObjectのafter_commitで実行される
+      HomeFeedManager.add_status(status)
 
       Rails.logger.info "✅ Scheduled status #{@scheduled_status.id} published as status #{status.id}"
       success(status)

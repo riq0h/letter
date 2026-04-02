@@ -62,7 +62,7 @@ class AccountStatusesQuery
   end
 
   def ordered
-    @relation = @relation.order(published_at: :desc)
+    @relation = @relation.order(id: :desc)
     self
   end
 
