@@ -44,7 +44,6 @@ class TimelineQuery
     entries = entries.where('sort_id > ?', params[:min_id]) if params[:min_id].present?
 
     # ブロック・ミュートフィルタ（actor_idベース）
-    UserTimelineQuery.new(user)
     blocked_ids = user.blocked_actors.pluck(:id)
     muted_ids = user.muted_actors.pluck(:id)
     entries = entries.where.not(actor_id: blocked_ids) if blocked_ids.any?
