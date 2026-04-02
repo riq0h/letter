@@ -65,10 +65,19 @@ module Api
             current_data['policy'] = params.dig(:data, :policy) if params.dig(:data, :policy).present?
             @subscription.data_hash = current_data
 
-            if @subscription.save
-              render json: serialized_subscription(@subscription)
-            else
-              render_validation_error(@subscription)
+            retries = 0
+            begin
+              if @subscription.save
+                render json: serialized_subscription(@subscription)
+              else
+                render_validation_error(@subscription)
+              end
+            rescue ActiveRecord::StatementInvalid => e
+              raise unless e.message.include?('database is locked') && retries < 2
+
+              retries += 1
+              sleep(0.1 * retries)
+              retry
             end
           else
             render_not_found('Push subscription')
