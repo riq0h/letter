@@ -72,6 +72,8 @@ class PublishActivityOrganizer
     activity = create_activity
     # ActivityPubObjectが自動で配信するため、ここでは配信しない
 
+    HomeFeedManager.add_status(@object)
+
     Rails.logger.info "✅ Create activity #{activity.id} published"
     success(activity)
   end

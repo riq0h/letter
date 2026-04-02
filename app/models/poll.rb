@@ -114,15 +114,21 @@ class Poll < ApplicationRecord
   def validate_options_format
     return unless options
 
-    unless options.is_a?(Array) && options.length.between?(2, 4)
-      errors.add(:options, 'must be an array with 2-4 options')
+    unless options.is_a?(Array) && options.length >= 2
+      errors.add(:options, 'must be an array with at least 2 options')
+      return
+    end
+
+    # ローカル投稿は4個まで（Mastodon API互換）、リモートは無制限
+    if object&.local? && options.length > 4
+      errors.add(:options, 'must have at most 4 options')
       return
     end
 
     options.each_with_index do |option, index|
       errors.add(:options, "option #{index + 1} must have a title") unless option.is_a?(Hash) && option['title'].present?
 
-      errors.add(:options, "option #{index + 1} title too long (maximum 50 characters)") if option['title'].to_s.length > 50
+      errors.add(:options, "option #{index + 1} title too long (maximum 50 characters)") if object&.local? && option['title'].to_s.length > 50
     end
   end
 

@@ -120,6 +120,7 @@ module Api
         reblog = current_user.reblogs.find_or_create_by(object: @status)
 
         if reblog.persisted?
+          HomeFeedManager.add_reblog(reblog)
           create_announce_activity(@status)
           render json: serialized_status(@status)
         else
