@@ -102,8 +102,12 @@ class AccountStatusesQuery
     last_update = @account.pinned_statuses.maximum(:updated_at)
     return if last_update && last_update > 1.day.ago
 
-    @account.pinned_statuses.destroy_all
-    FeaturedCollectionFetcher.new.fetch_for_actor(@account)
+    # フェッチ成功後に古いデータを置き換える（フェッチ失敗時はデータを保持）
+    old_ids = @account.pinned_statuses.pluck(:id)
+    fetcher = FeaturedCollectionFetcher.new
+    new_objects = fetcher.fetch_for_actor_fresh(@account)
+
+    @account.pinned_statuses.where(id: old_ids).destroy_all if new_objects.any?
   end
 
   def allowed_visibility_levels

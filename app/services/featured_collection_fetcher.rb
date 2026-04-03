@@ -16,16 +16,27 @@ class FeaturedCollectionFetcher
 
     return existing_pinned_objects if existing_pinned_objects.any?
 
+    fetch_and_create_pinned(actor)
+  end
+
+  # 既存データを無視して最新のピン留めをフェッチ（stale refresh用）
+  def fetch_for_actor_fresh(actor)
+    return [] if actor.featured_url.blank?
+
+    fetch_and_create_pinned(actor)
+  end
+
+  private
+
+  def fetch_and_create_pinned(actor)
     Rails.logger.info "📌 Fetching featured collection for #{actor.username}@#{actor.domain}"
 
-    # featured collectionを取得（共通クライアントを使用）
     collection_data = ActivityPubHttpClient.fetch_object(actor.featured_url)
     return [] unless collection_data
 
     featured_items = extract_featured_items(collection_data)
     Rails.logger.info "📌 Featured items found: #{featured_items.size}"
 
-    # 各アイテムを取得してActivityPubObjectとして保存
     pinned_objects = []
     featured_items.take(5).each do |item_uri|
       object = resolve_pinned_status(item_uri)
@@ -41,8 +52,6 @@ class FeaturedCollectionFetcher
     Rails.logger.error "❌ Failed to fetch featured collection: #{e.message}"
     []
   end
-
-  private
 
   def extract_featured_items(collection_data)
     items = []

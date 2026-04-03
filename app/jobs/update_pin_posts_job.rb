@@ -7,13 +7,11 @@ class UpdatePinPostsJob < ApplicationJob
     actor = Actor.find(actor_id)
     return unless actor && !actor.local? && actor.featured_url.present?
 
-    # 先にHTTP通信でピン投稿データを取得（ロックなし）
-    fetcher = FeaturedCollectionFetcher.new
-    # 既存のpin投稿を削除してからfetchする（fetchは既存があればスキップするため）
-    actor.pinned_statuses.destroy_all
+    # フェッチ成功後に古いデータを置き換える（失敗時はデータ保持）
+    old_ids = actor.pinned_statuses.pluck(:id)
+    new_objects = FeaturedCollectionFetcher.new.fetch_for_actor_fresh(actor)
 
-    # fetchはHTTP通信を含むがトランザクション外で実行
-    fetcher.fetch_for_actor(actor)
+    actor.pinned_statuses.where(id: old_ids).destroy_all if new_objects.any?
   rescue ActiveRecord::RecordNotFound
     Rails.logger.warn "⚠️ Actor #{actor_id} not found for pin posts update"
   rescue StandardError => e
