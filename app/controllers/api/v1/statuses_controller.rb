@@ -473,6 +473,9 @@ module Api
         collection_data = ActivityPubHttpClient.fetch_object(collection_url)
         return [] unless collection_data
 
+        # コレクションの件数でカウンタを更新
+        update_counter_from_collection(status, collection_type, collection_data)
+
         actor_uris = extract_collection_items(collection_data)
         return [] if actor_uris.empty?
 
@@ -483,6 +486,18 @@ module Api
       rescue StandardError => e
         Rails.logger.warn "Failed to fetch remote #{collection_type} for #{status.ap_id}: #{e.message}"
         []
+      end
+
+      def update_counter_from_collection(status, collection_type, collection_data)
+        total = collection_data['totalItems']
+        return unless total.is_a?(Integer) && total >= 0
+
+        case collection_type
+        when 'likes'
+          status.update_column(:favourites_count, total)
+        when 'shares'
+          status.update_column(:reblogs_count, total)
+        end
       end
 
       def extract_collection_items(collection_data)

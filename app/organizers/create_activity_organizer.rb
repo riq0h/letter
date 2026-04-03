@@ -116,7 +116,10 @@ class CreateActivityOrganizer
       sensitive: object_data['sensitive'] || false,
       visibility: determine_visibility(object_data),
       raw_data: object_data.to_json,
-      local: false
+      local: false,
+      favourites_count: extract_collection_count(object_data['likes']),
+      reblogs_count: extract_collection_count(object_data['shares']),
+      replies_count: extract_collection_count(object_data['replies'])
     }
 
     # リレー経由の投稿の場合はrelay_idを設定
@@ -348,5 +351,12 @@ class CreateActivityOrganizer
     Rails.logger.info "💬 Quote post created: #{quote_post.id} quotes #{quoted_object.ap_id}"
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create quote post: #{e.message}"
+  end
+
+  def extract_collection_count(collection)
+    return 0 unless collection.is_a?(Hash)
+
+    count = collection['totalItems']
+    count.is_a?(Integer) && count >= 0 ? count : 0
   end
 end

@@ -191,7 +191,10 @@ module Search
         visibility: determine_visibility(data),
         raw_data: data.to_json,
         local: false,
-        is_pinned_only: is_pinned_only
+        is_pinned_only: is_pinned_only,
+        favourites_count: extract_collection_count(data['likes']),
+        reblogs_count: extract_collection_count(data['shares']),
+        replies_count: extract_collection_count(data['replies'])
       )
 
       handle_media_attachments(object, data)
@@ -208,6 +211,13 @@ module Search
 
     def url_query?(query)
       query.match?(/^https?:\/\//)
+    end
+
+    def extract_collection_count(collection)
+      return 0 unless collection.is_a?(Hash)
+
+      count = collection['totalItems']
+      count.is_a?(Integer) && count >= 0 ? count : 0
     end
 
     def fetch_instance_directory(domain)
