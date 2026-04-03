@@ -36,7 +36,7 @@ module Api
 
       # GET /api/v1/timelines/public
       def public
-        timeline_query = TimelineQuery.new(current_user, timeline_params)
+        timeline_query = TimelineQuery.new(current_user, public_timeline_params)
         statuses = timeline_query.build_public_timeline
 
         preload_all_status_data(statuses)
@@ -97,6 +97,12 @@ module Api
 
       def timeline_params
         params.permit(:max_id, :since_id, :min_id, :local).merge(limit: limit_param)
+      end
+
+      def public_timeline_params
+        max_limit = current_user ? 40 : 20
+        limit = params[:limit].present? ? params[:limit].to_i.clamp(1, max_limit) : 20
+        params.permit(:max_id, :since_id, :min_id, :local).merge(limit: limit)
       end
 
       def serialize_timeline_item(item)
