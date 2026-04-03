@@ -56,7 +56,7 @@ production:
       journal_mode: :wal
       synchronous: :normal
       journal_size_limit: 67108864
-      wal_autocheckpoint: 1000
+      wal_autocheckpoint: 10000
       cache_size: 50000
       foreign_keys: :on
       temp_store: :memory
@@ -71,7 +71,7 @@ production:
       journal_mode: :wal
       synchronous: :normal
       journal_size_limit: 67108864
-      wal_autocheckpoint: 1000
+      wal_autocheckpoint: 10000
       cache_size: 10000
       foreign_keys: :on
       temp_store: :memory
@@ -86,7 +86,7 @@ production:
       journal_mode: :wal
       synchronous: :normal
       journal_size_limit: 67108864
-      wal_autocheckpoint: 1000
+      wal_autocheckpoint: 10000
       cache_size: 10000
       foreign_keys: :on
       temp_store: :memory
