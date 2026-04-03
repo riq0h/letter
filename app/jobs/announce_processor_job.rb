@@ -29,16 +29,23 @@ class AnnounceProcessorJob < ApplicationJob
   end
 
   def create_announce_records(target_object)
-    return if announce_already_exists?(target_object)
+    if target_object.actor.local?
+      # 自分の投稿へのAnnounce: フル保存
+      return if announce_already_exists?(target_object)
 
-    reblog = nil
-    ActiveRecord::Base.transaction do
-      reblog = create_reblog_record(target_object)
-      announce_activity = create_announce_activity_record(target_object)
+      reblog = nil
+      ActiveRecord::Base.transaction do
+        reblog = create_reblog_record(target_object)
+        announce_activity = create_announce_activity_record(target_object)
 
-      Rails.logger.info "📢 Background Announce created: Reblog #{reblog.id}, Activity #{announce_activity.id}"
+        Rails.logger.info "📢 Background Announce created: Reblog #{reblog.id}, Activity #{announce_activity.id}"
+      end
+      HomeFeedManager.add_reblog(reblog) if reblog
+    else
+      # 他人の投稿へのAnnounce: カウンタのみ更新
+      ActivityPubObject.update_counters(target_object.id, reblogs_count: 1)
+      Rails.logger.info "📢 Reblogs count incremented for remote object #{target_object.id}"
     end
-    HomeFeedManager.add_reblog(reblog) if reblog
   end
 
   def announce_already_exists?(target_object)

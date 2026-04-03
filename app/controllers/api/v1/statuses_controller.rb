@@ -146,6 +146,10 @@ module Api
       def reblogged_by
         reblogs = @status.reblogs.includes(:actor).limit(limit_param)
         accounts = reblogs.map(&:actor)
+
+        # リモート投稿でローカルにデータがない場合、リモートから取得
+        accounts = fetch_remote_interaction_actors(@status, 'shares') if accounts.empty? && !@status.local?
+
         @paginated_items = accounts
         render json: accounts.map { |account| serialized_account(account) }
       end
@@ -154,6 +158,10 @@ module Api
       def favourited_by
         favourites = @status.favourites.includes(:actor).limit(limit_param)
         accounts = favourites.map(&:actor)
+
+        # リモート投稿でローカルにデータがない場合、リモートから取得
+        accounts = fetch_remote_interaction_actors(@status, 'likes') if accounts.empty? && !@status.local?
+
         @paginated_items = accounts
         render json: accounts.map { |account| serialized_account(account) }
       end
@@ -457,6 +465,36 @@ module Api
 
         # 会話の最新ステータスを更新
         conversation.update_last_status!(@status)
+      end
+
+      # リモート投稿のlikes/sharesコレクションからアクターを取得
+      def fetch_remote_interaction_actors(status, collection_type)
+        collection_url = "#{status.ap_id}/#{collection_type}"
+        collection_data = ActivityPubHttpClient.fetch_object(collection_url)
+        return [] unless collection_data
+
+        actor_uris = extract_collection_items(collection_data)
+        return [] if actor_uris.empty?
+
+        # 既知のアクターをDBから取得、なければフェッチ
+        actor_uris.take(limit_param).filter_map do |uri|
+          Actor.find_by(ap_id: uri) || fetch_and_create_actor(uri)
+        end
+      rescue StandardError => e
+        Rails.logger.warn "Failed to fetch remote #{collection_type} for #{status.ap_id}: #{e.message}"
+        []
+      end
+
+      def extract_collection_items(collection_data)
+        collection_data['orderedItems'] || collection_data['items'] || collection_data['first']&.then do |first|
+          first.is_a?(Hash) ? (first['orderedItems'] || first['items'] || []) : []
+        end || []
+      end
+
+      def fetch_and_create_actor(uri)
+        ActorFetcher.new.fetch_and_create(uri)
+      rescue StandardError
+        nil
       end
     end
   end

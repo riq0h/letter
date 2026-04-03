@@ -29,9 +29,15 @@ module ActivityPubAnnounceHandlers
   end
 
   def create_or_update_announce(target_object)
-    return if announce_already_exists?(target_object)
+    if target_object.actor.local?
+      # 自分の投稿へのAnnounce: フル保存（通知+ホームフィード）
+      return if announce_already_exists?(target_object)
 
-    create_new_announce(target_object)
+      create_new_announce(target_object)
+    else
+      # 他人の投稿へのAnnounce: カウンタのみ更新
+      increment_reblogs_count(target_object)
+    end
   end
 
   def announce_already_exists?(target_object)
@@ -94,5 +100,10 @@ module ActivityPubAnnounceHandlers
 
   def find_local_target_object(object_ap_id)
     ActivityPubObject.find_by(ap_id: object_ap_id)
+  end
+
+  def increment_reblogs_count(target_object)
+    ActivityPubObject.update_counters(target_object.id, reblogs_count: 1)
+    Rails.logger.info "📢 Reblogs count incremented for remote object #{target_object.id}"
   end
 end
