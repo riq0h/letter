@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 class UndoProcessor
-  include ActivityPubUtilityHelpers
-
   def initialize(target_activity)
     @target_activity = target_activity
   end
@@ -30,7 +28,7 @@ class UndoProcessor
   def undo_like
     return unless target_activity.target_ap_id
 
-    target_obj = find_target_object(target_activity.target_ap_id)
+    target_obj = ActivityPubObject.find_by(ap_id: target_activity.target_ap_id)
     return unless target_obj
 
     process_like_undo(target_obj)
@@ -39,7 +37,7 @@ class UndoProcessor
   def undo_announce
     return unless target_activity.target_ap_id
 
-    target_obj = find_target_object(target_activity.target_ap_id)
+    target_obj = ActivityPubObject.find_by(ap_id: target_activity.target_ap_id)
     return unless target_obj
 
     process_announce_undo(target_obj)

@@ -15,8 +15,8 @@ module ActivityPubAnnounceHandlers
     target_object = find_local_target_object(object_ap_id)
 
     unless target_object
-      Rails.logger.info "📢 Target object not found locally, queuing for background fetch: #{object_ap_id}"
-      AnnounceProcessorJob.perform_later(@activity, @sender.id)
+      # ローカルに存在しない投稿へのAnnounceは他人の投稿なのでスキップ
+      Rails.logger.debug { "📢 Skipping Announce for non-local object: #{object_ap_id}" }
       return head(:accepted)
     end
 
@@ -29,15 +29,12 @@ module ActivityPubAnnounceHandlers
   end
 
   def create_or_update_announce(target_object)
-    if target_object.actor.local?
-      # 自分の投稿へのAnnounce: フル保存（通知+ホームフィード）
-      return if announce_already_exists?(target_object)
+    # 自分の投稿へのAnnounceのみフル保存（通知+ホームフィード）
+    # 他人の投稿へのAnnounceはスキップ（参照時にリモートから取得）
+    return unless target_object.actor.local?
+    return if announce_already_exists?(target_object)
 
-      create_new_announce(target_object)
-    else
-      # 他人の投稿へのAnnounce: カウンタのみ更新
-      increment_reblogs_count(target_object)
-    end
+    create_new_announce(target_object)
   end
 
   def announce_already_exists?(target_object)
@@ -100,10 +97,5 @@ module ActivityPubAnnounceHandlers
 
   def find_local_target_object(object_ap_id)
     ActivityPubObject.find_by(ap_id: object_ap_id)
-  end
-
-  def increment_reblogs_count(target_object)
-    ActivityPubObject.update_counters(target_object.id, reblogs_count: 1)
-    Rails.logger.info "📢 Reblogs count incremented for remote object #{target_object.id}"
   end
 end

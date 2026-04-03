@@ -53,10 +53,10 @@ class ActivityProcessor
   end
 
   def process_like_activity
-    target_obj = find_target_object(activity.target_ap_id)
-    return unless target_obj
+    target_obj = ActivityPubObject.find_by(ap_id: activity.target_ap_id)
+    return unless target_obj&.actor&.local?
 
-    # Favouriteレコードを作成（通知とカウント更新は自動実行される）
+    # 自分の投稿へのLikeのみFavouriteレコードを作成
     Favourite.find_or_create_by!(
       actor: activity.actor,
       object: target_obj
@@ -66,10 +66,10 @@ class ActivityProcessor
   end
 
   def process_announce_activity
-    target_obj = find_target_object(activity.target_ap_id)
-    return unless target_obj
+    target_obj = ActivityPubObject.find_by(ap_id: activity.target_ap_id)
+    return unless target_obj&.actor&.local?
 
-    # Reblogレコードを作成（通知とカウント更新は自動実行される）
+    # 自分の投稿へのAnnounceのみReblogレコードを作成
     Reblog.find_or_create_by!(
       actor: activity.actor,
       object: target_obj

@@ -12,7 +12,8 @@ module ActivityPubLikeHandlers
     object_ap_id = extract_like_object_id
     return head(:accepted) unless object_ap_id
 
-    target_object = find_target_object(object_ap_id)
+    # ローカルに存在する投稿のみ処理（他人の投稿へのLikeはスキップ）
+    target_object = ActivityPubObject.find_by(ap_id: object_ap_id)
     return head(:accepted) unless target_object
 
     create_or_update_like(target_object)
@@ -24,15 +25,12 @@ module ActivityPubLikeHandlers
   end
 
   def create_or_update_like(target_object)
-    if target_object.actor.local?
-      # 自分の投稿へのLike: フル保存（通知を維持するため）
-      return if like_already_exists?(target_object)
+    # 自分の投稿へのLikeのみフル保存（通知を維持するため）
+    # 他人の投稿へのLikeはスキップ（参照時にリモートから取得）
+    return unless target_object.actor.local?
+    return if like_already_exists?(target_object)
 
-      create_new_like(target_object)
-    else
-      # 他人の投稿へのLike: カウンタのみ更新
-      increment_favourites_count(target_object)
-    end
+    create_new_like(target_object)
   end
 
   def like_already_exists?(target_object)
@@ -89,10 +87,5 @@ module ActivityPubLikeHandlers
   def log_like_creation(like_activity, favourite, target_object)
     Rails.logger.info "❤️ Like created: Activity #{like_activity.id}, Favourite #{favourite.id}, " \
                       "favourites_count updated to #{target_object.reload.favourites_count}"
-  end
-
-  def increment_favourites_count(target_object)
-    ActivityPubObject.update_counters(target_object.id, favourites_count: 1)
-    Rails.logger.info "❤️ Like count incremented for remote object #{target_object.id}"
   end
 end
