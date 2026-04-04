@@ -68,10 +68,26 @@ module Api
           end
         end
 
-        preload_all_status_data(statuses)
+        # preload用にActivityPubObjectのみ抽出（Reblogの場合はobjectを取得）
+        preload_objects = statuses.map { |s| s.is_a?(Reblog) ? s.object : s }
+        preload_all_status_data(preload_objects)
 
         @paginated_items = statuses
-        render json: statuses.map { |status| serialized_status(status) }
+        render json: statuses.map { |status|
+          if status.is_a?(Reblog)
+            reblogged = serialized_status(status.object)
+            reblogged.merge(
+              id: status.timeline_id,
+              created_at: status.created_at.iso8601,
+              account: serialized_account(status.actor),
+              reblog: reblogged,
+              content: '',
+              visibility: status.object.visibility
+            )
+          else
+            serialized_status(status)
+          end
+        }
       end
 
       # GET /api/v1/accounts/:id/followers
