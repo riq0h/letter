@@ -112,7 +112,7 @@ module ActivityPubAnnounceHandlers
       ap_id: @activity['id']
     )
     HomeFeedManager.add_reblog(reblog)
-    Rails.logger.info "📢 Lightweight reblog created: #{reblog.id} for object #{target_object.id}"
+    Rails.logger.info "📢 Reblog created: #{reblog.id} for object #{target_object.id}"
   rescue ActiveRecord::RecordNotUnique
     Rails.logger.debug { '📢 Lightweight reblog already exists' }
   end
