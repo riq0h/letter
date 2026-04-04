@@ -39,7 +39,8 @@ module Api
 
       # GET /api/v1/accounts/:id/statuses
       def statuses
-        service_params = params.permit(:pinned, :exclude_replies, :only_media, :max_id, :since_id, :min_id)
+        service_params = params.permit(:pinned, :exclude_replies, :exclude_reblogs, :only_media, :max_id, :since_id,
+                                       :min_id)
 
         query = AccountStatusesQuery.new(@account, current_user)
         if service_params[:pinned] == 'true'
@@ -48,13 +49,23 @@ module Api
           statuses = pinned_statuses.map(&:object)
         else
           # 通常の投稿を取得
-
-          # パラメータに応じてクエリを調整
           query = query.exclude_replies if service_params[:exclude_replies] == 'true'
           query = query.only_media if service_params[:only_media] == 'true'
           query = query.paginate(max_id: service_params[:max_id], since_id: service_params[:since_id], min_id: service_params[:min_id])
 
           statuses = query.with_includes.ordered.limit(limit_param).call
+
+          # リブログをマージ（exclude_reblogs指定時はスキップ）
+          unless service_params[:exclude_reblogs] == 'true' || service_params[:only_media] == 'true'
+            reblogs = @account.reblogs
+                              .joins(:object)
+                              .where(objects: { visibility: %w[public unlisted] })
+                              .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }],
+                                        actor: { avatar_attachment: :blob, header_attachment: :blob })
+                              .order(created_at: :desc)
+                              .limit(limit_param)
+            statuses = MergedTimeline.merge(statuses, reblogs, limit_param).to_a
+          end
         end
 
         preload_all_status_data(statuses)
