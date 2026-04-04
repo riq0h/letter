@@ -150,7 +150,7 @@ module Search
     end
 
     def create_remote_object(data, is_pinned_only: false)
-      return nil unless data['type'] == 'Note'
+      return nil unless %w[Note Question].include?(data['type'])
 
       actor = resolve_actor_for_object(data)
       return nil unless actor

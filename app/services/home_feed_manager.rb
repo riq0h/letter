@@ -65,18 +65,18 @@ class HomeFeedManager
       Rails.logger.info "[HomeFeed] Backfill complete. Total entries: #{HomeFeedEntry.count}"
     end
 
-    private
-
-    def local_user
-      @local_user = nil # 毎回リセット（クラスメソッドなのでキャッシュが残る可能性）
-      Actor.find_by(local: true)
-    end
-
     def followed_actor_ids
       user = local_user
       return [] unless user
 
       user.followed_actors.pluck(:id) + [user.id]
+    end
+
+    private
+
+    def local_user
+      @local_user = nil # 毎回リセット（クラスメソッドなのでキャッシュが残る可能性）
+      Actor.find_by(local: true)
     end
 
     def followed_tag_ids

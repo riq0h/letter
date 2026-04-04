@@ -2,6 +2,7 @@
 
 module ActivityPubAnnounceHandlers
   extend ActiveSupport::Concern
+  include ActivityPubHelper
 
   private
 
@@ -14,13 +15,16 @@ module ActivityPubAnnounceHandlers
 
     target_object = find_local_target_object(object_ap_id)
 
-    unless target_object
-      # ローカルに存在しない投稿へのAnnounceは他人の投稿なのでスキップ
-      Rails.logger.debug { "📢 Skipping Announce for non-local object: #{object_ap_id}" }
-      return head(:accepted)
+    if target_object
+      # ローカルに存在するオブジェクトへのAnnounce
+      create_or_update_announce(target_object)
+    elsif followed_sender?
+      # フォロー中アクターが他人の投稿をリブログ → 軽量処理（タイムライン表示用）
+      handle_followed_actor_reblog(object_ap_id)
+    else
+      Rails.logger.debug { "📢 Skipping Announce from non-followed actor: #{object_ap_id}" }
     end
 
-    create_or_update_announce(target_object)
     head :accepted
   end
 
@@ -29,12 +33,15 @@ module ActivityPubAnnounceHandlers
   end
 
   def create_or_update_announce(target_object)
-    # 自分の投稿へのAnnounceのみフル保存（通知+ホームフィード）
-    # 他人の投稿へのAnnounceはスキップ（参照時にリモートから取得）
-    return unless target_object.actor.local?
-    return if announce_already_exists?(target_object)
+    if target_object.actor.local?
+      # 自分の投稿へのAnnounce → フル処理（通知+Activityレコード+フィード）
+      return if announce_already_exists?(target_object)
 
-    create_new_announce(target_object)
+      create_new_announce(target_object)
+    elsif followed_sender?
+      # フォロー中アクターによる他人の投稿のAnnounce → 軽量処理
+      create_lightweight_reblog(target_object)
+    end
   end
 
   def announce_already_exists?(target_object)
@@ -93,6 +100,41 @@ module ActivityPubAnnounceHandlers
   def log_announce_creation(reblog, announce_activity, target_object)
     Rails.logger.info "📢 Announce created: Reblog #{reblog.id}, Activity #{announce_activity.id}, " \
                       "reblogs_count updated to #{target_object.reload.reblogs_count}"
+  end
+
+  # フォロー中アクターのリブログを軽量に処理（通知・Activityレコードなし）
+  def create_lightweight_reblog(target_object)
+    return if Reblog.exists?(actor: @sender, object: target_object)
+
+    reblog = Reblog.create!(
+      actor: @sender,
+      object: target_object,
+      ap_id: @activity['id']
+    )
+    HomeFeedManager.add_reblog(reblog)
+    Rails.logger.info "📢 Lightweight reblog created: #{reblog.id} for object #{target_object.id}"
+  rescue ActiveRecord::RecordNotUnique
+    Rails.logger.debug { '📢 Lightweight reblog already exists' }
+  end
+
+  # フォロー中アクターが他人の投稿をリブログ（ターゲットがローカルにない場合）
+  def handle_followed_actor_reblog(object_ap_id)
+    # リモートからオブジェクトを取得
+    target_object = fetch_and_create_remote_object(object_ap_id)
+    return unless target_object
+
+    create_lightweight_reblog(target_object)
+  rescue StandardError => e
+    Rails.logger.warn "📢 Failed to process followed actor reblog: #{e.message}"
+  end
+
+  def fetch_and_create_remote_object(ap_id)
+    resolver = Search::RemoteResolverService.new
+    resolver.resolve_remote_status(ap_id)
+  end
+
+  def followed_sender?
+    @followed_sender ||= HomeFeedManager.followed_actor_ids.include?(@sender.id)
   end
 
   def find_local_target_object(object_ap_id)
