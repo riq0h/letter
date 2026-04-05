@@ -24,7 +24,7 @@ services:
       FORCE_SSL: ${FORCE_SSL:-true}
       
       # パフォーマンス設定
-      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-3}
       RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-3}
       
       # ポート設定
