@@ -198,7 +198,36 @@ module Search
       )
 
       handle_media_attachments(object, data)
+      handle_poll_data(object, data) if data['type'] == 'Question'
       object
+    end
+
+    def handle_poll_data(object, data)
+      poll_options = data['oneOf'] || data['anyOf']
+      return if poll_options.blank?
+
+      options = poll_options.map do |option|
+        {
+          'title' => option['name'],
+          'votes_count' => option.dig('replies', 'totalItems') || 0
+        }
+      end
+
+      expires_at = data['endTime'] || data['closed']
+      expires_at = expires_at ? Time.zone.parse(expires_at) : 1.day.from_now
+      total_votes = options.sum { |o| o['votes_count'] }
+
+      Poll.create!(
+        object: object,
+        options: options,
+        expires_at: expires_at,
+        multiple: data['anyOf'].present?,
+        hide_totals: false,
+        votes_count: total_votes,
+        voters_count: data['votersCount'] || total_votes
+      )
+    rescue StandardError => e
+      Rails.logger.warn "Failed to create poll for remote object #{object.id}: #{e.message}"
     end
 
     def account_query?(query)
