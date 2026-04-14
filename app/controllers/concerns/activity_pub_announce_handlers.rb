@@ -118,19 +118,9 @@ module ActivityPubAnnounceHandlers
   end
 
   # フォロー中アクターが他人の投稿をリブログ（ターゲットがローカルにない場合）
-  def handle_followed_actor_reblog(object_ap_id)
-    # リモートからオブジェクトを取得
-    target_object = fetch_and_create_remote_object(object_ap_id)
-    return unless target_object
-
-    create_lightweight_reblog(target_object)
-  rescue StandardError => e
-    Rails.logger.warn "📢 Failed to process followed actor reblog: #{e.message}"
-  end
-
-  def fetch_and_create_remote_object(ap_id)
-    resolver = Search::RemoteResolverService.new
-    resolver.resolve_remote_status(ap_id)
+  def handle_followed_actor_reblog(_object_ap_id)
+    # リモートフェッチが必要なのでバックグラウンドジョブに委譲（スレッドブロック防止）
+    ReblogFetchJob.perform_later(@activity, @sender.id)
   end
 
   def followed_sender?
