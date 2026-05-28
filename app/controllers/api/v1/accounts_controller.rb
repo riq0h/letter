@@ -63,7 +63,7 @@ module Api
                               .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }],
                                         actor: { avatar_attachment: :blob, header_attachment: :blob })
                               .order(created_at: :desc)
-                              .limit(limit_param)
+            reblogs = apply_reblog_pagination_filters(reblogs, service_params).limit(limit_param)
             statuses = MergedTimeline.merge(statuses, reblogs, limit_param).to_a
           end
         end
@@ -393,6 +393,30 @@ module Api
         end
 
         base_query.limit(limit_param)
+      end
+
+      def apply_reblog_pagination_filters(query, service_params)
+        if service_params[:max_id].present?
+          max_time = snowflake_to_time(service_params[:max_id])
+          query = query.where(reblogs: { created_at: ...max_time }) if max_time
+        end
+        if service_params[:since_id].present?
+          since_time = snowflake_to_time(service_params[:since_id])
+          query = query.where('reblogs.created_at > ?', since_time) if since_time
+        end
+        if service_params[:min_id].present?
+          min_time = snowflake_to_time(service_params[:min_id])
+          query = query.where('reblogs.created_at > ?', min_time) if min_time
+        end
+        query
+      end
+
+      def snowflake_to_time(id)
+        return nil if id.blank?
+
+        Letter::Snowflake.extract_timestamp(id)
+      rescue ArgumentError, RangeError
+        nil
       end
     end
   end
