@@ -18,7 +18,8 @@ module NotificationHelper
 
     ActivityPubObject.where(id: object_ids)
                      .includes(actor: { avatar_attachment: :blob, header_attachment: :blob },
-                               media_attachments: [], tags: [], poll: [], mentions: { actor: { avatar_attachment: :blob, header_attachment: :blob } })
+                               media_attachments: { file_attachment: :blob, thumbnail_attachment: :blob },
+                               tags: [], poll: [], mentions: { actor: { avatar_attachment: :blob, header_attachment: :blob } })
                      .index_by { |obj| obj.id.to_s }
   end
 

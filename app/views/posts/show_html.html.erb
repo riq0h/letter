@@ -1,6 +1,6 @@
 <% 
   # 投稿本文を適切にOGP用に処理
-  post_description = strip_tags(@post.content_plaintext.presence || @post.content).strip
+  post_description = strip_tags(@post.content_plaintext.presence || @post.content.to_s).strip
   post_description = post_description.truncate(500, separator: ' ', omission: '...')
   
   # 添付画像がある場合のみOGP画像を設定

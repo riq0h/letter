@@ -205,11 +205,7 @@ class CreateActivityOrganizer
   def update_reply_count_if_needed(object)
     return unless object.in_reply_to_ap_id
 
-    parent_object = ActivityPubObject.find_by(ap_id: object.in_reply_to_ap_id)
-    return unless parent_object
-
-    ActivityPubObject.update_counters(parent_object.id, replies_count: 1)
-    Rails.logger.info "💬 Reply count updated for #{parent_object.ap_id}"
+    UpdateReplyCountJob.perform_later(object.in_reply_to_ap_id)
   end
 
   def update_pin_posts_if_needed(actor)

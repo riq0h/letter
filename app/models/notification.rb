@@ -53,7 +53,7 @@ class Notification < ApplicationRecord
 
   # スコープ
   scope :unread, -> { where(read: false) }
-  scope :recent, -> { order(created_at: :desc) }
+  scope :recent, -> { order(id: :desc) }
   scope :for_account, ->(account) { where(account: account) }
   scope :of_type, ->(type) { where(notification_type: type) }
 

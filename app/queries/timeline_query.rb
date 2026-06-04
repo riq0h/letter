@@ -215,6 +215,7 @@ class TimelineQuery
 
   def apply_ruby_filters(statuses, user)
     followed_ids = user.followed_actors.pluck(:id) + [user.id]
+    reply_actor_ids = bulk_resolve_reply_actor_ids(statuses)
 
     statuses.reject do |s|
       # DMフィルタ
@@ -222,13 +223,15 @@ class TimelineQuery
         # リプライフィルタ: リプライで、自分宛メンションでもフォロー先への返信でもない場合は除外
         (s.in_reply_to_ap_id.present? &&
          s.mentions.none? { |m| m.actor_id == user.id } &&
-         !reply_to_followed?(s, followed_ids))
+         followed_ids.exclude?(reply_actor_ids[s.in_reply_to_ap_id]))
     end
   end
 
-  def reply_to_followed?(status, followed_ids)
-    reply_object = ActivityPubObject.find_by(ap_id: status.in_reply_to_ap_id)
-    reply_object && followed_ids.include?(reply_object.actor_id)
+  def bulk_resolve_reply_actor_ids(statuses)
+    ap_ids = statuses.filter_map(&:in_reply_to_ap_id).uniq
+    return {} if ap_ids.empty?
+
+    ActivityPubObject.where(ap_id: ap_ids).pluck(:ap_id, :actor_id).to_h
   end
 
   def build_sorted_timeline(statuses, reblogs, sort_order, limit)
