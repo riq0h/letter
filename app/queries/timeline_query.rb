@@ -78,15 +78,17 @@ class TimelineQuery
   end
 
   def build_public_timeline
+    # 部分インデックスをINDEXED BYで明示する。SQLite 3.46/3.49のプランナは
+    # 部分インデックスを過小評価し、複合インデックス+全件ソート
+    # （ローカルTLで実測6.4秒、連合TLで2〜5.5秒）を選んでしまう。
+    # 各インデックスは20260611000001/000004で作成。削除時はここも要修正
     statuses = base_timeline_query.where(visibility: 'public')
-    if local_only?
-      # objects.localで絞り、部分インデックスをINDEXED BYで明示する。
-      # SQLite 3.46/3.49のプランナはこの部分インデックスを過小評価して
-      # 複合インデックス+全件ソート（実測6.4秒）を選んでしまう（実測5msとの差）。
-      # idx_objects_local_id_descは20260611000001で作成。削除時はここも要修正
-      statuses = statuses.where(local: true)
+    statuses = if local_only?
+                 statuses.where(local: true)
                          .from(Arel.sql('"objects" INDEXED BY "idx_objects_local_id_desc"'))
-    end
+               else
+                 statuses.from(Arel.sql('"objects" INDEXED BY "idx_objects_public_id_desc"'))
+               end
     apply_pagination_filters(statuses).limit(limit)
   end
 
