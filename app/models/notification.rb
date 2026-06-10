@@ -49,7 +49,6 @@ class Notification < ApplicationRecord
 
   # コールバック
   after_commit :send_push_notification, on: :create
-  after_commit :deliver_to_streaming, on: :create
 
   # スコープ
   scope :unread, -> { where(read: false) }
@@ -125,6 +124,10 @@ class Notification < ApplicationRecord
 
   # 重複時にRecordNotUniqueを安全に処理する共通メソッド
   def self.safe_create!(attrs)
+    # 受信者がローカルユーザでない通知は作成しない（全作成パス共通の防衛線）。
+    # 通知APIはローカルユーザしか認証できないため、リモート宛は読まれることがない
+    return nil unless attrs[:account]&.local?
+
     create!(attrs)
   rescue ActiveRecord::RecordNotUnique
     Rails.logger.debug { "Duplicate notification skipped: #{attrs[:notification_type]}" }
@@ -185,50 +188,5 @@ class Notification < ApplicationRecord
       quote_post = QuotePost.find_by(object: status)
       WebPushDelivery.deliver_quote_notification(quote_post, id) if quote_post
     end
-  end
-
-  def deliver_to_streaming
-    serialized_notification = serialize_for_streaming
-
-    # 即座にユーザに通知配信
-    SseConnectionManager.instance.broadcast_to_user(account_id, 'notification', serialized_notification)
-
-    Rails.logger.info "📡 Notification #{id} (#{notification_type}) delivered to user #{account_id}"
-  rescue StandardError => e
-    Rails.logger.error "💥 Notification streaming delivery error: #{e.message}"
-  end
-
-  def serialize_for_streaming
-    {
-      id: id.to_s,
-      type: notification_type,
-      created_at: created_at.iso8601,
-      account: serialize_account(from_account),
-      status: activity.is_a?(ActivityPubObject) ? serialize_activity_object : nil
-    }
-  end
-
-  def serialize_account(actor)
-    {
-      id: actor.id.to_s,
-      username: actor.username,
-      acct: actor.acct,
-      display_name: actor.display_name || actor.username,
-      avatar: actor.avatar_url || '',
-      url: actor.public_url || actor.ap_id
-    }
-  end
-
-  def serialize_activity_object
-    return nil unless activity.is_a?(ActivityPubObject)
-
-    status = activity
-    {
-      id: status.id.to_s,
-      content: status.content || '',
-      created_at: status.published_at&.iso8601,
-      account: serialize_account(status.actor),
-      visibility: status.visibility
-    }
   end
 end

@@ -82,7 +82,9 @@ RSpec.describe TimelineQuery do
     it 'filters to local posts when local_only is true' do
       local_post = create(:activity_pub_object, :note, actor: create(:actor, local: true), visibility: 'public')
       remote_actor = create(:actor, :remote, domain: 'remote.example.com')
-      remote_post = create(:activity_pub_object, :note, actor: remote_actor, visibility: 'public')
+      # local_onlyフィルタはobjects.localを参照するため、リモート投稿は:remoteトレイトで作る
+      # （本番ではリモート由来のオブジェクトは常にlocal=falseで保存される）
+      remote_post = create(:activity_pub_object, :note, :remote, actor: remote_actor, visibility: 'public')
 
       query_local = described_class.new(user, local: 'true')
       result = query_local.build_public_timeline

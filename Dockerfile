@@ -74,6 +74,7 @@ RUN apt-get update -qq && \
     openssl \
     ncurses-bin \
     inotify-tools \
+    libjemalloc2 \
     libvips42t64 \
     libpng16-16t64 \
     libjpeg62-turbo \
@@ -83,6 +84,12 @@ RUN apt-get update -qq && \
     libavutil59 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+# jemallocでメモリ断片化によるRSS肥大を抑制（Rails公式Dockerfileと同じ手法）
+# sonameのみ指定することでCPUアーキテクチャ非依存にする
+ENV LD_PRELOAD="libjemalloc.so.2"
+# YJITを有効化（CPU時間の支配的なRubyコードを高速化）
+ENV RUBY_YJIT_ENABLE="1"
 
 # 作業ディレクトリを設定
 WORKDIR /app

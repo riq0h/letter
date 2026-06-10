@@ -92,14 +92,11 @@ RSpec.describe Api::V1::StreamingController, type: :controller do
         request.headers['Accept'] = 'text/event-stream'
       end
 
-      it 'sets proper SSE headers' do
-        # serve_sse_streamが呼ばれることを確認（SSEリクエストとして認識される）
-        expect(controller).to receive(:serve_sse_stream) do
-          # ヘッダーが設定されるはずの処理をシミュレート
-          controller.head :ok
-        end
+      it 'serves the polling response (SSE実装は撤去済み)' do
+        get :index, params: { stream: 'user', since_id: 0 }
 
-        get :index, params: { stream: 'user' }
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)).to eq([])
       end
     end
 

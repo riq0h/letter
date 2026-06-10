@@ -34,6 +34,11 @@ module NotificationCreation
   end
 
   def should_create_notification?
+    # 通知の受信者がローカルユーザの場合のみ作成する。
+    # リモートユーザ宛の通知はどのクライアントからも読まれず、
+    # DB書き込み・プッシュ判定・ストリーミング配信が全て無駄になる
+    return false unless target_actor&.local?
+
     # 自分への言及、自分の投稿への自分のアクションは通知しない
     actor != object.actor
   end

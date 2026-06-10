@@ -110,12 +110,20 @@ class ActivitySender
     elsif response.code == 410
       handle_gone_response(target_inbox, response, activity_type)
     else
-      error_msg = "#{response.code} - #{response.body.to_s[0..200]}"
+      error_msg = "#{response.code} - #{body_snippet(response)}"
       Rails.logger.error "❌ #{activity_type} sending failed: #{error_msg}"
       Rails.logger.error "🔍 Target inbox: #{target_inbox}"
       Rails.logger.error "🔍 Response headers: #{response.headers}"
       { success: false, error: error_msg, code: response.code }
     end
+  end
+
+  # レスポンスボディの先頭をログ用に安全に切り出す。
+  # response.bodyはASCII-8BIT（バイナリ）の場合があり、そのままUTF-8文字列に
+  # 補間するとEncoding::UndefinedConversionErrorになり、後続処理
+  # （UnavailableServer登録など）まで飛ばされてしまう
+  def body_snippet(response)
+    response.body.to_s.dup.force_encoding(Encoding::UTF_8).scrub('?')[0, 200]
   end
 
   # HTTP Signature生成
@@ -174,7 +182,7 @@ class ActivitySender
 
     begin
       domain = URI(target_inbox).host
-      error_msg = "410 Gone - #{response.body.to_s[0..200]}"
+      error_msg = "410 Gone - #{body_snippet(response)}"
 
       Rails.logger.warn "🚫 Server gone (410): #{domain} - marking as unavailable"
 

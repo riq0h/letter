@@ -1,10 +1,6 @@
-# production:
-#   periodic_cleanup:
-#     class: CleanSoftDeletedRecordsJob
-#     queue: background
-#     args: [ 1000, { batch_size: 500 } ]
-#     schedule: every hour
-#   periodic_command:
-#     command: "SoftDeletedRecord.due.delete_all"
-#     priority: 2
-#     schedule: at 5am every day
+production:
+  # home_feed_entries（キャッシュDB）の無限成長を防ぐ定期トリム
+  trim_home_feed:
+    class: TrimHomeFeedJob
+    queue: default
+    schedule: at 4am every day

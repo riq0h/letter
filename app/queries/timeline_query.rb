@@ -79,7 +79,9 @@ class TimelineQuery
 
   def build_public_timeline
     statuses = base_timeline_query.where(visibility: 'public')
-    statuses = statuses.where(actors: { local: true }) if local_only?
+    # actors.localではなくobjects.localで絞る（値は同一。objects側の
+    # 部分インデックス idx_objects_local_id_desc を使えるようにするため）
+    statuses = statuses.where(local: true) if local_only?
     apply_pagination_filters(statuses).limit(limit)
   end
 

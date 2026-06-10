@@ -2,76 +2,22 @@
 
 module Api
   module V1
+    # ストリーミングAPIのポーリング実装。
+    # かつてのSSE実装は撤去した: Mastodon系クライアントはWebSocket前提のため
+    # SSEには誰も接続できず（稼働ログ6日間で接続ゼロ）、1接続がpumaスレッドを
+    # 最大10分占有する設計はスレッド枯渇のリスクでしかなかった。
+    # リアルタイム配信を将来実装する場合はSolid CableによるWebSocketが筋
     class StreamingController < Api::BaseController
-      include ActionController::Live
       include StatusSerializationHelper
-      include NotificationSerializer
 
       before_action :doorkeeper_authorize!
       before_action :set_cors_headers
 
       def index
-        if sse_request?
-          serve_sse_stream
-        else
-          serve_polling_response
-        end
+        serve_polling_response
       end
 
       private
-
-      def sse_request?
-        request.headers['Accept']&.include?('text/event-stream') ||
-          params[:stream_format] == 'sse'
-      end
-
-      def serve_sse_stream
-        response.headers['Content-Type'] = 'text/event-stream'
-        response.headers['Cache-Control'] = 'no-cache'
-        response.headers['Connection'] = 'keep-alive'
-        response.headers['X-Accel-Buffering'] = 'no'
-
-        begin
-          # SSE接続オブジェクトを作成
-          connection = SseConnection.new(response.stream, current_user, params[:stream])
-
-          # 接続管理システムに登録
-          SseConnectionManager.instance.register_connection(current_user.id, params[:stream], connection)
-
-          logger.info "🔗 Real-time SSE streaming started for #{current_user.username}: #{params[:stream]}"
-
-          begin
-            # ウェルカムメッセージ送信
-            connection.send_welcome_message
-
-            # 初期データ送信（最近の履歴）
-            send_initial_events(connection)
-
-            # Keep-alive（ハートビートのみ、最大10分で再接続を促す）
-            max_duration = 10.minutes
-            started_at = Time.current
-            loop do
-              connection.send_heartbeat
-              sleep 30 # 30秒間隔のハートビート
-              break if Time.current - started_at > max_duration
-            end
-          rescue IOError, Errno::EPIPE, Errno::ECONNRESET
-            logger.info "SSE client disconnected: #{current_user.username}"
-          rescue StandardError => e
-            logger.error "SSE streaming error: #{e.message}"
-            logger.error "Backtrace: #{e.backtrace[0..2].join(', ')}"
-          ensure
-            connection&.close
-          end
-        rescue StandardError => e
-          logger.error "SSE initialization error: #{e.message}"
-          logger.error "Backtrace: #{e.backtrace[0..2].join(', ')}"
-
-          # フォールバック: ポーリング方式
-          serve_polling_response
-          nil
-        end
-      end
 
       def serve_polling_response
         # ポーリングレスポンスも認証が必要
@@ -218,44 +164,8 @@ module Api
         end
       end
 
-      def send_initial_events(connection)
-        # 過去の投稿を少し送信（最新10件）
-        events = fetch_recent_events(10)
-        events.each do |event|
-          connection.send_event(event[:event], event[:payload])
-        end
-
-        logger.debug "📤 Sent #{events.size} initial events to #{current_user.username}:#{params[:stream]}"
-      end
-
-      def fetch_recent_events(limit)
-        posts = case params[:stream]
-                when 'user'
-                  current_user.objects
-                              .where(object_type: 'Note')
-                              .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
-                              .recent.limit(limit).to_a
-                when 'public', 'public:local'
-                  scope = ActivityPubObject.joins(:actor)
-                                           .where(visibility: 'public', object_type: 'Note')
-                                           .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
-                  scope = scope.where(local: true) if params[:stream] == 'public:local'
-                  scope.recent.limit(limit).to_a
-                else
-                  []
-                end
-
-        preload_all_status_data(posts) if posts.any?
-
-        posts.map { |post| { id: post.id, event: 'update', payload: serialize_status(post).to_json } }
-      end
-
       def serialize_status(status)
         serialized_status(status)
-      end
-
-      def serialize_notification(notification)
-        serialized_notification(notification)
       end
 
       def set_cors_headers

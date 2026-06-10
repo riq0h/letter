@@ -131,6 +131,8 @@ class QuotePost < ApplicationRecord
   end
 
   def notify_quoted_status_author
+    # 受信者がリモートユーザの通知は作成しない（読まれることがない）
+    return unless quoted_object.actor&.local?
     # 自分自身の投稿を引用した場合は通知しない
     return if quoted_object.actor == actor
 

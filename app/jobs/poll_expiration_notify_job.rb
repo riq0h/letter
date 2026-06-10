@@ -107,7 +107,9 @@ class PollExpirationNotifyJob < ApplicationJob
 
   def notify_poll_owner!
     # Poll作成者に通知（既に投票者として通知されていない場合）
+    # 作成者がリモートユーザの場合は通知を作成しない（読まれることがない）
     creator = @poll.object.actor
+    return unless creator&.local?
     return if @poll.voters.where(local: true).exists?(id: creator.id)
 
     create_poll_notification(creator, @poll)

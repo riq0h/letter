@@ -6,6 +6,8 @@ class ProfilesController < ApplicationController
   include TimelineBuilder
   include ActivityPubRequestHandling
 
+  PAGE_SIZE = 30
+
   before_action :find_actor, except: [:redirect_to_frontend]
 
   def show
@@ -15,10 +17,7 @@ class ProfilesController < ApplicationController
     @posts = load_posts_for_tab(@current_tab)
     setup_pagination
 
-    if params[:max_id].present?
-      sleep 0.5
-      render partial: 'more_posts'
-    end
+    render partial: 'more_posts' if params[:max_id].present?
 
     # フォロー・フォロワー数
     @followers_count = @actor.followers_count
@@ -84,10 +83,18 @@ class ProfilesController < ApplicationController
   end
 
   def load_user_posts
+    # ページネーション・件数制限はSQL側で行う
+    # （全投稿をロードしてRubyでソートすると投稿数に比例して遅くなる）
+    reference_time = params[:max_id].present? ? extract_reference_time_from_max_id : nil
+
     posts = load_user_post_objects
     reblogs = load_user_reblog_objects
-    pinned_posts = load_pinned_posts
-    timeline_items = build_user_timeline_items(posts, reblogs, pinned_posts)
+    if reference_time
+      posts = posts.where(published_at: ...reference_time)
+      reblogs = reblogs.where(created_at: ...reference_time)
+    end
+
+    timeline_items = build_user_timeline_items(posts.limit(PAGE_SIZE), reblogs.limit(PAGE_SIZE), load_pinned_posts)
     apply_user_timeline_sorting_and_pagination(timeline_items)
   end
 
@@ -99,6 +106,7 @@ class ProfilesController < ApplicationController
       .where(object_type: 'Note')
       .where(local: true)
       .includes(:actor)
+      .order(published_at: :desc, id: :desc)
   end
 
   def load_user_reblog_objects
@@ -106,6 +114,7 @@ class ProfilesController < ApplicationController
           .where(actor: @actor)
           .where(objects: { visibility: %w[public unlisted] })
           .includes(:actor, object: %i[actor media_attachments])
+          .order(created_at: :desc, id: :desc)
   end
 
   def build_user_timeline_items(posts, reblogs, pinned_posts)
@@ -114,12 +123,12 @@ class ProfilesController < ApplicationController
       build_pinned_timeline_item(pinned_status.object)
     end
 
-    posts.find_each do |post|
+    posts.each do |post|
       # Pinned postsも元の時系列位置に表示するため、重複除外は行わない
       timeline_items << build_post_timeline_item(post)
     end
 
-    reblogs.find_each do |reblog|
+    reblogs.each do |reblog|
       timeline_items << build_reblog_timeline_item(reblog)
     end
 

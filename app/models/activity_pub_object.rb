@@ -37,6 +37,11 @@ class ActivityPubObject < ApplicationRecord
   has_many :quote_posts, dependent: :destroy, foreign_key: :object_id, inverse_of: :object
   has_many :quotes_of_this, class_name: 'QuotePost', dependent: :destroy, foreign_key: :quoted_object_id, inverse_of: :quoted_object
   has_one :poll, dependent: :destroy, foreign_key: :object_id, primary_key: :id, inverse_of: :object
+  # pinned_statuses/filter_statusesはobjectsへのFKを持つため、宣言がないと
+  # ピン留め・フィルタ対象の投稿削除がFOREIGN KEY constraint failedになる
+  # （リモートのDelete activityが500を返し続け、再送ループを引き起こす）
+  has_many :pinned_statuses, dependent: :delete_all, foreign_key: :object_id, inverse_of: :object
+  has_many :filter_statuses, dependent: :delete_all, foreign_key: :status_id, inverse_of: :status
 
   # 会話（ダイレクトメッセージ用）
   belongs_to :conversation, optional: true
@@ -70,7 +75,6 @@ class ActivityPubObject < ApplicationRecord
   after_commit :enqueue_relay_distribution, on: :create, if: -> { local? && should_distribute_to_relays? }
   after_commit :update_actor_posts_count, on: :create, if: -> { local? && object_type == 'Note' }
   after_commit :update_actor_posts_count_on_destroy, on: :destroy, if: -> { local? && object_type == 'Note' }
-  after_commit :deliver_to_streaming, on: :create, if: -> { object_type == 'Note' }
 
   # === URL生成メソッド ===
   def public_url
@@ -471,140 +475,5 @@ class ActivityPubObject < ApplicationRecord
     DistributeToRelaysJob.perform_later(id)
   rescue StandardError => e
     Rails.logger.error "💥 Relay distribution enqueue error: #{e.message}"
-  end
-
-  # === リアルタイムストリーミング配信 ===
-
-  def deliver_to_streaming
-    return unless object_type == 'Note'
-
-    serialized_status = serialize_for_streaming
-
-    # パブリックタイムラインへの即座配信
-    if visibility == 'public'
-      SseConnectionManager.instance.broadcast_to_stream('public', 'update', serialized_status)
-
-      SseConnectionManager.instance.broadcast_to_stream('public:local', 'update', serialized_status) if local?
-
-      # ハッシュタグストリーム配信
-      broadcast_to_hashtag_streams(serialized_status)
-    end
-
-    # ホームタイムライン配信
-    broadcast_to_home_timelines(serialized_status)
-
-    # リストタイムライン配信
-    broadcast_to_list_timelines(serialized_status)
-
-    Rails.logger.info "📡 Status #{id} delivered to real-time streams (#{visibility})"
-  rescue StandardError => e
-    Rails.logger.error "💥 Streaming delivery error: #{e.message}"
-  end
-
-  def serialize_for_streaming
-    {
-      id: id.to_s,
-      created_at: published_at&.iso8601,
-      content: content || '',
-      content_plaintext: content_plaintext || '',
-      summary: summary,
-      sensitive: sensitive?,
-      visibility: visibility,
-      language: language,
-      url: public_url || ap_id,
-      replies_count: replies_count || 0,
-      reblogs_count: reblogs_count || 0,
-      favourites_count: favourites_count || 0,
-      account: serialize_actor_for_streaming,
-      media_attachments: serialize_media_attachments_for_streaming,
-      mentions: serialize_mentions_for_streaming,
-      tags: serialize_tags_for_streaming,
-      emojis: []
-    }
-  end
-
-  def serialize_actor_for_streaming
-    {
-      id: actor.id.to_s,
-      username: actor.username,
-      acct: actor.acct,
-      display_name: actor.display_name || actor.username,
-      locked: actor.locked?,
-      bot: actor.bot?,
-      discoverable: actor.discoverable?,
-      note: actor.note || '',
-      url: actor.public_url || actor.ap_id,
-      avatar: actor.avatar_url || '',
-      header: actor.header_url || '',
-      followers_count: actor.followers_count || 0,
-      following_count: actor.following_count || 0,
-      statuses_count: actor.posts_count || 0,
-      created_at: actor.created_at.iso8601
-    }
-  end
-
-  def serialize_media_attachments_for_streaming
-    media_attachments.map do |media|
-      {
-        id: media.id.to_s,
-        type: media.media_type,
-        url: media.url,
-        preview_url: media.preview_url,
-        remote_url: media.remote_url,
-        description: media.description,
-        blurhash: media.blurhash
-      }
-    end
-  end
-
-  def serialize_mentions_for_streaming
-    mentions.includes(:actor).map do |mention|
-      {
-        id: mention.actor.id.to_s,
-        username: mention.actor.username,
-        acct: mention.actor.acct,
-        url: mention.actor.public_url || mention.actor.ap_id
-      }
-    end
-  end
-
-  def serialize_tags_for_streaming
-    tags.map do |tag|
-      {
-        name: tag.name,
-        url: "/tags/#{tag.name}"
-      }
-    end
-  end
-
-  def broadcast_to_hashtag_streams(serialized_status)
-    tags.each do |tag|
-      # グローバルハッシュタグ
-      SseConnectionManager.instance.broadcast_to_hashtag(tag.name, 'update', serialized_status)
-
-      # ローカルハッシュタグ（ローカル投稿のみ）
-      SseConnectionManager.instance.broadcast_to_hashtag(tag.name, 'update', serialized_status, local_only: true) if local?
-    end
-  end
-
-  def broadcast_to_home_timelines(serialized_status)
-    # フォロワーのホームタイムラインに配信
-    follower_ids = actor.followers.local.pluck(:id)
-
-    follower_ids.each do |follower_id|
-      SseConnectionManager.instance.broadcast_to_user(follower_id, 'update', serialized_status)
-    end
-
-    # 自分のホームタイムラインにも配信
-    return unless actor.local?
-
-    SseConnectionManager.instance.broadcast_to_user(actor_id, 'update', serialized_status)
-  end
-
-  def broadcast_to_list_timelines(serialized_status)
-    # この投稿者をリストに含むすべてのリストに配信
-    ListMembership.where(actor_id: actor_id).includes(:list).find_each do |membership|
-      SseConnectionManager.instance.broadcast_to_list(membership.list_id, 'update', serialized_status)
-    end
   end
 end

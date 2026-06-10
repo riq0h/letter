@@ -3,6 +3,8 @@
 require 'rails_helper'
 
 RSpec.describe CreateActivityOrganizer do
+  include ActiveJob::TestHelper
+
   let(:sender) { create(:actor, :remote) }
   let(:activity) do
     {
@@ -322,7 +324,11 @@ RSpec.describe CreateActivityOrganizer do
       }
 
       organizer = described_class.new(reply_activity, sender)
-      result = organizer.call
+      result = nil
+      # リプライ数の更新はUpdateReplyCountJob経由なので、ジョブを実行して検証する
+      perform_enqueued_jobs(only: UpdateReplyCountJob) do
+        result = organizer.call
+      end
 
       expect(result).to be_success
       parent_object.reload
