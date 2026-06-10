@@ -37,7 +37,11 @@ class HomeController < ApplicationController
   end
 
   def load_public_posts
+    # INDEXED BYで部分インデックスを明示（SQLiteのプランナ任せだと
+    # 全ローカル投稿のフェッチ+毎回ソートのプランを選ぶため）。
+    # idx_objects_local_published_atは20260611000001で作成。削除時はここも要修正
     ActivityPubObject.joins(:actor)
+                     .from(Arel.sql('"objects" INDEXED BY "idx_objects_local_published_at"'))
                      .where(actors: { local: true })
                      .where(visibility: %w[public unlisted])
                      .where(local: true)
@@ -46,8 +50,11 @@ class HomeController < ApplicationController
   end
 
   def load_public_reblogs
-    Reblog.joins(:actor, :object)
-          .where(actors: { local: true })
+    # actors.localへのジョインではなくactor_idのサブクエリで絞る。
+    # ジョイン形だと16万行超のreblogs全体の走査になるが、actor_id絞りなら
+    # idx_reblogs_actor_created_at_descで数十行を読むだけで済む
+    Reblog.where(actor_id: Actor.local.select(:id))
+          .joins(:object)
           .where(objects: { visibility: %w[public unlisted] })
           .includes(:actor, object: %i[actor media_attachments])
           .order(created_at: :desc, id: :desc)
@@ -68,8 +75,8 @@ class HomeController < ApplicationController
 
     # より古い投稿またはリポストがあるかチェック
     older_posts_exist = base_query.exists?(['published_at < ?', last_item_time])
-    older_reblogs_exist = Reblog.joins(:actor, :object)
-                                .where(actors: { local: true })
+    older_reblogs_exist = Reblog.where(actor_id: Actor.local.select(:id))
+                                .joins(:object)
                                 .where(objects: { visibility: %w[public unlisted] })
                                 .exists?(['reblogs.created_at < ?', last_item_time])
 

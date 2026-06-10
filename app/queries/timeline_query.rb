@@ -79,9 +79,14 @@ class TimelineQuery
 
   def build_public_timeline
     statuses = base_timeline_query.where(visibility: 'public')
-    # actors.localではなくobjects.localで絞る（値は同一。objects側の
-    # 部分インデックス idx_objects_local_id_desc を使えるようにするため）
-    statuses = statuses.where(local: true) if local_only?
+    if local_only?
+      # objects.localで絞り、部分インデックスをINDEXED BYで明示する。
+      # SQLite 3.46/3.49のプランナはこの部分インデックスを過小評価して
+      # 複合インデックス+全件ソート（実測6.4秒）を選んでしまう（実測5msとの差）。
+      # idx_objects_local_id_descは20260611000001で作成。削除時はここも要修正
+      statuses = statuses.where(local: true)
+                         .from(Arel.sql('"objects" INDEXED BY "idx_objects_local_id_desc"'))
+    end
     apply_pagination_filters(statuses).limit(limit)
   end
 
