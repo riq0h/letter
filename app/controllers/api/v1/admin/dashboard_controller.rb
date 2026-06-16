@@ -16,7 +16,10 @@ module Api
             version: '0.1',
             stats: {
               user_count: Actor.local.count,
-              status_count: ActivityPubObject.where(local: true, object_type: 'Note').count,
+              # nodeinfoと同じく被覆部分インデックスidx_objects_local_countsを明示
+              # （明示しないとobject_type先頭のインデックスを誤選択し21秒かかる）
+              status_count: ActivityPubObject.local.notes
+                                             .from(Arel.sql('"objects" INDEXED BY "idx_objects_local_counts"')).count,
               domain_count: Actor.remote.distinct.count(:domain),
               last_week_users: Actor.local.where('created_at > ?', 1.week.ago).count
             },

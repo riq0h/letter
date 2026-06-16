@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 class ApplicationJob < ActiveJob::Base
+  # 一過性のSQLiteロック競合を各ジョブ内でその場リトライできるようにする
+  include DatabaseLockRetryable
+
   # デッドロックが発生したジョブを自動的に再試行
   retry_on ActiveRecord::Deadlocked, wait: 1.minute, attempts: 3
 

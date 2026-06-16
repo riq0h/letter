@@ -7,6 +7,7 @@ class CreateActivityOrganizer
   include ActivityPubConversationHandler
   include ActivityPubUtilityHelpers
   include EmojiTagProcessing
+  include DatabaseLockRetryable
 
   class Result < OrganizerResult
     attr_reader :object
@@ -95,7 +96,10 @@ class CreateActivityOrganizer
   end
 
   def create_new_object(object_data)
-    ActivityPubObject.create!(build_object_attributes(object_data))
+    # 一過性のDBロック競合で連合投稿を取りこぼさないよう短時間リトライする
+    with_database_lock_retry do
+      ActivityPubObject.create!(build_object_attributes(object_data))
+    end
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create object: #{e.message}"
     nil

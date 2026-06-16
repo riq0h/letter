@@ -38,10 +38,14 @@ class NodeinfoController < ApplicationController
   end
 
   def calculate_usage_stats
+    # INDEXED BYで被覆部分インデックスidx_objects_local_counts（20260616000001）を明示する。
+    # 明示しないとプランナがobject_type先頭のインデックスを誤選択し、
+    # 41万件走査+テーブル参照でlocalPostsのCOUNTが21秒かかる（local subsetは約6000行）
+    local_scope = ActivityPubObject.local.from(Arel.sql('"objects" INDEXED BY "idx_objects_local_counts"'))
     {
       users: calculate_user_stats,
-      localPosts: ActivityPubObject.local.notes.count,
-      localComments: ActivityPubObject.local.where.not(in_reply_to_ap_id: nil).count
+      localPosts: local_scope.notes.count,
+      localComments: local_scope.where.not(in_reply_to_ap_id: nil).count
     }
   end
 

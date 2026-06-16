@@ -36,11 +36,14 @@ class ReblogFetchJob < ApplicationJob
   def create_lightweight_reblog(target_object)
     return if Reblog.exists?(actor: @sender, object: target_object)
 
-    reblog = Reblog.create!(
-      actor: @sender,
-      object: target_object,
-      ap_id: @activity['id']
-    )
+    # 一過性のDBロック競合で受信リブログを取りこぼさないよう短時間リトライする
+    reblog = with_database_lock_retry do
+      Reblog.create!(
+        actor: @sender,
+        object: target_object,
+        ap_id: @activity['id']
+      )
+    end
     HomeFeedManager.add_reblog(reblog)
     Rails.logger.info "📢 Reblog created: #{reblog.id} for object #{target_object.id}"
   rescue ActiveRecord::RecordNotUnique
