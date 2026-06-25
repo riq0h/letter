@@ -7,6 +7,14 @@ module ActivityPubVerification
 
   MAX_PAYLOAD_SIZE = 1.megabyte
 
+  # ActivityStreams互換とみなせる@contextの目印。
+  # litepubはPleroma/Akkoma系の独自コンテキストで、内部でActivityStreamsを取り込む
+  # AS互換コンテキスト（例: https://<domain>/contexts/litepub-0.1.jsonld）
+  AS_COMPATIBLE_CONTEXT_MARKERS = [
+    'https://www.w3.org/ns/activitystreams',
+    'litepub'
+  ].freeze
+
   private
 
   # Content-Type検証
@@ -65,10 +73,16 @@ module ActivityPubVerification
 
     raise ActivityPub::ValidationError, 'Missing @context in activity' unless context
 
-    return if context.is_a?(String) && context.include?('https://www.w3.org/ns/activitystreams')
-    return if context.is_a?(Array) && context.any? { |c| c.is_a?(String) && c.include?('https://www.w3.org/ns/activitystreams') }
+    return if as_compatible_context?(context)
 
     Rails.logger.warn "⚠️ Activity @context does not include ActivityStreams namespace: #{context.inspect}"
+  end
+
+  def as_compatible_context?(context)
+    entries = context.is_a?(Array) ? context : [context]
+    entries.any? do |c|
+      c.is_a?(String) && AS_COMPATIBLE_CONTEXT_MARKERS.any? { |marker| c.include?(marker) }
+    end
   end
 
   # HTTP Signature検証

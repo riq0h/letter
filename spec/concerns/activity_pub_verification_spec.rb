@@ -87,4 +87,38 @@ RSpec.describe ActivityPubVerification, type: :controller do
       end
     end
   end
+
+  describe '#check_json_ld_context' do
+    def assign_context(ctx)
+      controller.instance_variable_set(:@activity, { '@context' => ctx, 'type' => 'Create', 'actor' => 'x' })
+    end
+
+    it 'raises when @context is missing' do
+      controller.instance_variable_set(:@activity, { 'type' => 'Create' })
+      expect { controller.send(:check_json_ld_context) }.to raise_error(ActivityPub::ValidationError, /Missing @context/)
+    end
+
+    it 'accepts the ActivityStreams namespace (string or array) without warning' do
+      allow(Rails.logger).to receive(:warn)
+      assign_context('https://www.w3.org/ns/activitystreams')
+      controller.send(:check_json_ld_context)
+      assign_context(['https://www.w3.org/ns/activitystreams', { '@language' => 'und' }])
+      controller.send(:check_json_ld_context)
+      expect(Rails.logger).not_to have_received(:warn)
+    end
+
+    it 'accepts a litepub context (Pleroma/Akkoma) without warning' do
+      allow(Rails.logger).to receive(:warn)
+      assign_context(['https://waf.moe/contexts/litepub-0.1.jsonld'])
+      controller.send(:check_json_ld_context)
+      expect(Rails.logger).not_to have_received(:warn)
+    end
+
+    it 'warns for an unknown context that is neither AS nor litepub' do
+      allow(Rails.logger).to receive(:warn)
+      assign_context(['https://example.com/unknown-context.jsonld'])
+      controller.send(:check_json_ld_context)
+      expect(Rails.logger).to have_received(:warn).with(/does not include ActivityStreams/)
+    end
+  end
 end
