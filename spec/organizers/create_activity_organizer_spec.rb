@@ -155,6 +155,31 @@ RSpec.describe CreateActivityOrganizer do
       expect(mention.object).to eq(result.object)
     end
 
+    # 一部のサーバはtagを配列ではなく単一オブジェクトで送ってくる。
+    # 以前は Array() がHashをペア配列化し tag['type'] でTypeErrorになり投稿が壊れていた
+    it 'processes a single-object (non-array) mention tag without error' do
+      local_actor = create(:actor, local: true)
+      activity_with_single_tag = {
+        'type' => 'Create',
+        'object' => {
+          'id' => 'https://example.com/posts/125',
+          'type' => 'Note',
+          'content' => 'Hello @mentioned!',
+          'tag' => {
+            'type' => 'Mention',
+            'href' => local_actor.ap_id
+          }
+        }
+      }
+
+      organizer = described_class.new(activity_with_single_tag, sender)
+      result = organizer.call
+
+      expect(result).to be_success
+      expect(Mention.count).to eq(1)
+      expect(Mention.first.actor).to eq(local_actor)
+    end
+
     it 'processes polls correctly' do
       poll_activity = {
         'type' => 'Create',

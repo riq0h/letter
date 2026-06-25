@@ -42,7 +42,8 @@ class RemoteEmojiDiscoveryService
   def extract_from_activitypub_object(ap_object, domain)
     return unless ap_object.is_a?(Hash) && ap_object['tag'].present?
 
-    emoji_tags = ap_object['tag'].select { |tag| tag['type'] == 'Emoji' }
+    # tagは単一オブジェクト/文字列のこともあるためArray.wrap+Hashガードで正規化する
+    emoji_tags = Array.wrap(ap_object['tag']).select { |tag| tag.is_a?(Hash) && tag['type'] == 'Emoji' }
 
     emoji_tags.each do |emoji_tag|
       process_emoji_tag(emoji_tag, domain)

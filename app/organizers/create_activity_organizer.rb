@@ -160,8 +160,10 @@ class CreateActivityOrganizer
   end
 
   def handle_mentions(object, object_data)
-    tags = Array(object_data['tag'])
-    mention_tags = tags.select { |tag| tag['type'] == 'Mention' }
+    # tagは単一オブジェクトのこともある。Array()は単一Hashをペア配列に変換して
+    # tag['type']でTypeErrorになるため、Array.wrap+Hashガードで正規化する
+    tags = Array.wrap(object_data['tag'])
+    mention_tags = tags.select { |tag| tag.is_a?(Hash) && tag['type'] == 'Mention' }
 
     mention_tags.each do |mention_tag|
       href = mention_tag['href']
@@ -190,7 +192,8 @@ class CreateActivityOrganizer
   end
 
   def handle_hashtags(object, object_data)
-    tags = Array(object_data['tag'])
+    # Array()だと単一Hashのtagがペア配列化されハッシュタグを取りこぼすためArray.wrapを使う
+    tags = Array.wrap(object_data['tag'])
     hashtag_tags = tags.select { |t| t.is_a?(Hash) && t['type'] == 'Hashtag' && t['name'].present? }
 
     hashtag_tags.each do |hashtag_tag|

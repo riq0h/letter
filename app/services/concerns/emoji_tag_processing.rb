@@ -7,8 +7,11 @@ module EmojiTagProcessing
 
   # ActivityPubのtagデータからEmoji型タグを処理し、CustomEmojiレコードを作成する
   def process_emoji_tags(tags_data, domain:)
-    tags = Array(tags_data)
-    emoji_tags = tags.select { |tag| tag['type'] == 'Emoji' }
+    # tagは配列とは限らず単一オブジェクトのこともある。Array()は単一Hashを
+    # [[key,value],...]に変換してしまい tag['type'] でTypeErrorになるため、
+    # Array.wrap でHashをそのまま1要素配列にし、Hash要素のみ対象にする
+    tags = Array.wrap(tags_data)
+    emoji_tags = tags.select { |tag| tag.is_a?(Hash) && tag['type'] == 'Emoji' }
 
     emoji_tags.each do |emoji_tag|
       process_single_emoji_tag(emoji_tag, domain)

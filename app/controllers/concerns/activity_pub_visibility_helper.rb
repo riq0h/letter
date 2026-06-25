@@ -26,10 +26,11 @@ module ActivityPubVisibilityHelper
   end
 
   def extract_mentions_from_tags(tags)
-    return [] unless tags.is_a?(Array)
-
-    tags.select { |tag| tag['type'] == 'Mention' }
-        .pluck('href')
-        .compact
+    # tagは単一オブジェクトのこともある。is_a?(Array)前提だと単一Mentionを取りこぼし
+    # DM等の可視性を誤判定するため、Array.wrapで正規化する
+    Array.wrap(tags)
+         .select { |tag| tag.is_a?(Hash) && tag['type'] == 'Mention' }
+         .pluck('href')
+         .compact
   end
 end
