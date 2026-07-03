@@ -84,11 +84,18 @@ class SearchQuery
   end
 
   def search_full_text_only
-    if contains_special_characters?
+    # 特殊文字を含む、または全語が3文字未満（trigramで索引不可）ならLIKE検索へ。
+    # trigramは3文字単位の索引なので、2文字以下はMATCHできずLIKEで拾う
+    if contains_special_characters? || !trigram_indexable?
       execute_like_search
     else
       execute_fts5_search
     end
+  end
+
+  # trigramは3文字以上の語でないと索引一致しない
+  def trigram_indexable?
+    query.to_s.split(/\s+/).any? { |word| word.length >= 3 }
   end
 
   def build_fts5_query
@@ -225,54 +232,20 @@ class SearchQuery
     []
   end
 
+  # trigramトークナイザ向けのFTS5クエリを構築する。
+  # 各語を引用符で囲んだフレーズ（=連続部分文字列）にしてANDで結合する。
+  # trigramは言語を問わず3文字単位で索引するため、日本語の連続文字列の途中でも
+  # ヒットする（例:「クラッチバッグ」中の「バッグ」）。前方一致(*)や日本語/英語の
+  # 分岐は不要になった。3文字未満の語はtrigram側で空になり、呼び出し側のLIKEが拾う。
   def build_japanese_friendly_fts_query
-    if contains_japanese_characters?
-      build_japanese_query
-    elsif query.include?(' ')
-      build_english_multi_word_query
-    else
-      build_single_word_query
-    end
-  end
-
-  def contains_japanese_characters?
-    query.match?(/[\p{Hiragana}\p{Katakana}\p{Han}]/)
+    escaped_query = query.gsub('"', '""')
+    keywords = escaped_query.split(/\s+/).compact_blank
+    keywords.map { |word| "\"#{word}\"" }.join(' AND ')
   end
 
   def contains_special_characters?
     special_chars = ['@', '"', '^', '*', '(', ')', '[', ']', '{', '}', '\\', '.', ':', '-', '+', '~', 'AND', 'OR', 'NOT', 'NEAR']
     special_chars.any? { |char| query.include?(char) }
-  end
-
-  def build_japanese_query
-    escaped_query = query.gsub('"', '""')
-    keywords = escaped_query.split(/\s+/).compact_blank
-    if keywords.length > 1
-      keywords.map do |word|
-        if word.length >= 2
-          "\"#{word}\"*"
-        else
-          "\"#{word}\""
-        end
-      end.join(' OR ')
-    else
-      build_single_word_query
-    end
-  end
-
-  def build_english_multi_word_query
-    escaped_query = query.gsub('"', '""')
-    keywords = escaped_query.split(/\s+/).map { |word| "\"#{word}\"" }
-    keywords.join(' AND ')
-  end
-
-  def build_single_word_query
-    escaped_query = query.gsub('"', '""')
-    if escaped_query.length >= 2
-      "\"#{escaped_query}\"*"
-    else
-      "\"#{escaped_query}\""
-    end
   end
 
   def fts5_table?

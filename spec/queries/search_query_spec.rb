@@ -167,16 +167,25 @@ RSpec.describe SearchQuery do
     end
   end
 
-  describe '#contains_japanese_characters?' do
-    let(:japanese_query) { described_class.new(query: 'テスト') }
-    let(:english_query) { described_class.new(query: 'test query') }
-
-    it 'returns true with Japanese text' do
-      expect(japanese_query.send(:contains_japanese_characters?)).to be true
+  describe '#build_japanese_friendly_fts_query (trigram)' do
+    it 'wraps a single word as a quoted substring without a prefix operator' do
+      q = described_class.new(query: 'クラッチ')
+      expect(q.send(:build_japanese_friendly_fts_query)).to eq('"クラッチ"')
     end
 
-    it 'returns false with English text' do
-      expect(english_query.send(:contains_japanese_characters?)).to be false
+    it 'joins multiple words with AND as quoted substrings' do
+      q = described_class.new(query: 'クラッチ バッグ')
+      expect(q.send(:build_japanese_friendly_fts_query)).to eq('"クラッチ" AND "バッグ"')
+    end
+  end
+
+  describe '#trigram_indexable?' do
+    it 'is true when a word has 3 or more characters' do
+      expect(described_class.new(query: 'バッグ').send(:trigram_indexable?)).to be true
+    end
+
+    it 'is false when all words are shorter than 3 characters' do
+      expect(described_class.new(query: '不便').send(:trigram_indexable?)).to be false
     end
   end
 
