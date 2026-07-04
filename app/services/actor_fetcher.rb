@@ -65,7 +65,40 @@ class ActorFetcher
     raise ActivityPub::ActorFetchError, "Database error: #{e.message}"
   end
 
+  # 既存のリモートアクターをAPドキュメントから再取得し、プロフィール/raw_data/画像を更新する。
+  # fetch_and_createは既存アクターを素通りさせる(重複取得防止)ため、明示的な更新はこちらを使う。
+  def refresh(actor)
+    return nil unless actor && !actor.local?
+    return nil unless validate_url_for_ssrf!(actor.ap_id)
+
+    actor_data = fetch_actor_data(actor.ap_id)
+    update_existing_actor(actor, actor_data)
+    actor
+  rescue StandardError => e
+    Rails.logger.warn "⚠️ Actor refresh failed for #{actor&.ap_id}: #{e.message}"
+    nil
+  end
+
   private
+
+  def update_existing_actor(actor, actor_data)
+    uri = URI(actor.ap_id)
+    username, domain = extract_actor_identity(actor_data, uri)
+    public_key_pem = extract_public_key(actor_data)
+    attrs = build_actor_attributes(actor.ap_id, actor_data, username, domain, public_key_pem)
+
+    # 同一性の根幹(ap_id/username/domain/local)は変更しない。表示系・URL群・raw_dataのみ更新
+    actor.update!(attrs.except(:ap_id, :username, :domain, :local))
+
+    process_emoji_tags(actor_data['tag'], domain: actor.domain)
+    reattach_remote_images(actor, actor_data)
+  end
+
+  # 更新後の最新データでアバター/ヘッダーを再添付(添付済みなら差し替え)。
+  # ダウンロードは修正済みのUA/タイムアウト付きfetch_image_response経由。
+  def reattach_remote_images(actor, actor_data)
+    ActorCreationService.new.send(:attach_remote_images, actor, actor_data)
+  end
 
   def validate_actor_data(actor_data, expected_uri = nil)
     unless actor_data['type']&.match?(/Person|Service|Organization|Group/)

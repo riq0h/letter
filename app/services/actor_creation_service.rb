@@ -104,7 +104,14 @@ class ActorCreationService
     return nil if redirect_limit <= 0
 
     uri = URI(image_url)
-    response = Net::HTTP.get_response(uri)
+    # タイムアウトとUser-Agentを明示。素のNet::HTTP.get_responseはUA無し(UAで弾くCDNから403)・
+    # タイムアウト無し(遅いリモートがinbox処理を長時間ブロック)だったため。
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https',
+                                                   open_timeout: 5, read_timeout: 10) do |http|
+      request = Net::HTTP::Get.new(uri)
+      request['User-Agent'] = InstanceConfig.user_agent(:web)
+      http.request(request)
+    end
 
     case response
     when Net::HTTPSuccess

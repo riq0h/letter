@@ -50,6 +50,9 @@ class ActorImageProcessor
         if skip_accessibility_check || remote_image_accessible_cached?(remote_avatar_url)
           remote_avatar_url
         else
+          # 到達不可（多くはリモートがアバターを差し替えてURLが陳腐化した404）。
+          # アクターを再取得してraw_data/アバターを更新するジョブを投入し、自己修復させる
+          enqueue_avatar_refresh
           default_avatar_url
         end
       else
@@ -83,6 +86,18 @@ class ActorImageProcessor
 
   def default_avatar_url
     "#{Rails.application.config.activitypub.base_url}/icon.png"
+  end
+
+  # リモートアバターが到達不可のとき、アクター再取得ジョブを投入する。
+  # 12時間に1回だけ(unless_existで原子的にデデュプ)投入し、死活ホストへの
+  # 多重リクエストや人気アクターでのジョブ重複を防ぐ。
+  def enqueue_avatar_refresh
+    return if actor.local? || !actor.persisted?
+    return unless Rails.cache.write("avatar_refresh:#{actor.id}", true, expires_in: 12.hours, unless_exist: true)
+
+    RefreshRemoteActorJob.perform_later(actor.id)
+  rescue StandardError => e
+    Rails.logger.debug { "Avatar refresh enqueue skipped for actor #{actor.id}: #{e.message}" }
   end
 
   def process_avatar_image(io)
@@ -145,9 +160,11 @@ class ActorImageProcessor
     cached_result = Rails.cache.read(cache_key)
     return cached_result unless cached_result.nil?
 
-    # キャッシュされていない場合は実際にチェックしてキャッシュ
+    # キャッシュされていない場合は実際にチェックしてキャッシュ。
+    # 成功は長め・失敗は短め。一過性の失敗から早く回復させつつ、死活ホストへのHEAD多発も避ける。
     accessible = remote_image_accessible?(url)
-    Rails.cache.write(cache_key, accessible, expires_in: 24.hours)
+    ttl = accessible ? 24.hours : 2.hours
+    Rails.cache.write(cache_key, accessible, expires_in: ttl)
     accessible
   end
 
@@ -163,7 +180,7 @@ class ActorImageProcessor
     http.read_timeout = 5
 
     request = Net::HTTP::Head.new(uri)
-    request['User-Agent'] = InstanceConfig.user_agent
+    request['User-Agent'] = InstanceConfig.user_agent(:web)
 
     response = http.request(request)
     # 2xx (成功) または 3xx (リダイレクト) を有効とみなす
