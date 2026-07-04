@@ -98,17 +98,6 @@ class SearchQuery
     query.to_s.split(/\s+/).any? { |word| word.length >= 3 }
   end
 
-  def build_fts5_query
-    # FTS5のダブルクォート内ではダブルクォートを""でエスケープ
-    escaped_query = query.gsub('"', '""')
-    if escaped_query.include?(' ')
-      keywords = escaped_query.split(/\s+/).map { |word| "\"#{word}\"" }
-      keywords.join(' AND ')
-    else
-      "\"#{escaped_query}\""
-    end
-  end
-
   def execute_fts5_search
     object_ids = matching_object_ids
     return [] if object_ids.empty?

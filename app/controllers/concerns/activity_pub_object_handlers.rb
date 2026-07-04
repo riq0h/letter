@@ -7,6 +7,7 @@ module ActivityPubObjectHandlers
   include ActivityPubVisibilityHelper
   include ActivityPubMediaHandler
   include ActorAttachmentProcessing
+  include EmojiTagProcessing
 
   private
 
@@ -77,6 +78,9 @@ module ActivityPubObjectHandlers
 
     # Poll投票数の更新処理
     update_poll_from_remote(object, object_data)
+
+    # 編集で追加/変更されたカスタム絵文字を取り込む（domainはシリアライズ照合キーと揃える）
+    process_emoji_tags(object_data['tag'], domain: object.actor&.domain)
 
     Rails.logger.info "📝 Object updated: #{object.id}"
   end

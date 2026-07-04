@@ -28,10 +28,15 @@ class EmojiPresenter
 
   # ショートコードを抽出（プレーンテキストの:shortcode:と<img alt=":shortcode:">の両方に対応）
   def extract_shortcodes
-    shortcodes = @text.scan(EMOJI_REGEX).flatten
-    # <img>タグのalt属性からも抽出（リモートサーバが事前レンダリング済みの場合）
-    shortcodes += @text.scan(/<img[^>]*alt=":([^"]+):"[^>]*>/i).flatten
-    shortcodes.map(&:downcase).uniq
+    raw_shortcodes.map(&:downcase).uniq
+  end
+
+  # 大文字小文字を保持したまま抽出する。Mastodon系クライアントは本文中の
+  # :ShortCode: と API の emojis 配列内 shortcode を大文字小文字を区別して照合するため、
+  # API出力では本文に現れた通りの表記を保持しないと絵文字化されない。
+  # （DB保存値はdowncaseで統一しているため、URL解決はdowncaseキーで行う）
+  def extract_raw_shortcodes
+    raw_shortcodes.uniq
   end
 
   # 使用されている絵文字のリストを取得
@@ -74,9 +79,21 @@ class EmojiPresenter
     def extract_shortcodes_from(text)
       new(text).extract_shortcodes
     end
+
+    # 大文字小文字を保持したショートコードを抽出（API emojis配列用）
+    def extract_raw_shortcodes_from(text)
+      new(text).extract_raw_shortcodes
+    end
   end
 
   private
+
+  # :shortcode: 形式と <img alt=":shortcode:"> の両方からショートコードを収集（表記そのまま）
+  def raw_shortcodes
+    shortcodes = @text.scan(EMOJI_REGEX).flatten
+    # <img>タグのalt属性からも抽出（リモートサーバが事前レンダリング済みの場合）
+    shortcodes + @text.scan(/<img[^>]*alt=":([^"]+):"[^>]*>/i).flatten
+  end
 
   # 絵文字を検索（キャッシュ付き）
   def find_emoji(shortcode)

@@ -7,6 +7,13 @@ class CustomEmoji < ApplicationRecord
   SHORTCODE_RE_FRAGMENT = '[a-zA-Z0-9_-]{2,}'
   SCAN_RE = /:(#{SHORTCODE_RE_FRAGMENT}):/o
 
+  # ショートコード長の上限。Misskey等は長いショートコード(35文字超)を使うため
+  # 従来の30では正当なリモート絵文字が保存できなかった。ローカル/リモートで
+  # 上限を分けると、リモート絵文字をローカルにコピーする際(RemoteEmojiCopyService)に
+  # ローカル上限で弾かれてしまうため、単一の上限に統一する。
+  SHORTCODE_MIN_LENGTH = 2
+  SHORTCODE_MAX_LENGTH = 100
+
   # バリデーション
   validates :shortcode, presence: true, format: { with: /\A[a-zA-Z0-9_-]+\z/ }
   validates :shortcode, uniqueness: { scope: :domain, case_sensitive: false }
@@ -112,8 +119,9 @@ class CustomEmoji < ApplicationRecord
 
   def shortcode_length
     return if shortcode.blank?
+    return if shortcode.length.between?(SHORTCODE_MIN_LENGTH, SHORTCODE_MAX_LENGTH)
 
-    errors.add(:shortcode, 'must be between 2 and 30 characters') unless shortcode.length.between?(2, 30)
+    errors.add(:shortcode, "must be between #{SHORTCODE_MIN_LENGTH} and #{SHORTCODE_MAX_LENGTH} characters")
   end
 
   def image_presence

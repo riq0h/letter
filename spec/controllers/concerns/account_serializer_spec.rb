@@ -148,4 +148,41 @@ RSpec.describe AccountSerializer do
       expect(result).to include('Some text')
     end
   end
+
+  describe '#account_emojis' do
+    let(:account_stub) { Struct.new(:display_name, :note, :fields, :id) }
+    # DB保存値はdowncase
+    let!(:emoji) { create(:custom_emoji, :remote, shortcode: 'blobcat') }
+
+    def account_with(display_name: nil, note: nil, fields: nil)
+      account_stub.new(display_name, note, fields, '1')
+    end
+
+    it 'display_name の大文字混じり絵文字を本文表記のまま出力する' do
+      result = helper.send(:account_emojis, account_with(display_name: 'Cat :BlobCat:'))
+
+      expect(result.pluck(:shortcode)).to eq(['BlobCat'])
+      expect(result.first[:url]).to eq(emoji.url)
+    end
+
+    it '自己紹介(note)の絵文字も解決する' do
+      result = helper.send(:account_emojis, account_with(note: 'hi :BLOBCAT:'))
+
+      expect(result.pluck(:shortcode)).to eq(['BLOBCAT'])
+    end
+
+    it 'カスタムフィールドの name/value からも抽出する' do
+      fields = [{ 'name' => ':BlobCat:', 'value' => 'cat' }].to_json
+      result = helper.send(:account_emojis, account_with(fields: fields))
+
+      expect(result.pluck(:shortcode)).to eq(['BlobCat'])
+    end
+
+    it 'プリロードキャッシュ経由でも本文表記を保持する' do
+      helper.instance_variable_set(:@account_emoji_cache, { local: {}, remote: { 'blobcat' => [emoji] } })
+      result = helper.send(:account_emojis, account_with(display_name: ':BlobCat:'))
+
+      expect(result.pluck(:shortcode)).to eq(['BlobCat'])
+    end
+  end
 end

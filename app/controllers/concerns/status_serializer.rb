@@ -42,28 +42,50 @@ module StatusSerializer
     # 防御的プログラミング: 常に配列を返し、nullは返さない
     return [] if status.nil? || status.content.blank?
 
-    emojis = if defined?(@emoji_cache) && @emoji_cache
+    result = if defined?(@emoji_cache) && @emoji_cache
                resolve_emojis_from_cache(status)
              else
-               domain = status.actor&.domain
-               EmojiPresenter.extract_emojis_from(status.content, domain: domain)
+               resolve_emojis_without_cache(status)
              end
 
-    result = emojis.filter_map(&:to_activitypub)
     result.is_a?(Array) ? result : []
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize emojis for status #{status&.id}: #{e.message}"
     [] # エラー時は常に空配列を返す
   end
 
+  # emojis配列を構築する。DB保存値はdowncaseなのでURL解決はdowncaseキーで行い、
+  # 出力するshortcodeは本文の表記(大文字小文字)をそのまま用いる。こうしないと
+  # クライアントが本文の :ShortCode: と emojis配列を照合できず絵文字化されない。
   def resolve_emojis_from_cache(status)
-    shortcodes = EmojiPresenter.extract_shortcodes_from(status.content)
     domain = status.actor&.domain
 
-    shortcodes.filter_map do |code|
-      @emoji_cache[:local][code] ||
-        @emoji_cache[:remote]["#{code}:#{domain}"] ||
-        @emoji_cache[:remote]["#{code}:"]
-    end.uniq(&:shortcode)
+    emojis_for_tokens(status.content) do |key|
+      @emoji_cache[:local][key] ||
+        @emoji_cache[:remote]["#{key}:#{domain}"] ||
+        @emoji_cache[:remote]["#{key}:"]
+    end
+  end
+
+  def resolve_emojis_without_cache(status)
+    domain = status.actor&.domain
+    records = EmojiPresenter.extract_emojis_from(status.content, domain: domain)
+    return [] if records.empty?
+
+    by_code = records.index_by(&:shortcode) # 保存値(downcase)キー
+    emojis_for_tokens(status.content) { |key| by_code[key] }
+  end
+
+  # 本文の表記そのままのトークンごとに絵文字レコードを解決し、
+  # 出力shortcodeを本文表記に差し替えたActivityPub表現を返す
+  def emojis_for_tokens(content)
+    seen = Set.new
+    EmojiPresenter.extract_raw_shortcodes_from(content).filter_map do |token|
+      emoji = yield(token.downcase)
+      next unless emoji
+      next unless seen.add?(token)
+
+      emoji.to_activitypub.merge(shortcode: token)
+    end
   end
 end

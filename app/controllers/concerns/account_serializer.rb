@@ -83,34 +83,36 @@ module AccountSerializer
   def account_emojis(account)
     return [] if account.display_name.blank? && account.note.blank? && account.fields.blank?
 
-    text_content = [account.display_name, account.note].compact.join(' ')
-    if account.fields.present?
-      begin
-        fields = JSON.parse(account.fields)
-        text_content = "#{text_content} #{fields.map { |f| [f['name'], f['value']].compact.join(' ') }.join(' ')}"
-      rescue JSON::ParserError
-        # ignore
+    text_content = account_emoji_source_text(account)
+
+    # 投稿と同様、emojis配列のshortcodeは本文表記(大文字小文字)を保持する。
+    # クライアントは display_name / note / fields の :ShortCode: と emojis配列を
+    # 大文字小文字を区別して照合するため、downcaseすると絵文字化されない。
+    if defined?(@account_emoji_cache) && @account_emoji_cache
+      emojis_for_tokens(text_content) do |key|
+        @account_emoji_cache[:local][key] || @account_emoji_cache[:remote][key]&.first
       end
+    else
+      by_code = EmojiPresenter.extract_emojis_from(text_content).index_by(&:shortcode)
+      emojis_for_tokens(text_content) { |key| by_code[key] }
     end
-
-    emojis = if defined?(@account_emoji_cache) && @account_emoji_cache
-               resolve_account_emojis_from_cache(text_content)
-             else
-               EmojiPresenter.extract_emojis_from(text_content)
-             end
-
-    emojis.filter_map(&:to_activitypub)
   rescue StandardError => e
     Rails.logger.warn "Failed to serialize account emojis for actor #{account.id}: #{e.message}"
     []
   end
 
-  def resolve_account_emojis_from_cache(text)
-    shortcodes = EmojiPresenter.extract_shortcodes_from(text)
-    shortcodes.filter_map do |code|
-      @account_emoji_cache[:local][code] ||
-        @account_emoji_cache[:remote][code]&.first
-    end.uniq(&:shortcode)
+  # display_name / note / カスタムフィールド(name・value) を絵文字抽出用に連結
+  def account_emoji_source_text(account)
+    text_content = [account.display_name, account.note].compact.join(' ')
+    return text_content if account.fields.blank?
+
+    begin
+      fields = JSON.parse(account.fields)
+      field_text = fields.map { |f| [f['name'], f['value']].compact.join(' ') }.join(' ')
+      "#{text_content} #{field_text}"
+    rescue JSON::ParserError
+      text_content
+    end
   end
 
   def account_fields(account)

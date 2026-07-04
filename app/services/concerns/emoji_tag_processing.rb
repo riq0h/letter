@@ -19,7 +19,9 @@ module EmojiTagProcessing
   end
 
   def process_single_emoji_tag(emoji_tag, domain)
-    shortcode = emoji_tag['name']&.gsub(/^:|:$/, '')
+    # ショートコードは慣例上ケース非依存。照合側(EmojiPresenter)がdowncaseするため、
+    # 保存時もdowncaseして揃える（大文字のtag nameを送る非準拠サーバ対策）
+    shortcode = emoji_tag['name']&.gsub(/^:|:$/, '')&.downcase
     icon_url = emoji_tag.dig('icon', 'url')
 
     return unless shortcode.present? && icon_url.present?

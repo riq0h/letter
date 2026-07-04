@@ -201,16 +201,4 @@ RSpec.describe SearchQuery do
       expect(normal_query.send(:contains_special_characters?)).to be false
     end
   end
-
-  describe '#build_fts5_query' do
-    it 'wraps single word in quotes' do
-      single_word_query = described_class.new(query: 'test')
-      expect(single_word_query.send(:build_fts5_query)).to eq('"test"')
-    end
-
-    it 'joins multiple words with AND' do
-      multi_word_query = described_class.new(query: 'test query example')
-      expect(multi_word_query.send(:build_fts5_query)).to eq('"test" AND "query" AND "example"')
-    end
-  end
 end

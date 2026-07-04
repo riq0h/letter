@@ -11,6 +11,7 @@ module Search
     include ActivityPubHelper
     include ActivityPubUtilityHelpers
     include SsrfProtection
+    include EmojiTagProcessing
 
     def initialize
       @web_finger_service = WebFingerService.new
@@ -199,6 +200,9 @@ module Search
 
       handle_media_attachments(object, data)
       handle_poll_data(object, data) if data['type'] == 'Question'
+      # フェッチ経由（検索・ブースト対象・引用/返信の親）の投稿でもカスタム絵文字を取り込む。
+      # Create活動経由の投稿だけが絵文字を持つと表示にばらつきが出るため。
+      process_emoji_tags(data['tag'], domain: actor&.domain)
       object
     end
 

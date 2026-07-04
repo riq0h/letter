@@ -61,7 +61,11 @@ module Api
 
       def save_marker(timeline, last_read_id)
         marker = Marker.find_or_initialize_for_actor_and_timeline(current_user, timeline)
-        marker.last_read_id = last_read_id
+
+        # マーカーは後退させない。スクロール位置が古いクライアントが低いIDをPOSTしても
+        # 既読位置を巻き戻さず、既読済みの通知が別クライアントで未読に戻るのを防ぐ。
+        # last_read_idはvarchar格納のため、辞書順('9' > '358020')を避けて数値で比較する。
+        marker.last_read_id = last_read_id if marker.new_record? || last_read_id.to_i > marker.last_read_id.to_i
 
         if marker.new_record?
           marker.version = 1
@@ -70,8 +74,8 @@ module Api
         end
         marker.save!
 
-        # 通知マーカーの場合、該当通知を既読にする
-        current_user.notifications.where(read: false).where(id: ..last_read_id).update_all(read: true) if timeline == 'notifications'
+        # 通知マーカーの場合、確定した既読位置(=後退させない値)以下をすべて既読にする
+        current_user.notifications.where(read: false).where(id: ..marker.last_read_id).update_all(read: true) if timeline == 'notifications'
       rescue ActiveRecord::ActiveRecordError => e
         Rails.logger.error "Failed to save marker for #{timeline}: #{e.message}"
         raise
