@@ -57,9 +57,13 @@ class CacheCleanupJob < ApplicationJob
   end
 
   def cleanup_orphaned_blobs
+    # img/(ローカルメディア) と cache/(リモート画像・絵文字キャッシュ) の両プレフィックスを対象にする。
+    # cache/ はR2アップロード失敗時などに添付なしの孤児blobが残るため(create_and_upload!は
+    # blobレコード作成後にアップロードするので、アップロード失敗で孤児化しうる)。
+    # 添付なし かつ 7日超 の blob のみが対象なので、成功キャッシュ(添付あり)や作成中blobは安全。
     orphaned_blobs = ActiveStorage::Blob
                      .where(created_at: ...RemoteImageCacheService::CACHE_DURATION.ago)
-                     .where('key LIKE ?', 'img/%')
+                     .where('key LIKE ? OR key LIKE ?', 'img/%', 'cache/%')
                      .left_joins(:attachments)
                      .where(active_storage_attachments: { id: nil })
 

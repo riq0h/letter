@@ -122,11 +122,14 @@ class EmojiPresenter
 
   # 絵文字HTML要素を構築
   def build_emoji_html(emoji)
+    # 表示契機: 未キャッシュのリモート絵文字ならローカル取り込みを予約
+    emoji.request_remote_image_cache if emoji.respond_to?(:request_remote_image_cache)
     style = emoji_inline_style
     alt_text = ":#{emoji.shortcode}:"
 
+    # referrerpolicy=no-referrer: 直リンク時にリモートCDNのReferer型ホットリンク保護を避ける
     <<~HTML.strip
-      <img src="#{emoji.image_url}" alt="#{alt_text}" title="#{alt_text}" class="custom-emoji" style="#{style}" draggable="false" />
+      <img src="#{emoji.image_url}" alt="#{alt_text}" title="#{alt_text}" class="custom-emoji" style="#{style}" draggable="false" referrerpolicy="no-referrer" />
     HTML
   end
 

@@ -335,15 +335,16 @@ module StatusSerializationHelper
 
     return if all_shortcodes.empty?
 
-    # 一括クエリでカスタム絵文字を取得
-    local_emojis = CustomEmoji.enabled.visible.where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
+    # 一括クエリでカスタム絵文字を取得（画像添付=ローカルキャッシュのURL生成でN+1にならないよう先読み）
+    local_emojis = CustomEmoji.enabled.visible.includes(image_attachment: :blob)
+                              .where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
 
     # リモート絵文字を一括クエリで取得（ドメインごとの個別クエリを回避）
     remote_emojis = {}
     all_remote_domains = domain_shortcodes.keys
     all_remote_codes = domain_shortcodes.values.flat_map(&:to_a).uniq
     if all_remote_codes.any?
-      CustomEmoji.enabled.remote
+      CustomEmoji.enabled.remote.includes(image_attachment: :blob)
                  .where(shortcode: all_remote_codes, domain: all_remote_domains)
                  .find_each do |emoji|
                    remote_emojis["#{emoji.shortcode}:#{emoji.domain}"] = emoji
@@ -353,7 +354,7 @@ module StatusSerializationHelper
       found_shortcodes = remote_emojis.values.to_set(&:shortcode)
       remaining = all_shortcodes - local_emojis.keys - found_shortcodes
       if remaining.any?
-        CustomEmoji.enabled.remote.where(shortcode: remaining.to_a).find_each do |emoji|
+        CustomEmoji.enabled.remote.includes(image_attachment: :blob).where(shortcode: remaining.to_a).find_each do |emoji|
           remote_emojis["#{emoji.shortcode}:"] ||= emoji
         end
       end

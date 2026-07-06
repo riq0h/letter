@@ -53,6 +53,8 @@ class EmojiFormatter
   end
 
   def replacement_image_tag(emoji)
+    # 表示契機: 未キャッシュのリモート絵文字ならローカル取り込みを予約
+    emoji.request_remote_image_cache if emoji.respond_to?(:request_remote_image_cache)
     image_url = animate? ? emoji.url : emoji.static_url
     image_alt = ":#{emoji.shortcode}:"
 
@@ -63,7 +65,9 @@ class EmojiFormatter
       title: image_alt,
       class: 'emojione custom-emoji',
       rel: 'emoji',
-      draggable: 'false'
+      draggable: 'false',
+      # 直リンク時、リモートCDNのReferer型ホットリンク保護を避けるためRefererを送らない
+      referrerpolicy: 'no-referrer'
     )
   end
 

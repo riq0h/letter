@@ -31,10 +31,11 @@ class CustomEmoji < ApplicationRecord
   has_one_attached :image
 
   # カスタムアップロードメソッド（フォルダ構造対応）
-  def attach_image_with_folder(io:, filename:, content_type:)
+  # folder: 自前アップロード/ローカルコピーは 'emoji'、リモート画像のキャッシュは 'cache'
+  def attach_image_with_folder(io:, filename:, content_type:, folder: 'emoji')
     if ENV['S3_ENABLED'] == 'true'
-      # S3の場合、キーにemoji/プレフィックスを付ける
-      custom_key = "emoji/#{SecureRandom.hex(16)}"
+      # S3の場合、キーに folder/ プレフィックスを付ける
+      custom_key = "#{folder}/#{SecureRandom.hex(16)}"
       blob = ActiveStorage::Blob.create_and_upload!(
         io: io,
         filename: filename,
@@ -65,15 +66,18 @@ class CustomEmoji < ApplicationRecord
   end
 
   def url
-    if remote?
-      self[:image_url]
-    elsif image.attached?
+    # ローカル絵文字も、ローカルキャッシュ済みのリモート絵文字も添付(R2)から配信する。
+    # 未キャッシュのリモート絵文字のみ直リンクし、表示契機でローカル取り込みを予約する。
+    # (直リンクはリモートCDNのホットリンク保護=Referer拒否で壊れることがあるため)
+    if image.attached?
       # Cloudflare R2のカスタムドメインを使用
       if ENV['S3_ENABLED'] == 'true' && ENV['S3_ALIAS_HOST'].present?
         "https://#{ENV.fetch('S3_ALIAS_HOST', nil)}/#{image.blob.key}"
       else
         Rails.application.routes.url_helpers.url_for(image)
       end
+    elsif remote?
+      self[:image_url]
     end
   end
 
@@ -88,6 +92,8 @@ class CustomEmoji < ApplicationRecord
 
   # Mastodon API準拠のJSON表現
   def to_activitypub
+    # 表示契機。未キャッシュのリモート絵文字ならローカル取り込み(R2)を予約する
+    request_remote_image_cache
     {
       id: id,
       shortcode: shortcode,
@@ -96,6 +102,22 @@ class CustomEmoji < ApplicationRecord
       visible_in_picker: visible_in_picker,
       category: category_id
     }
+  end
+
+  # 表示時に呼ばれ、未キャッシュのリモート絵文字画像をR2へ取り込むジョブを予約する。
+  # (url自体は副作用を持たせない。image_presenceバリデーション等からも呼ばれるため)
+  # 12時間に1回だけ(unless_exist)＆同一インスタンス1回だけに制限。
+  def request_remote_image_cache
+    return if @remote_image_cache_requested
+    return unless remote? && !image.attached?
+
+    @remote_image_cache_requested = true
+    return if self[:image_url].blank? || !persisted?
+    return unless Rails.cache.write("emoji_img_cache:#{id}", true, expires_in: 12.hours, unless_exist: true)
+
+    CacheRemoteEmojiJob.perform_later(id)
+  rescue StandardError => e
+    Rails.logger.debug { "Remote emoji cache enqueue skipped for #{id}: #{e.message}" }
   end
 
   # ActivityPub表現

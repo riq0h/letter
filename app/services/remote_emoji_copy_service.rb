@@ -84,6 +84,26 @@ class RemoteEmojiCopyService
 
   attr_reader :copied_emojis, :failed_copies
 
+  # リモート絵文字の画像を、その絵文字自身にローカルキャッシュ(R2)として添付する。
+  # ローカルコピーは作らず直リンクを廃すことで、リモートCDNのホットリンク保護を根本回避する。
+  def cache_in_place(remote_emoji)
+    return { success: false, error: 'ローカル絵文字です' } if remote_emoji.local?
+    return { success: true, emoji: remote_emoji } if remote_emoji.image.attached?
+
+    source_url = remote_emoji[:image_url]
+    return { success: false, error: 'image_url が空です' } if source_url.blank?
+
+    image_data = download_image(source_url)
+    # キャッシュはローカルコピー(emoji/)と区別して cache/ フォルダへ
+    attach_image_to_emoji(remote_emoji, image_data, source_url, folder: 'cache')
+    remote_emoji.save!
+
+    { success: true, emoji: remote_emoji }
+  rescue StandardError => e
+    Rails.logger.warn "Failed to cache remote emoji :#{remote_emoji.shortcode}:@#{remote_emoji.domain}: #{e.message}"
+    { success: false, error: e.message }
+  end
+
   private
 
   def create_local_copy(remote_emoji, custom_shortcode = nil)
@@ -116,7 +136,8 @@ class RemoteEmojiCopyService
   def download_image(image_url)
     raise "SSRF protection: blocked request to #{image_url}" unless validate_url_for_ssrf!(image_url)
 
-    response = HTTParty.get(image_url, timeout: 30, follow_redirects: true)
+    response = HTTParty.get(image_url, timeout: 30, follow_redirects: true,
+                                       headers: { 'User-Agent' => InstanceConfig.user_agent(:web) })
 
     raise "Failed to download image: HTTP #{response.code}" unless response.success?
 
@@ -131,12 +152,12 @@ class RemoteEmojiCopyService
     raise "画像のダウンロードに失敗しました: #{e.message}"
   end
 
-  def attach_image_to_emoji(emoji, image_data, original_url)
+  def attach_image_to_emoji(emoji, image_data, original_url, folder: 'emoji')
     content_type = detect_content_type(image_data)
     extension = determine_file_extension(content_type, original_url)
     filename = "#{emoji.shortcode}#{extension}"
 
-    attach_image_file(emoji, image_data, filename, content_type)
+    attach_image_file(emoji, image_data, filename, content_type, folder: folder)
   rescue StandardError => e
     Rails.logger.error "Failed to attach image to emoji: #{e.message}"
     raise "画像の添付に失敗しました: #{e.message}"
@@ -169,11 +190,12 @@ class RemoteEmojiCopyService
     end
   end
 
-  def attach_image_file(emoji, image_data, filename, content_type)
+  def attach_image_file(emoji, image_data, filename, content_type, folder: 'emoji')
     emoji.attach_image_with_folder(
       io: StringIO.new(image_data),
       filename: filename,
-      content_type: content_type
+      content_type: content_type,
+      folder: folder
     )
   end
 
