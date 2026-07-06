@@ -16,9 +16,11 @@ class ActorImageProcessor
   end
 
   def attach_avatar_with_folder(io:, filename:, content_type:)
-    processed_io = process_avatar_image(io)
+    # アバターはPNGへ再エンコードされるため、保存するcontent_type/filenameもそれに揃える
+    processed = process_avatar_image(io, fallback_filename: filename, fallback_content_type: content_type)
 
-    blob = create_storage_blob(io: processed_io, filename: filename, content_type: content_type, folder: 'avatar')
+    blob = create_storage_blob(io: processed[:io], filename: processed[:filename],
+                               content_type: processed[:content_type], folder: 'avatar')
     actor.avatar.attach(blob)
 
     # アバター更新をActivityPubで配信
@@ -100,7 +102,11 @@ class ActorImageProcessor
     Rails.logger.debug { "Avatar refresh enqueue skipped for actor #{actor.id}: #{e.message}" }
   end
 
-  def process_avatar_image(io)
+  # アバターを400px正方形PNGへ再エンコードして返す。
+  # 返り値は { io:, content_type:, filename: }。成功時はPNGに揃え(mediaType/Content-Type/
+  # 実バイトが一致し、Misskey等の厳格なメディアプロキシでも壊れない)、libvips失敗時は
+  # 元の画像・元のtype/filenameにフォールバックする。
+  def process_avatar_image(io, fallback_filename:, fallback_content_type:)
     io.rewind
 
     # 一時ファイルに保存
@@ -130,12 +136,13 @@ class ActorImageProcessor
     # PNGとして保存
     cropped.write_to_file(temp_output.path)
 
-    File.open(temp_output.path, 'rb')
+    base = File.basename(fallback_filename.to_s, '.*').presence || 'avatar'
+    { io: File.open(temp_output.path, 'rb'), content_type: 'image/png', filename: "#{base}.png" }
   rescue StandardError => e
     Rails.logger.warn "Failed to process avatar image with libvips: #{e.message}"
-    # 元の画像をそのまま返す
+    # 変換できない場合は元の画像・元のtypeをそのまま使う
     io.rewind
-    io
+    { io: io, content_type: fallback_content_type, filename: fallback_filename }
   ensure
     temp_input&.unlink
     temp_output&.unlink
