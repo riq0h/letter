@@ -24,17 +24,21 @@ RSpec.describe CustomEmoji do
   end
 
   describe '#to_activitypub (display path) triggers caching' do
+    # 既存絵文字を表示する状況を模すため、作成後にリロードした新インスタンスを使う
+    # (作成時の after_create_commit で立つインスタンスメモを持ち越さないため)
     it 'enqueues caching for an uncached remote emoji' do
       allow(Rails.cache).to receive(:write).and_return(true)
-      emoji = create(:custom_emoji, :remote, image_url: 'https://remote.example.com/e.png')
+      id = create(:custom_emoji, :remote, image_url: 'https://remote.example.com/e.png').id
+      emoji = CustomEmoji.find(id)
 
-      expect(CacheRemoteEmojiJob).to receive(:perform_later).with(emoji.id)
+      expect(CacheRemoteEmojiJob).to receive(:perform_later).with(id)
       emoji.to_activitypub
     end
 
     it 'enqueues only once per emoji instance' do
       allow(Rails.cache).to receive(:write).and_return(true)
-      emoji = create(:custom_emoji, :remote, image_url: 'https://remote.example.com/e.png')
+      id = create(:custom_emoji, :remote, image_url: 'https://remote.example.com/e.png').id
+      emoji = CustomEmoji.find(id)
 
       expect(CacheRemoteEmojiJob).to receive(:perform_later).once
       emoji.to_activitypub
@@ -44,9 +48,28 @@ RSpec.describe CustomEmoji do
     it 'does not enqueue for an already-cached remote emoji' do
       emoji = create(:custom_emoji, :remote, image_url: 'https://remote.example.com/e.png')
       emoji.image.attach(io: StringIO.new('img'), filename: 'e.png', content_type: 'image/png')
+      emoji = CustomEmoji.find(emoji.id)
 
       expect(CacheRemoteEmojiJob).not_to receive(:perform_later)
       emoji.to_activitypub
+    end
+  end
+
+  describe 'proactive caching on creation' do
+    it 'wires request_remote_image_cache as an after-create commit callback' do
+      # use_transactional_fixtures 下では after_commit は実際には発火しないため、配線を検証する。
+      # 挙動(remote+未キャッシュで enqueue、cooldown 尊重)は #to_activitypub 経由で別途カバー済み。
+      wired = described_class._commit_callbacks.any? { |cb| cb.filter == :request_remote_image_cache }
+      expect(wired).to be true
+    end
+
+    it 'request_remote_image_cache is safe to call on a brand-new local emoji (no enqueue)' do
+      local = build(:custom_emoji, domain: nil, shortcode: 'smile')
+      local.image.attach(io: StringIO.new('img'), filename: 'smile.png', content_type: 'image/png')
+      local.save!
+
+      expect(CacheRemoteEmojiJob).not_to receive(:perform_later)
+      local.request_remote_image_cache
     end
   end
 

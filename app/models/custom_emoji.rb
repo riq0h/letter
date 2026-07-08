@@ -59,6 +59,9 @@ class CustomEmoji < ApplicationRecord
   after_create :update_cache
   after_update :update_cache
   after_destroy :update_cache
+  # 新規に受信したリモート絵文字は表示前に先読みでR2へ取り込む(初回表示時の直リンク破損窓を防ぐ)。
+  # コミット後に発火させないと、ジョブがコミット前に走りレコードを見つけられない。
+  after_create_commit :request_remote_image_cache
 
   # メソッド
   def local?
