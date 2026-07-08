@@ -81,10 +81,15 @@ class ActivityPubHttpClient
 
   # 署名要求のハンドリング
   def handle_signature_requirement(uri, domain, response, timeout)
-    Rails.logger.info "🔐 #{response.code} received, learning signature requirement for #{domain}"
-    learn_signature_requirement(domain)
+    Rails.logger.info "🔐 #{response.code} received, retrying with HTTP signature for #{domain}"
     signing_actor = Actor.find_by(local: true)
-    fetch_with_signature(uri, signing_actor, timeout) if signing_actor
+    return nil unless signing_actor
+
+    result = fetch_with_signature(uri, signing_actor, timeout)
+    # 署名付きで実際に取得できた場合のみ「署名必須ドメイン」として学習する。
+    # 一過性の500等で誤って学習し、以後常に署名付き送信になるのを防ぐ。
+    learn_signature_requirement(domain) if result
+    result
   end
 
   # 署名が必要なドメインかチェック
@@ -106,9 +111,11 @@ class ActivityPubHttpClient
 
   # レスポンスがHTTP署名を要求しているかチェック
   def requires_signature?(response)
-    # 認証・認可エラー（401, 403）のみ署名要求として扱う
-    # 404はリソース不在、500はサーバエラーであり署名とは無関係
-    return true if [401, 403].include?(response.code.to_i)
+    # 認証・認可エラー（401, 403）は署名要求として扱う。
+    # さらに 500 も対象にする: Threads(threads.net)は authorized-fetch 未署名リクエストに
+    # 対して 401/403 ではなく 500 を返すため。誤学習は handle_signature_requirement 側の
+    # 「署名成功時のみ学習」でガードする（一過性の500では学習しない）。
+    return true if [401, 403, 500].include?(response.code.to_i)
 
     # WWW-Authenticate ヘッダーで署名を要求している場合
     auth_header = response.headers['WWW-Authenticate']
