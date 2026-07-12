@@ -141,7 +141,13 @@ class RemoteEmojiCopyService
 
     raise "Failed to download image: HTTP #{response.code}" unless response.success?
 
-    raise "Invalid content type: #{response.headers['content-type']}" unless response.headers['content-type']&.start_with?('image/')
+    # 一部サーバ(misskey.ioのAPNG等)は画像実体をapplication/octet-streamで返す。
+    # ヘッダがimage/*でない場合は実バイトをMarcelで判定し、本物の画像なら受け入れる
+    header_type = response.headers['content-type']
+    unless header_type&.start_with?('image/')
+      sniffed = Marcel::MimeType.for(StringIO.new(response.body))
+      raise "Invalid content type: #{header_type}" unless sniffed&.start_with?('image/')
+    end
 
     # ファイルサイズ制限（5MB）
     raise "Image too large: #{response.body.bytesize} bytes" if response.body.bytesize > 5.megabytes

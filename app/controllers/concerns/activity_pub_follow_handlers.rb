@@ -151,7 +151,8 @@ module ActivityPubFollowHandlers
       handle_undo_follow(object)
     when 'Block'
       handle_undo_block(object)
-    when 'Like'
+    when 'Like', 'EmojiReact'
+      # EmojiReactの取り消しもLikeと同じ(Favourite+Like Activityを削除)
       handle_undo_like(object)
     when 'Announce'
       handle_undo_announce(object)

@@ -26,6 +26,11 @@ class PostsController < ApplicationController
   def show_html
     @actor = @post.actor
     @media_attachments = @post.media_attachments.includes(:actor)
+    # Misskey系から受信した絵文字リアクションの集約(多い順)。プレーンなふぁぼは含まない
+    @reaction_groups = @post.favourites.where.not(reaction: [nil, ''])
+                            .includes(:actor)
+                            .group_by(&:reaction)
+                            .sort_by { |_, favs| -favs.size }
 
     setup_meta_tags
   end

@@ -114,7 +114,8 @@ class SharedInboxesController < ApplicationController
       handle_delete_activity
     when 'Announce'
       handle_announce_activity
-    when 'Like'
+    when 'Like', 'EmojiReact'
+      # EmojiReact(Pleroma/Akkoma系)はLikeと同様に処理する(reaction付きふぁぼ)
       handle_like_activity
     when 'Follow'
       handle_follow_activity

@@ -1,0 +1,23 @@
+<%# 受信した絵文字リアクションの掲示(投稿詳細ページ専用・0件なら何も描画しない) %>
+<%# チップは投稿枠と同じ輪郭言語(罫線のみ・背景は透過)に揃える。 %>
+<%# 背景を指定しないことで、設定可能なページ背景色(body)がそのまま透けて常に一致する %>
+<% if reaction_groups.present? %>
+  <div class="flex flex-wrap items-center gap-1.5" aria-label="受信したリアクション">
+    <% reaction_groups.each do |reaction, favs| %>
+      <% emoji = reaction_custom_emoji(reaction, favs) %>
+      <span class="inline-flex items-center gap-1.5 border border-gray-300 px-2 py-0.5 text-xs text-gray-600"
+            title="<%= reaction_title(reaction, favs) %>">
+        <% if emoji %>
+          <%# 高さ20px固定・幅は縦横比どおり(横長絵文字を潰さない)。max-w-20(80px)で暴走を防ぐ %>
+          <%# referrerpolicy: 未キャッシュで直リンクになる場合にReferer型ホットリンク保護を避ける %>
+          <img src="<%= emoji.url %>" alt="<%= reaction %>"
+               class="h-5 w-auto max-w-20 object-contain" loading="lazy" draggable="false"
+               referrerpolicy="no-referrer">
+        <% else %>
+          <span class="text-base leading-5"><%= reaction_display_text(reaction) %></span>
+        <% end %>
+        <span class="text-gray-400"><%= favs.size %></span>
+      </span>
+    <% end %>
+  </div>
+<% end %>

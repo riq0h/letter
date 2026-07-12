@@ -213,8 +213,11 @@ main() {
     fi
     
     # bin/setupを環境変数付きで実行（bundle installとサーバ起動をスキップ）
+    # アセットはスキップしない: /appはbind-mountされておりイメージビルド時の
+    # プリコンパイル結果は古くなる。ビューで新しいTailwindクラスを使うと
+    # CSSに含まれずスタイルが欠落するため、起動時に毎回再ビルドする(数秒)。
     echo "bin/setupを実行中..."
-    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true SKIP_ASSET_PRECOMPILE=true SKIP_PROCESS_MANAGEMENT=true bundle exec ruby bin/setup --skip-server
+    RAILS_ENV="${RAILS_ENV}" SECRET_KEY_BASE="${secret_key}" SKIP_BUNDLE_INSTALL=true SKIP_PROCESS_MANAGEMENT=true bundle exec ruby bin/setup --skip-server
     start_solid_queue
     
     
