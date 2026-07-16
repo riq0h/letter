@@ -2,10 +2,15 @@
   search_params = { q: @query, offset: @next_offset }
   search_params[:username] = @username if @username.present?
   load_more_url = @more_posts_available ? search_index_path(search_params) : nil
+
+  # SearchQueryは素のActivityPubObject配列を返すため、post_timelineが期待する
+  # timeline_item形式({type:, item:})へ変換する。変換しないと[:type]がnilになり
+  # 1件も描画されず、検索の2ページ目以降が空になる(無限スクロールが1ページで停止する)
+  timeline_items = @posts.map { |post| { type: :post, item: post } }
 %>
 
 <%= render 'shared/post_timeline',
-           posts: @posts,
+           posts: timeline_items,
            more_posts_available: @more_posts_available,
            load_more_url: load_more_url,
            frame_id: "load_more_#{params[:offset].to_i}",
