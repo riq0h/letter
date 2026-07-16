@@ -12,7 +12,7 @@ module BlobStorage
   # @param content_type [String] Content-Type
   # @param folder [String] S3上のフォルダプレフィックス (例: "img", "avatar", "cache")
   # @return [ActiveStorage::Blob]
-  def create_storage_blob(io:, filename:, content_type:, folder:)
+  def create_storage_blob(io:, filename:, content_type:, folder:, metadata: {})
     if ENV['S3_ENABLED'] == 'true'
       custom_key = "#{folder}/#{SecureRandom.hex(16)}"
       ActiveStorage::Blob.create_and_upload!(
@@ -20,13 +20,15 @@ module BlobStorage
         filename: filename,
         content_type: content_type,
         service_name: :cloudflare_r2,
-        key: custom_key
+        key: custom_key,
+        metadata: metadata
       )
     else
       ActiveStorage::Blob.create_and_upload!(
         io: io,
         filename: filename,
-        content_type: content_type
+        content_type: content_type,
+        metadata: metadata
       )
     end
   end

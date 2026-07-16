@@ -40,7 +40,7 @@
 
     <!-- 自己紹介 -->
     <% if @actor.note.present? %>
-      <div class="text-gray-700 leading-relaxed mb-4">
+      <div class="text-gray-700 leading-relaxed mb-4 break-words">
         <% note_with_emoji = parse_content_for_frontend(@actor.note) %>
         <%= auto_link_urls(note_with_emoji).html_safe %>
       </div>
@@ -60,15 +60,17 @@
                   </span>
                   <% value_with_emoji = parse_content_for_frontend(link['value']) %>
                   <% if link['value'].match?(/\Ahttps?:\/\//) %>
-                    <a href="<%= link['value'] %>" 
-                       target="_blank" 
-                       rel="nofollow noopener noreferrer me" 
-                       class="text-blue-600 hover:text-gray-700 transition-colors truncate"
+                    <%# min-w-0: flexアイテムはmin-width:autoが既定で縮小を拒否し、
+                        truncateが効かず長いURLが枠を突き破る。縮小を許可して省略を効かせる %>
+                    <a href="<%= link['value'] %>"
+                       target="_blank"
+                       rel="nofollow noopener noreferrer me"
+                       class="text-blue-600 hover:text-gray-700 transition-colors truncate min-w-0"
                        style="font-family: 'Noto Sans JP', sans-serif; font-weight: 400;">
                       <%= auto_link_urls(value_with_emoji).html_safe %>
                     </a>
                   <% else %>
-                    <span class="text-gray-700 truncate"
+                    <span class="text-gray-700 truncate min-w-0"
                           style="font-family: 'Noto Sans JP', sans-serif; font-weight: 400;">
                       <%= auto_link_urls(value_with_emoji).html_safe %>
                     </span>

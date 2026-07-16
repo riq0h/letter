@@ -15,20 +15,23 @@ class ActorImageProcessor
     @actor = actor
   end
 
-  def attach_avatar_with_folder(io:, filename:, content_type:)
+  def attach_avatar_with_folder(io:, filename:, content_type:, source_url: nil)
     # アバターはPNGへ再エンコードされるため、保存するcontent_type/filenameもそれに揃える
     processed = process_avatar_image(io, fallback_filename: filename, fallback_content_type: content_type)
 
+    # source_url(リモート取得元)をメタデータに記録し、次回以降「URL不変なら再添付しない」判定に使う
     blob = create_storage_blob(io: processed[:io], filename: processed[:filename],
-                               content_type: processed[:content_type], folder: 'avatar')
+                               content_type: processed[:content_type], folder: 'avatar',
+                               metadata: source_url ? { 'source_url' => source_url } : {})
     actor.avatar.attach(blob)
 
     # アバター更新をActivityPubで配信
     distribute_profile_update_after_image_change('avatar')
   end
 
-  def attach_header_with_folder(io:, filename:, content_type:)
-    blob = create_storage_blob(io: io, filename: filename, content_type: content_type, folder: 'header')
+  def attach_header_with_folder(io:, filename:, content_type:, source_url: nil)
+    blob = create_storage_blob(io: io, filename: filename, content_type: content_type, folder: 'header',
+                               metadata: source_url ? { 'source_url' => source_url } : {})
     actor.header.attach(blob)
 
     # ヘッダ更新をActivityPubで配信

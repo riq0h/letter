@@ -89,14 +89,24 @@ class ActorCreationService
 
   def attach_remote_image(actor, attachment_name, image_url)
     return if image_url.blank?
+    # 取得元URLが前回添付時と同じなら再取得しない。毎回再添付するとblobキー(=配信URL)が
+    # 変わって旧URLがpurgeされ、クライアントがキャッシュ済みの旧URLが404になり
+    # 「アバターが欠落→リロードで直る」現象を生むため(URL不変=画像不変とみなす)
+    return if same_source_already_attached?(actor, attachment_name, image_url)
 
     response = fetch_image_response(image_url)
     return unless response
 
     content_type, filename = extract_image_metadata(response, image_url)
-    attach_image_to_actor(actor, attachment_name, response.body, filename, content_type)
+    attach_image_to_actor(actor, attachment_name, response.body,
+                          filename: filename, content_type: content_type, source_url: image_url)
   rescue StandardError => e
     Rails.logger.warn "Failed to attach #{attachment_name} for actor #{actor.ap_id}: #{e.message}"
+  end
+
+  def same_source_already_attached?(actor, attachment_name, image_url)
+    attachment = actor.public_send(attachment_name)
+    attachment.attached? && attachment.blob.metadata['source_url'] == image_url
   end
 
   def fetch_image_response(image_url, redirect_limit: 3)
@@ -150,7 +160,7 @@ class ActorCreationService
     end
   end
 
-  def attach_image_to_actor(actor, attachment_name, image_data, filename, content_type)
+  def attach_image_to_actor(actor, attachment_name, image_data, **file_info)
     # 型安全性を確保
     unless image_data.is_a?(String)
       Rails.logger.warn "Invalid image_data type for #{attachment_name}: #{image_data.class}"
@@ -168,9 +178,9 @@ class ActorCreationService
 
     case attachment_name.to_s
     when 'avatar'
-      processor.attach_avatar_with_folder(io: io, filename: filename, content_type: content_type)
+      processor.attach_avatar_with_folder(io: io, **file_info)
     when 'header'
-      processor.attach_header_with_folder(io: io, filename: filename, content_type: content_type)
+      processor.attach_header_with_folder(io: io, **file_info)
     end
 
     Rails.logger.debug { "Successfully attached #{attachment_name} (#{image_data.bytesize} bytes)" }
