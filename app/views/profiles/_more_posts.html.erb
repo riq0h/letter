@@ -1,4 +1,6 @@
 <%= render 'shared/post_timeline',
            posts: @posts,
            more_posts_available: @more_posts_available,
-           load_more_url: @more_posts_available ? profile_path(@actor.username, tab: @current_tab, max_id: @older_max_id) : nil %>
+           load_more_url: @more_posts_available ? profile_path(@actor.username, tab: @current_tab, max_id: @older_max_id) : nil,
+           frame_id: "load_more_#{params[:max_id]}",
+           next_frame_id: "load_more_#{@older_max_id}" %>

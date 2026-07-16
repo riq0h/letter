@@ -4,28 +4,33 @@
   # - posts: 投稿配列
   # - more_posts_available: 追加読み込み可能フラグ
   # - load_more_url: 追加読み込み用URL
-  # - frame_id: turbo_frame_tag ID (デフォルト: "load_more")
-  
+  # - frame_id: このページ自身のframe ID(読み込み元lazy frameのIDと一致させる)
+  # - next_frame_id: 次ページ読み込み用lazy frameのID
+  #
+  # frame_idとnext_frame_idは必ず別IDにする。同じIDのturbo-frameがネストすると
+  # Turboの置換が壊れ、2ページ目以降が描画されない(無限スクロールが1ページで停止する)。
+
   frame_id ||= "load_more"
+  next_frame_id ||= "#{frame_id}_next"
 %>
 
 <%= turbo_frame_tag frame_id do %>
   <% posts.each do |timeline_item| %>
     <% if timeline_item[:type] == :post %>
-      <%= render 'shared/unified_post_card', 
-                 post: timeline_item[:item], 
+      <%= render 'shared/unified_post_card',
+                 post: timeline_item[:item],
                  border_style: 'normal' %>
     <% elsif timeline_item[:type] == :reblog %>
-      <%= render 'shared/unified_post_card', 
-                 post: timeline_item[:item].object, 
-                 actor: timeline_item[:item].object.actor, 
+      <%= render 'shared/unified_post_card',
+                 post: timeline_item[:item].object,
+                 actor: timeline_item[:item].object.actor,
                  border_style: 'double',
                  reblog: true %>
     <% end %>
   <% end %>
 
   <% if more_posts_available && load_more_url.present? %>
-    <%= turbo_frame_tag frame_id, src: load_more_url, loading: :lazy do %>
+    <%= turbo_frame_tag next_frame_id, src: load_more_url, loading: :lazy do %>
       <%= render 'shared/loading_indicator' %>
     <% end %>
   <% end %>

@@ -7,4 +7,6 @@
 <%= render 'shared/post_timeline',
            posts: @posts,
            more_posts_available: @more_posts_available,
-           load_more_url: load_more_url %>
+           load_more_url: load_more_url,
+           frame_id: "load_more_#{params[:offset].to_i}",
+           next_frame_id: "load_more_#{@next_offset}" %>

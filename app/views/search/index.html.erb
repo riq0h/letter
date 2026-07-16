@@ -18,7 +18,7 @@
       <% if @more_posts_available %>
         <% search_params = { q: @query, offset: @next_offset }
            search_params[:username] = @username if @username.present? %>
-        <%= turbo_frame_tag "load_more", src: search_index_path(search_params), loading: :lazy do %>
+        <%= turbo_frame_tag "load_more_#{@next_offset}", src: search_index_path(search_params), loading: :lazy do %>
           <div class="text-center py-8">
             <div class="inline-block w-8 h-3">
               <svg viewBox="0 0 32 12" class="w-full h-full">
