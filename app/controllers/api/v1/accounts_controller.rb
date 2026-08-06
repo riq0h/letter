@@ -39,8 +39,8 @@ module Api
 
       # GET /api/v1/accounts/:id/statuses
       def statuses
-        service_params = params.permit(:pinned, :exclude_replies, :exclude_reblogs, :only_media, :max_id, :since_id,
-                                       :min_id)
+        service_params = params.permit(:pinned, :exclude_replies, :exclude_reblogs, :exclude_direct, :only_media,
+                                       :max_id, :since_id, :min_id)
 
         query = AccountStatusesQuery.new(@account, current_user)
         if service_params[:pinned] == 'true'
@@ -50,6 +50,7 @@ module Api
         else
           # 通常の投稿を取得
           query = query.exclude_replies if service_params[:exclude_replies] == 'true'
+          query = query.exclude_direct if service_params[:exclude_direct] == 'true'
           query = query.only_media if service_params[:only_media] == 'true'
           query = query.paginate(max_id: service_params[:max_id], since_id: service_params[:since_id], min_id: service_params[:min_id])
 

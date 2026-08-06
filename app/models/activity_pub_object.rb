@@ -137,6 +137,34 @@ class ActivityPubObject < ApplicationRecord
     status_edits.count
   end
 
+  # 会話スレッドのルート投稿(ローカルDBで辿れる範囲)。FEP-7888のcontext算出に使う
+  def thread_root
+    current = self
+    10.times do
+      break if current.in_reply_to_ap_id.blank?
+
+      parent = ActivityPubObject.find_by(ap_id: current.in_reply_to_ap_id)
+      break unless parent
+
+      current = parent
+    end
+    current
+  end
+
+  # FEP-7888: この投稿が属する会話のcontext URI。
+  # ルートがローカルなら自前のコレクションURL、リモートならルートが宣言したcontextを継承
+  def fep7888_context_uri
+    root = thread_root
+    return "#{Rails.application.config.activitypub.base_url}/contexts/#{root.id}" if root.local?
+
+    ctx = begin
+      JSON.parse(root.raw_data || '{}')['context']
+    rescue JSON::ParserError
+      nil
+    end
+    ctx.is_a?(String) && ctx.start_with?('http') ? ctx : nil
+  end
+
   def quotes_count
     quotes_of_this.count
   end

@@ -70,7 +70,9 @@ module Api
           short_description: InstanceConfig.get('instance_description') || 'General Letter Publication System based on ActivityPub',
           description: InstanceConfig.get('instance_description') || 'General Letter Publication System based on ActivityPub',
           email: InstanceConfig.get('instance_contact_email') || Rails.application.config.instance_contact_email || '',
-          version: '0.1 (compatible; letter 0.1)',
+          # クライアントはこの文字列でAPI機能を出し分ける(4.5未満だと引用UI等が無効化される)。
+          # 4.5互換API(公式引用・grouped notifications等)を実装しているため4.5.0を名乗る
+          version: '4.5.0 (compatible; letter 0.1)',
           urls: {
             streaming_api: "https://#{local_domain}/api/v1/streaming"
           },
@@ -88,7 +90,10 @@ module Api
               streaming: "https://#{local_domain}/api/v1/streaming"
             },
             accounts: {
-              max_featured_tags: 0
+              max_featured_tags: 0,
+              # Mastodon 4.6互換: プロフィール編集UIの文字数上限表示に使われる
+              max_note_length: 500,
+              max_display_name_length: 30
             },
             statuses: {
               max_characters: Rails.application.config.activitypub.character_limit,

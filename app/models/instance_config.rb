@@ -10,6 +10,7 @@ class InstanceConfig < ApplicationRecord
     instance_maintainer
     blog_footer
     background_color
+    timeline_limit_floor
   ].freeze
 
   validates :config_key, presence: true, inclusion: { in: ALLOWED_KEYS }
@@ -23,7 +24,10 @@ class InstanceConfig < ApplicationRecord
     'instance_contact_email' => '',
     'instance_maintainer' => '',
     'blog_footer' => '',
-    'background_color' => '#ffffff'
+    'background_color' => '#ffffff',
+    # タイムラインAPIのlimit下限(認証ユーザのみ)。Moshidon等limit=20固定の
+    # クライアントでも1回の読み込み件数をこの値まで引き上げる。0で無効
+    'timeline_limit_floor' => '0'
   }.freeze
 
   # 設定値を取得するクラスメソッド

@@ -17,7 +17,8 @@ module Api
         {
           domain: Rails.application.config.activitypub.domain,
           title: load_instance_setting('instance_name') || 'letter',
-          version: '0.1',
+          # v1と同じくクライアントの機能判定に使われる(4.5互換を名乗る)
+          version: '4.5.0 (compatible; letter 0.1)',
           source_url: 'https://github.com/riq0h/letter',
           description: load_instance_setting('instance_description') || 'General Letter Publication System based on ActivityPub',
           usage: usage_stats,
@@ -36,7 +37,8 @@ module Api
           contact: contact_info,
           rules: [],
           api_versions: {
-            mastodon: 2
+            # Mastodon 4.5系が名乗る値(公式docsの実例と同じ)。クライアントの新しい機能判定手段
+            mastodon: 6
           }
         }
       end
@@ -58,7 +60,10 @@ module Api
             public_key: vapid_public_key || 'not_configured'
           },
           accounts: {
-            max_featured_tags: 10
+            max_featured_tags: 10,
+            # Mastodon 4.6互換: プロフィール編集UIの文字数上限表示に使われる
+            max_note_length: 500,
+            max_display_name_length: 30
           },
           statuses: {
             max_characters: Rails.application.config.activitypub.character_limit,

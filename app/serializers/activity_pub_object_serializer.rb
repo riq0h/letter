@@ -45,6 +45,8 @@ class ActivityPubObjectSerializer
       'sensitive' => object.sensitive?,
       'atomUri' => object.ap_id,
       'conversation' => conversation_uri,
+      # FEP-7888: 解決可能な会話context(他サーバのスレッドバックフィルを可能にする)
+      'context' => object.fep7888_context_uri,
       'likes' => likes_collection_data,
       'shares' => shares_collection_data,
       'source' => source_data,

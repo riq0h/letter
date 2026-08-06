@@ -40,7 +40,7 @@ module StatusSerializer
 
   def serialized_emojis(status)
     # 防御的プログラミング: 常に配列を返し、nullは返さない
-    return [] if status.nil? || status.content.blank?
+    return [] if status.nil? || emoji_source_text(status).blank?
 
     result = if defined?(@emoji_cache) && @emoji_cache
                resolve_emojis_from_cache(status)
@@ -60,7 +60,7 @@ module StatusSerializer
   def resolve_emojis_from_cache(status)
     domain = status.actor&.domain
 
-    emojis_for_tokens(status.content) do |key|
+    emojis_for_tokens(emoji_source_text(status)) do |key|
       @emoji_cache[:local][key] ||
         @emoji_cache[:remote]["#{key}:#{domain}"] ||
         @emoji_cache[:remote]["#{key}:"]
@@ -69,11 +69,19 @@ module StatusSerializer
 
   def resolve_emojis_without_cache(status)
     domain = status.actor&.domain
-    records = EmojiPresenter.extract_emojis_from(status.content, domain: domain)
+    text = emoji_source_text(status)
+    records = EmojiPresenter.extract_emojis_from(text, domain: domain)
     return [] if records.empty?
 
     by_code = records.index_by(&:shortcode) # 保存値(downcase)キー
-    emojis_for_tokens(status.content) { |key| by_code[key] }
+    emojis_for_tokens(text) { |key| by_code[key] }
+  end
+
+  # 絵文字抽出の対象テキスト。本文に加えてCW(spoiler_text/summary)も含める。
+  # CW内だけに絵文字がある投稿でemojis配列が空になり、クライアントが絵文字化できなかったため
+  def emoji_source_text(status)
+    summary = status.respond_to?(:summary) ? status.summary : nil
+    [status.content, summary].compact_blank.join(' ')
   end
 
   # 本文の表記そのままのトークンごとに絵文字レコードを解決し、

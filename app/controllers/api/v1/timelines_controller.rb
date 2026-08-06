@@ -15,7 +15,7 @@ module Api
       def home
         return render_authentication_required unless current_user
 
-        cache_key = "timeline:home:#{current_user.id}:#{params[:max_id]}:#{params[:since_id]}:#{params[:min_id]}:#{limit_param}"
+        cache_key = "timeline:home:#{current_user.id}:#{params[:max_id]}:#{params[:since_id]}:#{params[:min_id]}:#{effective_timeline_limit}"
         cached = Rails.cache.fetch(cache_key, expires_in: 5.seconds) do
           retries = 0
           begin
@@ -96,13 +96,30 @@ module Api
       end
 
       def timeline_params
-        params.permit(:max_id, :since_id, :min_id, :local).merge(limit: limit_param)
+        params.permit(:max_id, :since_id, :min_id, :local).merge(limit: effective_timeline_limit)
       end
 
       def public_timeline_params
         max_limit = current_user ? 40 : 20
         limit = params[:limit].present? ? params[:limit].to_i.clamp(1, max_limit) : 20
+        # 認証ユーザには下限フロアを適用(匿名アクセスには適用しない=乱用防止)
+        limit = [limit, timeline_limit_floor].max if current_user && timeline_limit_floor.positive?
         params.permit(:max_id, :since_id, :min_id, :local).merge(limit: limit)
+      end
+
+      # クライアントが要求したlimitに設定値の下限を適用した実効limit。
+      # Moshidon等はlimit=20固定で送ってくるため、サーバ側で引き上げない限り
+      # 1回の読み込み件数を増やせない。匿名アクセスには適用しない。
+      def effective_timeline_limit
+        @effective_timeline_limit ||= begin
+          limit = limit_param
+          limit = [limit, timeline_limit_floor].max if current_user && timeline_limit_floor.positive?
+          limit
+        end
+      end
+
+      def timeline_limit_floor
+        @timeline_limit_floor ||= InstanceConfig.get('timeline_limit_floor').to_i.clamp(0, 500)
       end
 
       def serialize_timeline_item(item)

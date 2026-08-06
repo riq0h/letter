@@ -37,6 +37,12 @@ class AccountStatusesQuery
     self
   end
 
+  # Mastodon 4.6互換: DM(direct)を除外するフラグ
+  def exclude_direct
+    @relation = @relation.where.not(objects: { visibility: 'direct' })
+    self
+  end
+
   def only_media
     @relation = @relation.joins(:media_attachments).distinct
     self

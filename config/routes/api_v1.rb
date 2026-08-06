@@ -11,6 +11,9 @@ Rails.application.routes.draw do
       # アカウント
       get '/accounts/verify_credentials', to: 'accounts#verify_credentials'
       patch '/accounts/update_credentials', to: 'accounts#update_credentials'
+      # Mastodon 4.6互換: 新プロフィール編集エンドポイント(既存実装のエイリアス)
+      get '/profile', to: 'accounts#verify_credentials'
+      patch '/profile', to: 'accounts#update_credentials'
       get '/accounts/relationships', to: 'accounts#relationships'
       get '/accounts/search', to: 'accounts#search'
       get '/accounts/lookup', to: 'accounts#lookup'
@@ -40,6 +43,7 @@ Rails.application.routes.draw do
           post :unreblog
           post :quote
           get :quoted_by
+          get :quotes
           get :reblogged_by
           get :favourited_by
           post :pin

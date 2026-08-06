@@ -8,12 +8,12 @@ RSpec.describe StatusSerializer do
   let(:helper) { test_class.new }
   let(:domain) { 'azkey.azuki.blue' }
   let(:actor_stub) { Struct.new(:domain) }
-  let(:status_stub) { Struct.new(:content, :actor, :id) }
+  let(:status_stub) { Struct.new(:content, :actor, :id, :summary) }
   # DB保存値はdowncaseで統一されている
   let!(:emoji) { create(:custom_emoji, :remote, shortcode: 'a_blobcat_attention', domain: domain) }
 
-  def status_with(content)
-    status_stub.new(content, actor_stub.new(domain), '1')
+  def status_with(content, summary: nil)
+    status_stub.new(content, actor_stub.new(domain), '1', summary)
   end
 
   describe '#serialized_emojis' do
@@ -32,6 +32,11 @@ RSpec.describe StatusSerializer do
       it '対応する絵文字が無いショートコードは無視する' do
         result = helper.send(:serialized_emojis, status_with(':no_such_emoji:'))
         expect(result).to eq([])
+      end
+
+      it 'CW(summary)内だけに絵文字がある投稿でも解決する' do
+        result = helper.send(:serialized_emojis, status_with('<p>本文に絵文字なし</p>', summary: ':a_blobcat_attention:'))
+        expect(result.pluck(:shortcode)).to eq(['a_blobcat_attention'])
       end
     end
 

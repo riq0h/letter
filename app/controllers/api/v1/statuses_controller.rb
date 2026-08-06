@@ -14,11 +14,14 @@ module Api
       include StatusParamsHandler
       include MentionProcessor
 
+      # 同期リプライバックフィルの時間予算(スレッド表示の許容追加レイテンシ)
+      REPLIES_QUICK_BUDGET_SECONDS = 2.5
+
       before_action :doorkeeper_authorize!, except: [:show]
       after_action :insert_pagination_headers, only: %i[reblogged_by favourited_by]
       before_action :doorkeeper_authorize!, only: [:show], if: -> { request.authorization.present? }
       before_action :set_status, except: [:create]
-      before_action :check_status_visibility, only: %i[show context history reblogged_by favourited_by quoted_by]
+      before_action :check_status_visibility, only: %i[show context history reblogged_by favourited_by quoted_by quotes]
 
       # GET /api/v1/statuses/:id
       def show
@@ -27,6 +30,12 @@ module Api
 
       # GET /api/v1/statuses/:id/context
       def context
+        # リモート投稿のスレッドは返信が届いていないことが多い。
+        # まず時間予算内の同期クイックパスで数件を即時取得し(開いた瞬間に見える)、
+        # 取り切れなかった分は非同期ジョブが完全化する(次回表示から反映)
+        quick_backfill_replies(@status)
+        enqueue_replies_backfill(@status)
+
         ancestors = build_ancestors(@status)
         descendants = build_descendants(@status)
 
@@ -46,6 +55,12 @@ module Api
 
         # 予約投稿の処理
         return create_scheduled_status if params[:scheduled_at].present?
+
+        # Mastodon 4.5公式の引用パラメータ。既存のQuotePost機構にマッピングする
+        if params[:quoted_status_id].present?
+          @quoted_status = ActivityPubObject.find_by(id: params[:quoted_status_id])
+          return render_not_found('Status') unless @quoted_status
+        end
 
         @status = build_status_object
         attach_media_to_status if @media_ids&.any?
@@ -71,6 +86,9 @@ module Api
 
             process_mentions_and_tags
 
+            # 公式引用パラメータで指定された引用関係を記録
+            create_quote_post_record(@quoted_status, @status) if @quoted_status
+
             # 投票を作成（ステータス保存後）
             if @poll_data.present?
               poll = create_poll_for_status_with_data(@poll_data)
@@ -90,6 +108,9 @@ module Api
         end
 
         return unless success
+
+        # 引用の連合配信(独自エンドポイントPOST /statuses/:id/quoteと同じ処理)
+        @status.create_quote_activity(@quoted_status) if @quoted_status && @status.local?
 
         HomeFeedManager.add_status(@status)
         render json: serialized_status(@status), status: :created
@@ -198,6 +219,18 @@ module Api
         # 引用したアクターを返す
         accounts = quotes.map(&:actor).uniq
         render json: accounts.map { |account| serialized_account(account) }
+      end
+
+      # GET /api/v1/statuses/:id/quotes (Mastodon 4.5公式: この投稿を引用した投稿一覧)
+      def quotes
+        limit = [params.fetch(:limit, 40).to_i, 80].min
+        quoting_statuses = @status.quotes_of_this.recent
+                                  .includes(object: [:actor, :media_attachments, :tags, :poll, { mentions: :actor }])
+                                  .limit(limit)
+                                  .filter_map(&:object)
+
+        preload_all_status_data(quoting_statuses)
+        render json: quoting_statuses.map { |s| serialized_status(s) }
       end
 
       # POST /api/v1/statuses/:id/unreblog
@@ -414,6 +447,7 @@ module Api
       end
 
       def status_creation_params
+        # 引用関係はobjectsのカラムではなくQuotePostレコードが保持する
         status_params.merge(
           object_type: 'Note',
           published_at: Time.current,
@@ -434,6 +468,28 @@ module Api
         @status = ActivityPubObject.where(object_type: %w[Note Question])
                                    .includes(:actor, :media_attachments, :tags, :poll, mentions: :actor)
                                    .find(params[:id])
+      end
+
+      # スレッド表示のリクエスト内で実行する同期バックフィル(時間予算つき)。
+      # 5分スロットルで連打を防ぎつつ、開いた瞬間に数件の返信が見えるようにする
+      def quick_backfill_replies(status)
+        return if status.local?
+        return unless Rails.cache.write("replies_quick:#{status.id}", true, expires_in: 5.minutes, unless_exist: true)
+
+        BackfillRepliesJob.new.quick_pass(status, deadline: Time.current + REPLIES_QUICK_BUDGET_SECONDS)
+      rescue StandardError => e
+        Rails.logger.debug { "Quick replies backfill skipped for #{status.id}: #{e.message}" }
+      end
+
+      # リモート投稿のスレッドバックフィルを予約する(6時間デデュプ)。
+      # unless_existで原子的に判定し、同一スレッドへの多重フェッチを防ぐ
+      def enqueue_replies_backfill(status)
+        return if status.local?
+        return unless Rails.cache.write("replies_backfill:#{status.id}", true, expires_in: 6.hours, unless_exist: true)
+
+        BackfillRepliesJob.perform_later(status.id)
+      rescue StandardError => e
+        Rails.logger.debug { "Replies backfill enqueue skipped for #{status.id}: #{e.message}" }
       end
 
       def check_status_visibility

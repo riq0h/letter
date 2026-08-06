@@ -20,11 +20,10 @@ module QuotePostHandler
     quote_params
   end
 
-  def build_quote_status_object(quoted_status, quote_params)
-    quote_status = current_user.objects.build(quote_params.merge(
-                                                object_type: 'Note',
-                                                quote_ap_id: quoted_status.ap_id
-                                              ))
+  def build_quote_status_object(_quoted_status, quote_params)
+    # 引用関係はQuotePostレコードが保持する(objectsにquote用カラムは無い。
+    # 従来ここでquote_ap_id属性を渡していたがUnknownAttributeErrorになる潜在バグだった)
+    quote_status = current_user.objects.build(quote_params.merge(object_type: 'Note'))
 
     # Snowflake IDで一意な仮AP IDを生成（save前はidがnilのため）
     snowflake_id = Letter::Snowflake.generate

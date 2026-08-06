@@ -54,6 +54,7 @@ module StatusSerializationHelper
       bookmarked: bookmarked_by_current_user?(status),
       pinned: pinned_by_current_user?(status),
       quoted: quoted_by_current_user?(status),
+      quotes_count: quotes_count_for(status),
       filtered: [],
       application: status.local? ? { name: 'letter', website: nil } : nil
     }
@@ -169,6 +170,8 @@ module StatusSerializationHelper
     current_user.quote_posts.exists?(quoted_object: status)
   end
 
+  # Mastodon 4.5公式のQuoteエンティティ形({state:, quoted_status:})で出力する。
+  # letterは引用許可制を持たない(常に受理)ため、stateは常にaccepted
   def build_quote_data(status)
     # キャッシュがあればそれを使用
     quote_post = if defined?(@quote_cache) && @quote_cache
@@ -185,20 +188,29 @@ module StatusSerializationHelper
     return nil unless quoted_actor
 
     {
-      id: quoted_object.id.to_s,
-      created_at: quoted_object.published_at&.iso8601,
-      uri: quoted_object.ap_id,
-      url: quoted_object.public_url || quoted_object.ap_id,
-      visibility: quoted_object.visibility || 'public',
-      spoiler_text: quoted_object.summary || '',
-      content: parse_content_for_api_with_mentions(quoted_object),
-      account: serialized_account(quoted_actor),
-      mentions: [],
-      tags: [],
-      emojis: ensure_array(serialized_emojis(quoted_object)),
-      media_attachments: ensure_array(serialized_media_attachments(quoted_object)),
-      shallow_quote: quote_post.shallow_quote?
+      state: 'accepted',
+      quoted_status: {
+        id: quoted_object.id.to_s,
+        created_at: quoted_object.published_at&.iso8601,
+        uri: quoted_object.ap_id,
+        url: quoted_object.public_url || quoted_object.ap_id,
+        visibility: quoted_object.visibility || 'public',
+        spoiler_text: quoted_object.summary || '',
+        content: parse_content_for_api_with_mentions(quoted_object),
+        account: serialized_account(quoted_actor),
+        mentions: [],
+        tags: [],
+        emojis: ensure_array(serialized_emojis(quoted_object)),
+        media_attachments: ensure_array(serialized_media_attachments(quoted_object))
+      }
     }
+  end
+
+  # 引用された数。タイムラインではpreload_quote_dataの一括カウントを使いN+1を避ける
+  def quotes_count_for(status)
+    return @quotes_count_cache[status.id] || 0 if defined?(@quotes_count_cache) && @quotes_count_cache
+
+    status.quotes_of_this.count
   end
 
   def serialize_poll(status)
@@ -285,6 +297,9 @@ module StatusSerializationHelper
     quote_posts.each do |qp|
       @quote_cache[qp[:object_id]] ||= qp
     end
+
+    # quotes_count用の一括カウント(被引用数)
+    @quotes_count_cache = QuotePost.where(quoted_object_id: status_ids).group(:quoted_object_id).count
   end
 
   # link_preview情報をバルクで取得してキャッシュ
@@ -325,9 +340,11 @@ module StatusSerializationHelper
     domain_shortcodes = Hash.new { |h, k| h[k] = Set.new }
 
     statuses.each do |status|
-      next if status.content.blank?
+      # CW(summary)内の絵文字も抽出対象(本文と同様にemojis配列へ載せる)
+      text = [status.content, status.summary].compact_blank.join(' ')
+      next if text.blank?
 
-      shortcodes = EmojiPresenter.extract_shortcodes_from(status.content)
+      shortcodes = EmojiPresenter.extract_shortcodes_from(text)
       all_shortcodes.merge(shortcodes)
       domain = status.actor&.domain
       domain_shortcodes[domain].merge(shortcodes) if domain.present?

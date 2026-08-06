@@ -21,6 +21,9 @@ Rails.application.routes.draw do
   get '/nodeinfo/2.0', to: 'nodeinfo#show'
   get '/nodeinfo/2.1', to: 'nodeinfo#show'
 
+  # FEP-7888: 会話contextコレクション
+  get '/contexts/:id', to: 'contexts#show', as: :context_collection
+
   # ActivityPubアクティビティエンドポイント
   get '/users/:username/followers', to: 'followers#show'
   get '/users/:username/following', to: 'following#show'
