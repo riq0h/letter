@@ -29,6 +29,8 @@ class ActorSerializer
     {
       '@context' => Rails.application.config.activitypub.context_url + [
         'https://w3id.org/security/v1',
+        # FEP-521a: Multikey(assertionMethod)用のControlled Identifiersコンテキスト
+        'https://www.w3.org/ns/cid/v1',
         {
           'schema' => 'http://schema.org#',
           'PropertyValue' => 'schema:PropertyValue',
@@ -79,7 +81,16 @@ class ActorSerializer
         'id' => "#{actor_url}#main-key",
         'owner' => actor_url,
         'publicKeyPem' => actor.public_key
-      }
+      },
+      # FEP-521a: 同じRSA鍵をMultikey形式でも公開する(publicKeyは非推奨方向のため併記)
+      'assertionMethod' => [
+        {
+          'id' => "#{actor_url}#main-key",
+          'type' => 'Multikey',
+          'controller' => actor_url,
+          'publicKeyMultibase' => MultikeyCodec.encode_rsa(OpenSSL::PKey::RSA.new(actor.public_key))
+        }
+      ]
     }
   end
 

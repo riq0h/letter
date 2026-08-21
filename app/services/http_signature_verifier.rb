@@ -8,6 +8,7 @@ class HttpSignatureVerifier
   include FeaturedCollectionFetching
   include ActorIdentityResolver
   include SsrfProtection
+  include Rfc9421SignatureVerification
 
   attr_reader :method, :path, :headers, :body
 
@@ -19,6 +20,10 @@ class HttpSignatureVerifier
   end
 
   def verify!(actor_uri)
+    # Mastodon 4.7+はRFC9421形式で先に署名してくる(Signature-Inputヘッダで判別)。
+    # 旧draft形式(下記)とは署名ベースもヘッダ構造も別物のため、経路を分ける
+    return verify_rfc9421!(actor_uri) if rfc9421_request?
+
     signature_params = parse_signature_header
     return false unless signature_params
     return false unless validate_date_header
@@ -124,7 +129,7 @@ class HttpSignatureVerifier
     return parse_public_key(actor.public_key) if !refresh && actor&.public_key.present?
 
     response = fetch_actor_data(actor_uri)
-    public_key_data = response.dig('publicKey', 'publicKeyPem')
+    public_key_data = extract_public_key_pem(response)
 
     raise ActivityPub::SignatureError, 'No public key found in actor data' unless public_key_data
 
@@ -135,6 +140,26 @@ class HttpSignatureVerifier
     end
 
     parse_public_key(public_key_data)
+  end
+
+  # actorドキュメントから公開鍵PEMを抽出する。
+  # 旧publicKey.publicKeyPemを優先し、無ければFEP-521aのassertionMethod(Multikey)から
+  # 復元する(publicKeyPemを廃止した実装への追従。RSA/Ed25519対応)
+  def extract_public_key_pem(actor_data)
+    pem = actor_data.dig('publicKey', 'publicKeyPem')
+    return pem if pem.present?
+
+    methods = actor_data['assertionMethod']
+    methods = [methods] if methods.is_a?(Hash)
+    return nil unless methods.is_a?(Array)
+
+    methods.each do |m|
+      next unless m.is_a?(Hash) && m['type'] == 'Multikey'
+
+      key = MultikeyCodec.decode(m['publicKeyMultibase'])
+      return key.public_to_pem if key
+    end
+    nil
   end
 
   # アクターデータ取得
@@ -190,9 +215,9 @@ class HttpSignatureVerifier
     raise ActivityPub::SignatureError, "Actor creation failed: #{e.message}"
   end
 
-  # 公開鍵解析
+  # 公開鍵解析(RSAに加えFEP-521a由来のEd25519 PEMも読めるよう汎用リーダを使う)
   def parse_public_key(public_key_pem)
-    OpenSSL::PKey::RSA.new(public_key_pem)
+    OpenSSL::PKey.read(public_key_pem)
   rescue StandardError => e
     raise ActivityPub::SignatureError, "Invalid public key format: #{e.message}"
   end
@@ -285,6 +310,9 @@ class HttpSignatureVerifier
 
     # 署名文字列を正規化
     normalized_signing_string = signing_string.encode('UTF-8', invalid: :replace, undef: :replace)
+
+    # Ed25519(FEP-521a鍵)はダイジェスト指定なしで検証する
+    return public_key.verify(nil, decoded_signature, normalized_signing_string) unless public_key.is_a?(OpenSSL::PKey::RSA)
 
     # RSA-SHA256で検証
     result = public_key.verify('SHA256', decoded_signature, normalized_signing_string)
