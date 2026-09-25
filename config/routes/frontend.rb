@@ -28,9 +28,6 @@ Rails.application.routes.draw do
   # ハッシュタグタイムライン
   get '/tags/:name', to: 'tags#show', as: :tag
 
-  # 静的ページ
-  get '/about', to: 'pages#about'
-
   # 検索
   get '/search/index', to: 'search#index', as: :search_index
 

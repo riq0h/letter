@@ -10,6 +10,17 @@ RSpec.describe ActivityPubHttpClient do
                                         success?: (200..299).cover?(code), body: body)
   end
 
+  describe '#fetch_object when the unsigned request yields no response' do
+    # リダイレクト上限超過・リダイレクト先のSSRF拒否でnilが返るケース
+    it 'returns nil without raising through the generic error path' do
+      allow(client).to receive_messages(validate_url_for_ssrf!: true, attempt_unsigned_request: nil)
+      allow(Rails.logger).to receive(:error)
+
+      expect(client.fetch_object('https://remote.example.com/notes/1')).to be_nil
+      expect(Rails.logger).not_to have_received(:error)
+    end
+  end
+
   describe '#requires_signature?' do
     it 'treats 401/403 as requiring a signature' do
       expect(client.send(:requires_signature?, fake_response(code: 401))).to be true

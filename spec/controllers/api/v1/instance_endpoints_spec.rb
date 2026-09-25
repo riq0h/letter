@@ -60,4 +60,24 @@ RSpec.describe Api::V1::InstanceController, type: :controller do
       expect(json).to eq([])
     end
   end
+
+  describe 'GET #extended_description' do
+    it 'returns the instance description in Mastodon ExtendedDescription form' do
+      InstanceConfig.set('instance_description', 'テスト用の説明文')
+
+      get :extended_description
+
+      expect(response).to have_http_status(:ok)
+      json = response.parsed_body
+      expect(json['content']).to eq('テスト用の説明文')
+      expect { Time.iso8601(json['updated_at']) }.not_to raise_error
+    end
+
+    it 'returns empty content when no description is configured' do
+      get :extended_description
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include('content' => be_a(String), 'updated_at' => be_present)
+    end
+  end
 end

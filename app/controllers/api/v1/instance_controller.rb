@@ -42,6 +42,16 @@ module Api
         render json: []
       end
 
+      # GET /api/v1/instance/extended_description (Mastodon 4.0+)
+      # クライアントのサーバ情報画面が参照する。説明文はinstanceエンドポイントと同じ設定値
+      def extended_description
+        config = InstanceConfig.find_by(config_key: 'instance_description')
+        render json: {
+          updated_at: (config&.updated_at || Time.current).iso8601,
+          content: InstanceConfig.get('instance_description') || ''
+        }
+      end
+
       # GET /api/v1/instance (DEPRECATED - use v2/instance instead)
       def show
         # 非推奨警告をレスポンスヘッダに追加

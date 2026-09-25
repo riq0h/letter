@@ -27,6 +27,8 @@ class ActivityPubHttpClient
 
     # 通常のリクエストを試行
     response = attempt_unsigned_request(uri, timeout)
+    # リダイレクト上限超過・リダイレクト先のSSRF拒否時はnil
+    return nil unless response
 
     # 署名が必要な場合は学習して再試行
     return handle_signature_requirement(uri, domain, response, timeout) if requires_signature?(response)

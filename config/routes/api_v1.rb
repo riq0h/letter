@@ -74,6 +74,7 @@ Rails.application.routes.draw do
       get '/instance/peers', to: 'instance#peers'
       get '/instance/activity', to: 'instance#activity'
       get '/instance/rules', to: 'instance#rules'
+      get '/instance/extended_description', to: 'instance#extended_description'
 
       # ミュート一覧
       get '/mutes', to: 'mutes#index'
