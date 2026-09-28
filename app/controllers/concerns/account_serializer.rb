@@ -42,7 +42,7 @@ module AccountSerializer
       group: false,
       created_at: account.created_at.iso8601,
       note: format_text_for_api(account.note || ''),
-      note_html: format_text_for_client(account.note || ''),
+      note_html: format_text_for_client(account.note || '', domain: account.domain),
       url: account.public_url || account.ap_id || '',
       uri: account.ap_id || ''
     }
@@ -89,11 +89,15 @@ module AccountSerializer
     # クライアントは display_name / note / fields の :ShortCode: と emojis配列を
     # 大文字小文字を区別して照合するため、downcaseすると絵文字化されない。
     if defined?(@account_emoji_cache) && @account_emoji_cache
+      # 同名絵文字は多数のサーバに存在するため、アカウントのドメインの版を最優先する
+      # (以前は先頭一致で別サーバの版を掴み、その画像が死んでいると表示名の絵文字が壊れていた)
       emojis_for_tokens(text_content) do |key|
-        @account_emoji_cache[:local][key] || @account_emoji_cache[:remote][key]&.first
+        candidates = @account_emoji_cache[:remote][key] || []
+        (account.domain.present? && candidates.find { |e| e.domain == account.domain }) ||
+          @account_emoji_cache[:local][key] || candidates.first
       end
     else
-      by_code = EmojiPresenter.extract_emojis_from(text_content).index_by(&:shortcode)
+      by_code = EmojiPresenter.extract_emojis_from(text_content, domain: account.domain).index_by(&:shortcode)
       emojis_for_tokens(text_content) { |key| by_code[key] }
     end
   rescue StandardError => e
@@ -124,7 +128,7 @@ module AccountSerializer
         {
           name: sanitize_field_name(field['name'] || ''),
           value: format_field_value_for_api(field['value'] || ''),
-          value_html: format_field_value_for_client(field['value'] || ''),
+          value_html: format_field_value_for_client(field['value'] || '', domain: account.domain),
           verified_at: field['verified_at'] || field['verifiedAt']
         }
       end
@@ -193,19 +197,19 @@ module AccountSerializer
   end
 
   # クライアント用のテキスト処理（emoji + URLリンク化）
-  def format_text_for_client(text)
+  def format_text_for_client(text, domain: nil)
     return '' if text.blank?
 
     # 絵文字処理とURLリンク化を一括実行（二重処理を防止）
-    parse_content_for_frontend(text)
+    parse_content_for_frontend(text, domain: domain)
   end
 
-  def format_field_value_for_client(value)
+  def format_field_value_for_client(value, domain: nil)
     return '' if value.blank?
 
     cleaned_value = sanitize_field_html(value)
     # 絵文字処理とURLリンク化を一括実行（二重処理を防止）
-    parse_content_for_frontend(cleaned_value)
+    parse_content_for_frontend(cleaned_value, domain: domain)
   end
 
   def format_text_for_api(text)

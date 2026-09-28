@@ -52,10 +52,42 @@ RSpec.describe StatusSerializer do
         expect(result.first[:url]).to eq(emoji.url)
       end
 
+      it 'ローカルに同名があっても投稿者ドメインの版を優先する' do
+        local = instance_double(CustomEmoji, to_activitypub: { shortcode: 'a_blobcat_attention', url: 'local' })
+        helper.instance_variable_set(:@emoji_cache,
+                                     { local: { 'a_blobcat_attention' => local },
+                                       remote: { "a_blobcat_attention:#{domain}" => emoji } })
+        result = helper.send(:serialized_emojis, status_with(':a_blobcat_attention:'))
+        expect(result.first[:url]).to eq(emoji.url)
+      end
+
       it 'ドメイン無指定フォールバックkeyでも解決できる' do
         helper.instance_variable_set(:@emoji_cache, { local: {}, remote: { 'a_blobcat_attention:' => emoji } })
         result = helper.send(:serialized_emojis, status_with(':A_BlobCat_Attention:'))
         expect(result.pluck(:shortcode)).to eq(['A_BlobCat_Attention'])
+      end
+    end
+
+    context 'with the domain-qualified form (:name@host:)' do
+      let!(:qualified) { create(:custom_emoji, :remote, shortcode: 'yojo_art_online', domain: 'alone.aokaga.work') }
+      let(:text) { '<p>:yojo_art_online@alone.aokaga.work: 謎絵文字すぎ</p>' }
+
+      it 'DB直引きで本文表記のshortcodeとして解決する' do
+        result = helper.send(:serialized_emojis, status_with(text))
+        expect(result.pluck(:shortcode)).to eq(['yojo_art_online@alone.aokaga.work'])
+        expect(result.first[:url]).to eq(qualified.url)
+      end
+
+      it '先読みキャッシュ(name:host key)から解決する' do
+        helper.instance_variable_set(:@emoji_cache,
+                                     { local: {}, remote: { 'yojo_art_online:alone.aokaga.work' => qualified } })
+        result = helper.send(:serialized_emojis, status_with(text))
+        expect(result.pluck(:shortcode)).to eq(['yojo_art_online@alone.aokaga.work'])
+      end
+
+      it 'キャッシュに無い(name, host)は無視する' do
+        result = helper.send(:serialized_emojis, status_with(':yojo_art_online@other.example.com:'))
+        expect(result).to eq([])
       end
     end
 

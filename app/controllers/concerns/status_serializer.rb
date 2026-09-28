@@ -14,7 +14,8 @@ module StatusSerializer
     convert_emoji_html_to_shortcode(content)
   end
 
-  def parse_content_for_frontend(content)
+  # domain: 投稿者/アカウントのドメイン。同名絵文字が複数サーバにあるため、そのドメインの版を優先する
+  def parse_content_for_frontend(content, domain: nil)
     return '' if content.blank?
 
     # 既にHTMLリンクが含まれている場合（外部投稿）はサニタイズ + 絵文字処理
@@ -24,14 +25,14 @@ module StatusSerializer
       if sanitized.include?('<img') && sanitized.include?('custom-emoji')
         sanitized
       else
-        EmojiPresenter.present_with_emojis(sanitized)
+        EmojiPresenter.present_with_emojis(sanitized, domain: domain)
       end
     else
       # ローカル投稿: 絵文字処理 + URLリンク化
       emoji_processed_content = if content.include?('<img') && content.include?('custom-emoji')
                                   content
                                 else
-                                  EmojiPresenter.present_with_emojis(content)
+                                  EmojiPresenter.present_with_emojis(content, domain: domain)
                                 end
 
       auto_link_urls(emoji_processed_content)
@@ -61,8 +62,13 @@ module StatusSerializer
     domain = status.actor&.domain
 
     emojis_for_tokens(emoji_source_text(status)) do |key|
-      @emoji_cache[:local][key] ||
-        @emoji_cache[:remote]["#{key}:#{domain}"] ||
+      if (qualified = EmojiPresenter.split_qualified(key))
+        next @emoji_cache[:remote]["#{qualified[0]}:#{qualified[1]}"]
+      end
+
+      # 優先順: 投稿者ドメイン → ローカル → 他ドメイン(EmojiPresenterと同じ)
+      (domain.present? && @emoji_cache[:remote]["#{key}:#{domain}"]) ||
+        @emoji_cache[:local][key] ||
         @emoji_cache[:remote]["#{key}:"]
     end
   end
@@ -71,10 +77,14 @@ module StatusSerializer
     domain = status.actor&.domain
     text = emoji_source_text(status)
     records = EmojiPresenter.extract_emojis_from(text, domain: domain)
-    return [] if records.empty?
-
     by_code = records.index_by(&:shortcode) # 保存値(downcase)キー
-    emojis_for_tokens(text) { |key| by_code[key] }
+    emojis_for_tokens(text) do |key|
+      if (qualified = EmojiPresenter.split_qualified(key))
+        next CustomEmoji.enabled.remote.find_by(shortcode: qualified[0], domain: qualified[1])
+      end
+
+      by_code[key]
+    end
   end
 
   # 絵文字抽出の対象テキスト。本文に加えてCW(spoiler_text/summary)も含める。

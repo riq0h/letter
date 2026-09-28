@@ -23,7 +23,7 @@
       <!-- ユーザ名 -->
       <div>
         <h1 class="text-2xl text-gray-900" style="font-weight: 300;">
-          <%= parse_content_for_frontend(@actor.display_name.presence || @actor.username).html_safe %>
+          <%= parse_content_for_frontend(@actor.display_name.presence || @actor.username, domain: @actor.domain).html_safe %>
         </h1>
         <p class="text-gray-600" style="font-weight: 300;">
           @<%= @actor.username %><%= @actor.domain.present? ? "@#{@actor.domain}" : "" %>
@@ -41,7 +41,7 @@
     <!-- 自己紹介 -->
     <% if @actor.note.present? %>
       <div class="text-gray-700 leading-relaxed mb-4 break-words">
-        <% note_with_emoji = parse_content_for_frontend(@actor.note) %>
+        <% note_with_emoji = parse_content_for_frontend(@actor.note, domain: @actor.domain) %>
         <%= auto_link_urls(note_with_emoji).html_safe %>
       </div>
     <% end %>
@@ -56,9 +56,9 @@
               <% if link['name'].present? && link['value'].present? %>
                 <div class="flex items-center space-x-2 text-sm">
                   <span class="text-gray-600 font-medium min-w-0 flex-shrink-0">
-                    <%= parse_content_for_frontend(link['name']).html_safe %>:
+                    <%= parse_content_for_frontend(link['name'], domain: @actor.domain).html_safe %>:
                   </span>
-                  <% value_with_emoji = parse_content_for_frontend(link['value']) %>
+                  <% value_with_emoji = parse_content_for_frontend(link['value'], domain: @actor.domain) %>
                   <% if link['value'].match?(/\Ahttps?:\/\//) %>
                     <%# min-w-0: flexアイテムはmin-width:autoが既定で縮小を拒否し、
                         truncateが効かず長いURLが枠を突き破る。縮小を許可して省略を効かせる %>

@@ -45,11 +45,17 @@ module Api
           next if status.content.blank?
 
           shortcodes = EmojiPresenter.extract_shortcodes_from(status.content)
+          # ドメイン修飾形(:name@host:)は指定ドメインの絵文字として先読みする
+          qualified, shortcodes = shortcodes.partition { |c| c.include?('@') }
+          qualified.each do |token|
+            name, host = EmojiPresenter.split_qualified(token)
+            domain_shortcodes[host] << name if host
+          end
           all_shortcodes.merge(shortcodes)
           domain = status.actor&.domain
           domain_shortcodes[domain].merge(shortcodes) if domain.present?
         end
-        return if all_shortcodes.empty?
+        return if all_shortcodes.empty? && domain_shortcodes.empty?
 
         local_emojis = CustomEmoji.enabled.visible.where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
         remote_emojis = {}

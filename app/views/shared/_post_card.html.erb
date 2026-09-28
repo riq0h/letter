@@ -27,7 +27,7 @@
             <%= link_to profile_path(post.actor.username), 
                         class: "hover:text-gray-600 transition-colors",
                         data: { turbo_frame: "_top" } do %>
-              <%= parse_content_for_frontend(post.actor.display_name.presence || post.actor.username).html_safe %>
+              <%= parse_content_for_frontend(post.actor.display_name.presence || post.actor.username, domain: post.actor.domain).html_safe %>
             <% end %>
           </div>
           
@@ -59,7 +59,7 @@
     <% 
       # 最適化された処理：メンションは投稿時/受信時に既にリンク化済み
       # URLリンク化 + 絵文字HTML変換を一括処理
-      final_content = parse_content_for_frontend(post.content)
+      final_content = parse_content_for_frontend(post.content, domain: post.actor&.domain)
     %>
     <div class="whitespace-pre-wrap break-words"><%= final_content.html_safe %></div>
   </div>

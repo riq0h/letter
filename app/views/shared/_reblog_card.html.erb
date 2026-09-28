@@ -27,13 +27,13 @@
               <%= link_to profile_path(reblog.object.actor.username), 
                           class: "hover:text-gray-600 transition-colors",
                           data: { turbo_frame: "_top" } do %>
-                <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
+                <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username, domain: reblog.object.actor.domain).html_safe %>
               <% end %>
             <% else %>
               <%= link_to safe_external_url(reblog.object.actor.ap_id),
                           class: "hover:text-gray-600 transition-colors",
                           data: { turbo_frame: "_top" } do %>
-                <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username).html_safe %>
+                <%= parse_content_for_frontend(reblog.object.actor.display_name.presence || reblog.object.actor.username, domain: reblog.object.actor.domain).html_safe %>
               <% end %>
             <% end %>
           </div>
@@ -74,7 +74,7 @@
     <% 
       # 最適化された処理：メンションは投稿時/受信時に既にリンク化済み
       # URLリンク化 + 絵文字HTML変換を一括処理
-      final_content = parse_content_for_frontend(reblog.object.content)
+      final_content = parse_content_for_frontend(reblog.object.content, domain: reblog.object.actor&.domain)
     %>
     <div class="whitespace-pre-wrap break-words"><%= final_content.html_safe %></div>
   </div>

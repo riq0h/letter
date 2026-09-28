@@ -26,7 +26,7 @@
                       class: "hover:text-gray-600 transition-colors",
                       target: "_blank",
                       rel: "noopener" do %>
-            <%= parse_content_for_frontend(@actor.display_name.presence || @actor.username).html_safe %>
+            <%= parse_content_for_frontend(@actor.display_name.presence || @actor.username, domain: @actor.domain).html_safe %>
           <% end %>
         </div>
         <div class="text-xs text-gray-500">
@@ -51,7 +51,7 @@
   <!-- 記事本文 -->
   <div class="text-base text-gray-800 leading-relaxed mb-3">
     <%
-      final_content = parse_content_for_frontend(@post.content)
+      final_content = parse_content_for_frontend(@post.content, domain: @post.actor&.domain)
     %>
     <div class="whitespace-pre-wrap break-words"><%= final_content.html_safe %></div>
   </div>

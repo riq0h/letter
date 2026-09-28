@@ -345,12 +345,18 @@ module StatusSerializationHelper
       next if text.blank?
 
       shortcodes = EmojiPresenter.extract_shortcodes_from(text)
+      # ドメイン修飾形(:name@host:)は指定ドメインの絵文字として先読みする
+      qualified, shortcodes = shortcodes.partition { |c| c.include?('@') }
+      qualified.each do |token|
+        name, host = EmojiPresenter.split_qualified(token)
+        domain_shortcodes[host] << name if host
+      end
       all_shortcodes.merge(shortcodes)
       domain = status.actor&.domain
       domain_shortcodes[domain].merge(shortcodes) if domain.present?
     end
 
-    return if all_shortcodes.empty?
+    return if all_shortcodes.empty? && domain_shortcodes.empty?
 
     # 一括クエリでカスタム絵文字を取得（画像添付=ローカルキャッシュのURL生成でN+1にならないよう先読み）
     local_emojis = CustomEmoji.enabled.visible.includes(image_attachment: :blob)

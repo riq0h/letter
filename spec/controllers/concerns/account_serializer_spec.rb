@@ -150,12 +150,12 @@ RSpec.describe AccountSerializer do
   end
 
   describe '#account_emojis' do
-    let(:account_stub) { Struct.new(:display_name, :note, :fields, :id) }
+    let(:account_stub) { Struct.new(:display_name, :note, :fields, :id, :domain) }
     # DB保存値はdowncase
     let!(:emoji) { create(:custom_emoji, :remote, shortcode: 'blobcat') }
 
-    def account_with(display_name: nil, note: nil, fields: nil)
-      account_stub.new(display_name, note, fields, '1')
+    def account_with(display_name: nil, note: nil, fields: nil, domain: nil)
+      account_stub.new(display_name, note, fields, '1', domain)
     end
 
     it 'display_name の大文字混じり絵文字を本文表記のまま出力する' do
@@ -183,6 +183,30 @@ RSpec.describe AccountSerializer do
       result = helper.send(:account_emojis, account_with(display_name: ':BlobCat:'))
 
       expect(result.pluck(:shortcode)).to eq(['BlobCat'])
+    end
+
+    context 'when the same shortcode exists on several servers' do
+      # 実例: @3_3@mattyaski.co の :blobcat_dancing: が同名の別サーバ版(画像が死んでいる)に解決されていた
+      let!(:other) { create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'dead.example') }
+      let!(:own) { create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'mattyaski.co') }
+      let(:account) { account_with(display_name: ':blobcat_dancing:希林ぬい', domain: 'mattyaski.co') }
+
+      it 'DB直引きでアカウントのドメインの版を選ぶ' do
+        expect(helper.send(:account_emojis, account).first[:url]).to eq(own.url)
+      end
+
+      it 'プリロードキャッシュでも先頭ではなくアカウントのドメインの版を選ぶ' do
+        helper.instance_variable_set(:@account_emoji_cache,
+                                     { local: {}, remote: { 'blobcat_dancing' => [other, own] } })
+
+        expect(helper.send(:account_emojis, account).first[:url]).to eq(own.url)
+      end
+
+      it 'アカウントのドメインに無ければ他ドメインへフォールバックする' do
+        result = helper.send(:account_emojis, account_with(display_name: ':blobcat_dancing:', domain: 'nowhere.example'))
+
+        expect(result.first[:url]).to be_present
+      end
     end
   end
 end
