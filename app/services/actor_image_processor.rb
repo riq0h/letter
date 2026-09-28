@@ -85,6 +85,21 @@ class ActorImageProcessor
     nil
   end
 
+  # 受信時の先回り: アバター未取り込みのリモートアクターから投稿が届いたら、
+  # ジョブ内で元URLの到達確認(avatar_url)を済ませる。元URLが陳腐化していれば
+  # そこで再取得ジョブが走るため、ユーザが初めて表示する時点で正しいアバターが揃う
+  # (表示時にしか確認しないと、初回表示だけ必ずフォールバックになっていた)。
+  # 確認はアクターごとに24時間に1回。
+  def enqueue_avatar_prefetch
+    return if actor.local? || !actor.persisted? || actor.avatar.attached?
+    return if actor.extract_remote_image_url('icon').blank?
+    return unless Rails.cache.write("avatar_prefetch:#{actor.id}", true, expires_in: 24.hours, unless_exist: true)
+
+    PrefetchRemoteAvatarJob.perform_later(actor.id)
+  rescue StandardError => e
+    Rails.logger.debug { "Avatar prefetch enqueue skipped for actor #{actor.id}: #{e.message}" }
+  end
+
   private
 
   attr_reader :actor

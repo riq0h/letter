@@ -299,6 +299,10 @@ class Actor < ApplicationRecord
     ActorImageProcessor.new(self).header_url
   end
 
+  def enqueue_avatar_prefetch
+    ActorImageProcessor.new(self).enqueue_avatar_prefetch
+  end
+
   def extract_remote_image_url(field_name)
     return nil if raw_data.blank?
 

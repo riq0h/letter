@@ -41,4 +41,40 @@ RSpec.describe CacheRemoteEmojiJob do
 
     expect(RemoteEmojiCopyService).not_to have_received(:new)
   end
+
+  describe 'when the remote image is gone (emoji replaced on the origin)' do
+    # 実例: @naru@mastodon.likids.info の表示名 :mastodon: は相手側で差し替えられ旧URLが404。
+    # MastodonはUpdate(Person)を送らないため、プロフィール所有者の再取得で新URLを得る
+    let(:emoji) { create(:custom_emoji, :remote, shortcode: 'mastodon', domain: 'mastodon.likids.info') }
+    let(:service) { instance_double(RemoteEmojiCopyService) }
+    let!(:owner) { create(:actor, :remote, domain: 'mastodon.likids.info', display_name: 'naru :mastodon:') }
+
+    before do
+      allow(RemoteEmojiCopyService).to receive(:new).and_return(service)
+      create(:actor, :remote, domain: 'other.example', display_name: 'x :mastodon:')
+    end
+
+    it 'refreshes actors on the same domain whose profile uses the emoji' do
+      allow(service).to receive(:cache_in_place)
+        .and_return({ success: false, error: '画像のダウンロードに失敗しました: Failed to download image: HTTP 404' })
+
+      expect { described_class.perform_now(emoji.id) }
+        .to have_enqueued_job(RefreshRemoteActorJob).with(owner.id).exactly(:once)
+    end
+
+    it 'matches shortcodes containing underscores literally' do
+      underscored = create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'mastodon.likids.info')
+      dancer = create(:actor, :remote, domain: 'mastodon.likids.info', display_name: ':blobcat_dancing:ぬい')
+      allow(service).to receive(:cache_in_place).and_return({ success: false, error: 'HTTP 410' })
+
+      expect { described_class.perform_now(underscored.id) }
+        .to have_enqueued_job(RefreshRemoteActorJob).with(dancer.id)
+    end
+
+    it 'does not refresh on transient failures' do
+      allow(service).to receive(:cache_in_place).and_return({ success: false, error: 'database is locked' })
+
+      expect { described_class.perform_now(emoji.id) }.not_to have_enqueued_job(RefreshRemoteActorJob)
+    end
+  end
 end

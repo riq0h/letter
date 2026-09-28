@@ -76,6 +76,8 @@ class InboxController < ApplicationController
     result = CreateActivityOrganizer.call(@activity, @sender)
 
     Rails.logger.error "Create activity failed: #{result.error}" unless result.success?
+    # アバター未取り込みの送信者は先回りで到達確認(ジョブ・24hに1回)
+    @sender&.enqueue_avatar_prefetch if result.success?
     head :accepted
   end
 

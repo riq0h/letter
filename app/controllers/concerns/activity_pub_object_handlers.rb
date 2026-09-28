@@ -60,6 +60,10 @@ module ActivityPubObjectHandlers
 
     @sender.update!(update_attrs)
 
+    # 表示名・自己紹介のカスタム絵文字を取り込む(画像差し替え時のURL更新もここで反映される。
+    # 以前は未処理で、プロフィール上の絵文字だけ古い画像URLのまま残っていた)
+    process_emoji_tags(object_data['tag'], domain: @sender.domain)
+
     # アバター・ヘッダー画像を更新
     ActorCreationService.new.send(:attach_remote_images, @sender, object_data)
 
