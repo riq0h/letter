@@ -186,10 +186,10 @@ RSpec.describe AccountSerializer do
     end
 
     context 'when the same shortcode exists on several servers' do
-      # 実例: @3_3@mattyaski.co の :blobcat_dancing: が同名の別サーバ版(画像が死んでいる)に解決されていた
+      # 同名絵文字が別サーバ(画像が死んでいる)にもある場合、アカウントのドメインの版を選ぶ
       let!(:other) { create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'dead.example') }
-      let!(:own) { create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'mattyaski.co') }
-      let(:account) { account_with(display_name: ':blobcat_dancing:希林ぬい', domain: 'mattyaski.co') }
+      let!(:own) { create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'own.example') }
+      let(:account) { account_with(display_name: ':blobcat_dancing:alice', domain: 'own.example') }
 
       it 'DB直引きでアカウントのドメインの版を選ぶ' do
         expect(helper.send(:account_emojis, account).first[:url]).to eq(own.url)

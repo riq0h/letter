@@ -6,7 +6,7 @@ RSpec.describe StatusSerializer do
   # StatusSerializer を include しただけの軽量ハーネス
   let(:test_class) { Class.new { include StatusSerializer } }
   let(:helper) { test_class.new }
-  let(:domain) { 'azkey.azuki.blue' }
+  let(:domain) { 'misskey.example' }
   let(:actor_stub) { Struct.new(:domain) }
   let(:status_stub) { Struct.new(:content, :actor, :id, :summary) }
   # DB保存値はdowncaseで統一されている
@@ -19,7 +19,7 @@ RSpec.describe StatusSerializer do
   describe '#serialized_emojis' do
     context 'when resolving directly from the DB (no preloaded cache)' do
       it '本文に現れた大文字小文字のままショートコードを出力する' do
-        result = helper.send(:serialized_emojis, status_with('豚汁まで用意:A_BlobCat_Attention:'))
+        result = helper.send(:serialized_emojis, status_with('テスト投稿:A_BlobCat_Attention:'))
         expect(result.pluck(:shortcode)).to eq(['A_BlobCat_Attention'])
         expect(result.first[:url]).to eq(emoji.url)
       end
@@ -69,24 +69,24 @@ RSpec.describe StatusSerializer do
     end
 
     context 'with the domain-qualified form (:name@host:)' do
-      let!(:qualified) { create(:custom_emoji, :remote, shortcode: 'yojo_art_online', domain: 'alone.aokaga.work') }
-      let(:text) { '<p>:yojo_art_online@alone.aokaga.work: 謎絵文字すぎ</p>' }
+      let!(:qualified) { create(:custom_emoji, :remote, shortcode: 'sample_emoji', domain: 'emoji.example') }
+      let(:text) { '<p>:sample_emoji@emoji.example: 本文</p>' }
 
       it 'DB直引きで本文表記のshortcodeとして解決する' do
         result = helper.send(:serialized_emojis, status_with(text))
-        expect(result.pluck(:shortcode)).to eq(['yojo_art_online@alone.aokaga.work'])
+        expect(result.pluck(:shortcode)).to eq(['sample_emoji@emoji.example'])
         expect(result.first[:url]).to eq(qualified.url)
       end
 
       it '先読みキャッシュ(name:host key)から解決する' do
         helper.instance_variable_set(:@emoji_cache,
-                                     { local: {}, remote: { 'yojo_art_online:alone.aokaga.work' => qualified } })
+                                     { local: {}, remote: { 'sample_emoji:emoji.example' => qualified } })
         result = helper.send(:serialized_emojis, status_with(text))
-        expect(result.pluck(:shortcode)).to eq(['yojo_art_online@alone.aokaga.work'])
+        expect(result.pluck(:shortcode)).to eq(['sample_emoji@emoji.example'])
       end
 
       it 'キャッシュに無い(name, host)は無視する' do
-        result = helper.send(:serialized_emojis, status_with(':yojo_art_online@other.example.com:'))
+        result = helper.send(:serialized_emojis, status_with(':sample_emoji@other.example.com:'))
         expect(result).to eq([])
       end
     end

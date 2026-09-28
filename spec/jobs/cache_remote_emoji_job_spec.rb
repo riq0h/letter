@@ -43,11 +43,11 @@ RSpec.describe CacheRemoteEmojiJob do
   end
 
   describe 'when the remote image is gone (emoji replaced on the origin)' do
-    # 実例: @naru@mastodon.likids.info の表示名 :mastodon: は相手側で差し替えられ旧URLが404。
+    # 相手サーバで絵文字が差し替えられ、プロフィール上の絵文字の旧URLが404になるケース。
     # MastodonはUpdate(Person)を送らないため、プロフィール所有者の再取得で新URLを得る
-    let(:emoji) { create(:custom_emoji, :remote, shortcode: 'mastodon', domain: 'mastodon.likids.info') }
+    let(:emoji) { create(:custom_emoji, :remote, shortcode: 'mastodon', domain: 'origin.example') }
     let(:service) { instance_double(RemoteEmojiCopyService) }
-    let!(:owner) { create(:actor, :remote, domain: 'mastodon.likids.info', display_name: 'naru :mastodon:') }
+    let!(:owner) { create(:actor, :remote, domain: 'origin.example', display_name: 'alice :mastodon:') }
 
     before do
       allow(RemoteEmojiCopyService).to receive(:new).and_return(service)
@@ -63,8 +63,8 @@ RSpec.describe CacheRemoteEmojiJob do
     end
 
     it 'matches shortcodes containing underscores literally' do
-      underscored = create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'mastodon.likids.info')
-      dancer = create(:actor, :remote, domain: 'mastodon.likids.info', display_name: ':blobcat_dancing:ぬい')
+      underscored = create(:custom_emoji, :remote, shortcode: 'blobcat_dancing', domain: 'origin.example')
+      dancer = create(:actor, :remote, domain: 'origin.example', display_name: ':blobcat_dancing:bob')
       allow(service).to receive(:cache_in_place).and_return({ success: false, error: 'HTTP 410' })
 
       expect { described_class.perform_now(underscored.id) }

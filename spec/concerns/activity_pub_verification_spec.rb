@@ -109,7 +109,7 @@ RSpec.describe ActivityPubVerification, type: :controller do
 
     it 'accepts a litepub context (Pleroma/Akkoma) without warning' do
       allow(Rails.logger).to receive(:warn)
-      assign_context(['https://waf.moe/contexts/litepub-0.1.jsonld'])
+      assign_context(['https://pleroma.example/contexts/litepub-0.1.jsonld'])
       controller.send(:check_json_ld_context)
       expect(Rails.logger).not_to have_received(:warn)
     end

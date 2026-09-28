@@ -7,11 +7,11 @@ RSpec.describe EmojiPresenter do
   # 同名の別サーバ版(選ばれてはいけない側)
   before { create(:custom_emoji, :remote, shortcode: 'blobcat', domain: 'other.example') }
 
-  let!(:own) { create(:custom_emoji, :remote, shortcode: 'blobcat', domain: 'mattyaski.co') }
+  let!(:own) { create(:custom_emoji, :remote, shortcode: 'blobcat', domain: 'own.example') }
 
   describe '#to_html' do
     it '指定ドメインの版で描画する' do
-      html = described_class.present_with_emojis(':blobcat:', domain: 'mattyaski.co')
+      html = described_class.present_with_emojis(':blobcat:', domain: 'own.example')
 
       expect(html).to include(%(src="#{own.image_url}"))
     end
@@ -20,7 +20,7 @@ RSpec.describe EmojiPresenter do
       local = build(:custom_emoji, :local, shortcode: 'blobcat')
       local.image.attach(io: StringIO.new('dummy'), filename: 'blobcat.png', content_type: 'image/png')
       local.save!
-      html = described_class.present_with_emojis(':blobcat:', domain: 'mattyaski.co')
+      html = described_class.present_with_emojis(':blobcat:', domain: 'own.example')
 
       expect(html).to include(%(src="#{own.image_url}"))
       expect(html).not_to include(local.url)
@@ -35,7 +35,7 @@ RSpec.describe EmojiPresenter do
 
   describe '#used_emojis' do
     it '指定ドメインの版を返す' do
-      expect(described_class.extract_emojis_from(':blobcat:', domain: 'mattyaski.co')).to eq([own])
+      expect(described_class.extract_emojis_from(':blobcat:', domain: 'own.example')).to eq([own])
     end
   end
 end

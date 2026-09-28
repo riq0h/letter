@@ -18,13 +18,13 @@ RSpec.describe ActivityPubObjectHandlers do
     end
   end
 
-  let(:sender) { create(:actor, :remote, domain: 'mastodon.likids.info', display_name: 'naru :mastodon:') }
-  let(:new_url) { 'https://mastodon.likids.info/system/custom_emojis/images/000/155/469/original/new.png' }
+  let(:sender) { create(:actor, :remote, domain: 'origin.example', display_name: 'alice :mastodon:') }
+  let(:new_url) { 'https://origin.example/emoji/new.png' }
   let(:object_data) do
     {
       'id' => sender.ap_id,
       'type' => 'Person',
-      'name' => 'naru :mastodon:',
+      'name' => 'alice :mastodon:',
       'tag' => [{ 'type' => 'Emoji', 'name' => ':mastodon:', 'icon' => { 'type' => 'Image', 'url' => new_url } }]
     }
   end
@@ -36,8 +36,8 @@ RSpec.describe ActivityPubObjectHandlers do
   end
 
   it 'updates the stale image URL of a profile emoji' do
-    emoji = create(:custom_emoji, :remote, shortcode: 'mastodon', domain: 'mastodon.likids.info',
-                                           image_url: 'https://mastodon.likids.info/old.png')
+    emoji = create(:custom_emoji, :remote, shortcode: 'mastodon', domain: 'origin.example',
+                                           image_url: 'https://origin.example/emoji/old.png')
 
     harness_class.new(sender).run(object_data)
 
@@ -47,6 +47,6 @@ RSpec.describe ActivityPubObjectHandlers do
   it 'creates a profile emoji that was unknown' do
     harness_class.new(sender).run(object_data)
 
-    expect(CustomEmoji.find_by(shortcode: 'mastodon', domain: 'mastodon.likids.info')&.image_url).to eq(new_url)
+    expect(CustomEmoji.find_by(shortcode: 'mastodon', domain: 'origin.example')&.image_url).to eq(new_url)
   end
 end
