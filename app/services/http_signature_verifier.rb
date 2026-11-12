@@ -9,6 +9,7 @@ class HttpSignatureVerifier
   include ActorIdentityResolver
   include SsrfProtection
   include Rfc9421SignatureVerification
+  include SignatureTimeWindow
 
   attr_reader :method, :path, :headers, :body
 
@@ -26,14 +27,14 @@ class HttpSignatureVerifier
 
     signature_params = parse_signature_header
     return false unless signature_params
-    return false unless validate_date_header
+    return false unless validate_date_header(signature_params)
     return false unless verify_digest_header
 
     # 初回署名検証試行
     public_key = fetch_actor_public_key(actor_uri)
     return false unless public_key
 
-    signing_string = build_signing_string(signature_params['headers'])
+    signing_string = build_signing_string(signature_params['headers'], signature_params)
 
     result = verify_signature(
       signature: signature_params['signature'],
@@ -51,6 +52,7 @@ class HttpSignatureVerifier
       )
     end
 
+    Rails.logger.warn "🔐 Signature mismatch (headers: #{signature_params['headers']})" unless result
     result
   rescue StandardError => e
     Rails.logger.error "Signature verification failed: #{e.message}"
@@ -65,17 +67,20 @@ class HttpSignatureVerifier
     actor.created_at < 24.hours.ago
   end
 
-  def validate_date_header
-    date_header = find_header_value('date')
-    return true unless date_header
+  # 署名の有効期間(Mastodonと同じ規則をやや寛容な数値で、SignatureTimeWindow参照)。
+  # hs2019で(created)/(expires)パラメータがあればそれを、無ければDateヘッダを作成時刻とする
+  def validate_date_header(signature_params = {})
+    created_at = if signature_params['created'].present?
+                   Time.at(signature_params['created'].to_i).utc
+                 elsif (date_header = find_header_value('date'))
+                   Time.httpdate(date_header).utc
+                 end
+    expires_at = (Time.at(signature_params['expires'].to_i).utc if signature_params['expires'].present?)
 
-    begin
-      request_time = Time.httpdate(date_header)
-      time_diff = (Time.current - request_time).abs
-      time_diff <= 300
-    rescue ArgumentError
-      false
-    end
+    signature_time_window_valid?(created_at, expires_at)
+  rescue ArgumentError
+    Rails.logger.warn "🔐 Signature rejected: invalid Date header #{find_header_value('date').inspect}"
+    false
   end
 
   # Digestヘッダーとリクエストボディの一致を検証（改ざん防止）
@@ -110,8 +115,9 @@ class HttpSignatureVerifier
     params = {}
 
     # keyId="...",algorithm="...",headers="...",signature="..."
-    signature_header.scan(/(\w+)="([^"]*)"/) do |key, value|
-      params[key] = value
+    # hs2019の created / expires は引用符なしの整数(created=1402170695)
+    signature_header.scan(/(\w+)=(?:"([^"]*)"|(\d+))/) do |key, quoted, number|
+      params[key] = quoted || number
     end
 
     required_params = %w[keyId algorithm headers signature]
@@ -223,7 +229,8 @@ class HttpSignatureVerifier
   end
 
   # 署名文字列構築
-  def build_signing_string(headers_list)
+  def build_signing_string(headers_list, signature_params = {})
+    @signature_params = signature_params
     header_names = headers_list.split
     signature_parts = build_signature_parts(header_names)
     signature_parts.join("\n")
@@ -259,6 +266,9 @@ class HttpSignatureVerifier
     normalized_name = header_name.downcase
     if normalized_name == '(request-target)'
       build_request_target_header
+    elsif %w[(created) (expires)].include?(normalized_name)
+      # hs2019の疑似ヘッダ: 署名パラメータの値をそのまま使う
+      "#{normalized_name}: #{@signature_params.to_h[normalized_name.delete('()')]}"
     elsif standard_headers.key?(normalized_name)
       build_standard_header(normalized_name)
     else

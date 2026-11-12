@@ -9,10 +9,8 @@
 # - アルゴリズム: rsa-v1_5-sha256(alg省略時もRSA扱い) と ed25519(FEP-521a鍵)
 # - 導出コンポーネント: @method / @target-uri / @authority / @path / @request-target
 # - Content-Digest (RFC9530): sha-256 / sha-512
-# - created(±許容窓)とexpiresの検証
+# - created/expiresの検証(SignatureTimeWindow: Mastodonと同じ規則をやや寛容な数値で)
 module Rfc9421SignatureVerification
-  CREATED_SKEW_SECONDS = 3600 # 配送リトライ(再署名なしの再送)も考慮した許容窓
-
   # Signature-Inputヘッダを持つリクエストはRFC9421形式
   def rfc9421_request?
     find_header_value('signature-input').present?
@@ -20,13 +18,19 @@ module Rfc9421SignatureVerification
 
   def verify_rfc9421!(actor_uri)
     input = parse_signature_input
-    return false unless input
+    unless input
+      Rails.logger.warn "🔐 RFC9421 rejected: unparsable Signature-Input #{find_header_value('signature-input').to_s[0, 200].inspect}"
+      return false
+    end
     return false unless rfc9421_times_valid?(input)
     return false unless supported_rfc9421_alg?(input)
     return false unless verify_content_digest
 
     signature = extract_rfc9421_signature(input[:label])
-    return false unless signature
+    unless signature
+      Rails.logger.warn "🔐 RFC9421 rejected: no signature for label #{input[:label].inspect}"
+      return false
+    end
 
     public_key = fetch_actor_public_key(actor_uri)
     return false unless public_key
@@ -40,6 +44,7 @@ module Rfc9421SignatureVerification
       result = verify_signature(signature: signature, signing_string: base, public_key: public_key)
     end
 
+    Rails.logger.warn "🔐 RFC9421 signature mismatch (components: #{input[:components].join(' ')})" unless result
     result
   rescue StandardError => e
     Rails.logger.error "RFC9421 signature verification failed: #{e.message}"
@@ -79,11 +84,9 @@ module Rfc9421SignatureVerification
   end
 
   def rfc9421_times_valid?(input)
-    now = Time.current.to_i
-    return false if input[:created] && (now - input[:created]).abs > CREATED_SKEW_SECONDS
-    return false if input[:expires] && now > input[:expires]
-
-    true
+    created_at = (Time.at(input[:created]).utc if input[:created])
+    expires_at = (Time.at(input[:expires]).utc if input[:expires])
+    signature_time_window_valid?(created_at, expires_at)
   end
 
   def supported_rfc9421_alg?(input)
