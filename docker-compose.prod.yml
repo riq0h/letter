@@ -1,10 +1,9 @@
 # 本番環境用のDocker Compose設定
-# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
-
-version: '3.8'
+# 使用方法: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
   web:
+    restart: unless-stopped
     build:
       target: runner
     image: letter:prod
@@ -49,11 +48,6 @@ services:
         reservations:
           cpus: '2'
           memory: 2G
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 60s
     
     # 本番環境用ヘルスチェック
     healthcheck:
