@@ -6,8 +6,9 @@ class FeedsController < ApplicationController
   # ユーザ個別のRSSフィード
   def user
     @actor = Actor.local.find_by!(username: params[:username])
+    # 公開・未収載のみ(フォロワー限定・DMを公開フィードに載せない)
     @posts = @actor.objects
-                   .where(object_type: 'Note')
+                   .where(object_type: 'Note', visibility: %w[public unlisted])
                    .where.not(published_at: nil)
                    .includes(:actor, :media_attachments)
                    .order(published_at: :desc)
@@ -18,11 +19,11 @@ class FeedsController < ApplicationController
     end
   end
 
-  # ローカルタイムラインのAtomフィード
+  # ローカルタイムラインのAtomフィード(公開タイムラインと同じく公開投稿のみ)
   def local
     @posts = ActivityPubObject.joins(:actor)
                               .where(actors: { domain: nil })
-                              .where(object_type: 'Note')
+                              .where(object_type: 'Note', visibility: 'public')
                               .where.not(published_at: nil)
                               .includes(:actor, :media_attachments)
                               .order(published_at: :desc)

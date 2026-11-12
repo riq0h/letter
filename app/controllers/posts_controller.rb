@@ -57,7 +57,8 @@ class PostsController < ApplicationController
     object = ActivityPubObject.where(actor: actor)
                               .where(local: true)
                               .find_by(id: id)
-    unless object
+    # 非公開投稿は存在を明かさず404(認証なしの取得は公開・未収載のみ)
+    unless object&.publicly_accessible?
       render json: { error: 'Object not found' }, status: :not_found
       return
     end
@@ -112,7 +113,21 @@ class PostsController < ApplicationController
     return unless actor
 
     @post = find_post(actor, id_param)
-    render_not_found unless @post
+    render_not_found unless @post && viewable_post?(@post)
+  end
+
+  # 公開・未収載は誰でも閲覧可。フォロワー限定・DMは投稿者本人のログイン時のみ(Webページのみ)。
+  # 埋め込みは公開キャッシュされるため本人であっても非公開投稿は出さない
+  def viewable_post?(post)
+    return true if post.publicly_accessible?
+    return false if action_name == 'embed'
+
+    if current_user.present? && current_user == post.actor
+      response.headers['Cache-Control'] = 'private, no-store'
+      return true
+    end
+
+    false
   end
 
   def find_actor(username)

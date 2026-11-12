@@ -20,16 +20,20 @@ class ObjectsController < ApplicationController
   private
 
   def set_object
-    # ap_id の末尾部分（nanoid）から Object を検索
-    id_param = params[:id]
+    # URLのユーザ名の投稿者が書いた、このサーバのオブジェクトのみを返す。
+    # (以前はIDだけで検索しており、受信した他サーバの投稿まで返していた)
+    actor = Actor.local.find_by(username: params[:username])
+    scope = ActivityPubObject.where(actor: actor, local: true)
+    id_param = params[:id].to_s
 
-    # まず直接IDで検索を試行
-    @object = ActivityPubObject.find_by(id: id_param) if id_param.match?(/^\d+$/)
+    @object = if id_param.match?(/^\d+$/)
+                scope.find_by(id: id_param)
+              else
+                scope.find_by('ap_id LIKE ?', "%/posts/#{ActiveRecord::Base.sanitize_sql_like(id_param)}")
+              end
 
-    # 見つからない場合は ap_id のパターンで検索
-    @object = ActivityPubObject.find_by('ap_id LIKE ?', "%/posts/#{ActiveRecord::Base.sanitize_sql_like(id_param)}") unless defined?(@object)
-
-    return if @object
+    # 非公開投稿(フォロワー限定・DM)は存在を明かさず404
+    return if actor && @object&.publicly_accessible?
 
     render json: { error: 'Object not found' }, status: :not_found
   end

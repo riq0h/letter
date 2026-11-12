@@ -95,6 +95,12 @@ class ActivityPubObject < ApplicationRecord
     visibility == 'public'
   end
 
+  # 認証なしで閲覧・取得させてよい投稿か(Webページ・埋め込み・ActivityPub取得・フィード)。
+  # フォロワー限定(private)とDM(direct)は含めない
+  def publicly_accessible?
+    %w[public unlisted].include?(visibility)
+  end
+
   def unlisted?
     visibility == 'unlisted'
   end
