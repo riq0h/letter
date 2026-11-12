@@ -80,4 +80,17 @@ RSpec.describe Api::V1::InstanceController, type: :controller do
       expect(response.parsed_body).to include('content' => be_a(String), 'updated_at' => be_present)
     end
   end
+
+  describe 'GET #show stats' do
+    it 'counts only local statuses (Mastodon semantics)' do
+      Rails.cache.clear
+      local = create(:actor, local: true)
+      create(:activity_pub_object, :note, actor: local, local: true)
+      create(:activity_pub_object, :note, :remote, actor: create(:actor, :remote))
+
+      get :show
+
+      expect(response.parsed_body.dig('stats', 'status_count')).to eq(1)
+    end
+  end
 end

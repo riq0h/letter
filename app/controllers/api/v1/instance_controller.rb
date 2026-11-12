@@ -88,7 +88,9 @@ module Api
           },
           stats: {
             user_count: Actor.where(local: true).count,
-            status_count: ActivityPubObject.where(object_type: 'Note').count,
+            # Mastodonの定義どおりローカル投稿数(以前は受信分を含む全Note=100万件超を
+            # キャッシュ切れのたびに数え、8〜12秒かかっていた)
+            status_count: ActivityPubObject.where(local: true, object_type: 'Note').count,
             domain_count: Actor.where(local: false).distinct.count(:domain)
           },
           languages: %w[ja en],
