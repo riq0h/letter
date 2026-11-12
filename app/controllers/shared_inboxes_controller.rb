@@ -2,6 +2,7 @@
 
 class SharedInboxesController < ApplicationController
   include ActivityPubVerification
+  include ForwardedActivityHandling
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
   include ActivityPubFollowHandlers
@@ -24,6 +25,8 @@ class SharedInboxesController < ApplicationController
   before_action :check_if_relay_activity
 
   def create
+    return handle_forwarded_activity if forwarded_activity?
+
     if @is_relay_activity
       handle_relay_activity
     else
@@ -209,6 +212,15 @@ class SharedInboxesController < ApplicationController
 
     # リレー状態管理のみ行って、処理は既存フローに任せる
     @relay.update!(state: 'accepted', last_error: nil) if @relay.pending?
+
+    # リレーが他人の投稿を中継してきた場合、本文はリレーの署名しか無く作者本人のものと
+    # 確認できないため、元のサーバから取り直して取り込む(転送と同じ扱い)
+    object_uri = ActivityPubOrigin.value_or_id(@activity['object'])
+    actor_uri = ActivityPubOrigin.value_or_id(@activity['actor'])
+    if actor_uri != @relay.actor_uri && object_uri && actor_uri
+      FetchForwardedObjectJob.perform_later(object_uri, actor_uri, @relay.id)
+      return head :accepted
+    end
 
     # リレー情報を保持したまま通常処理へ
     @preserve_relay_info = @relay

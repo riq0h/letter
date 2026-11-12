@@ -53,9 +53,10 @@ RSpec.describe ActivityPubVerification, type: :controller do
         allow(verifier).to receive(:verify!).with(forwarder_uri).and_return(true)
       end
 
-      it 'accepts the forwarded activity' do
+      it 'verifies only the forwarder and marks the activity as forwarded (not as the actor itself)' do
         expect { controller.send(:verify_signature) }.not_to raise_error
         expect(verifier).to have_received(:verify!).with(forwarder_uri)
+        expect(controller.instance_variable_get(:@forwarded_by)).to eq(forwarder_uri)
       end
     end
 

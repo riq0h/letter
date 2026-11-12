@@ -121,6 +121,7 @@ module ActivityPubVerification
     perform_signature_verification(verify_actor_uri)
   end
 
+  # 転送者の署名だけを検証する。actor本人の名義での処理はしない(ForwardedActivityHandling参照)
   def verify_forwarded_activity(forwarder_uri, original_actor_uri)
     Rails.logger.info "🔀 Forwarded activity: signed by #{forwarder_uri}, actor is #{original_actor_uri}"
 
@@ -132,7 +133,7 @@ module ActivityPubVerification
       raise ::ActivityPub::SignatureError, 'Forwarded activity signature verification failed'
     end
 
-    Rails.logger.info "✅ Forwarded activity accepted: #{forwarder_uri} vouching for #{original_actor_uri}"
+    @forwarded_by = forwarder_uri
   end
 
   def perform_signature_verification(verify_actor_uri)
