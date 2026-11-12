@@ -85,6 +85,27 @@ module ActivityPubVerification
     end
   end
 
+  # 未知のアクターが自分自身を対象に送るDelete/Updateは、署名を検証せず受理して捨てる(Mastodonと同じ)。
+  # 削除済みアカウントの「アカウント削除」通知は鍵を取得できず(410など)検証に失敗するが、
+  # 401を返すと送信元は一時的な失敗とみなして何度も再送し、そのたびに鍵の取得が走る。
+  # 知らないアカウントには削除・更新する対象がないので、取りこぼしは生じない
+  def skip_unknown_actor_activity
+    return unless unknown_affected_actor?
+
+    Rails.logger.info "⏭️ Skipped #{@activity['type']} from unknown actor: #{@activity['actor']}"
+    head :accepted
+  end
+
+  def unknown_affected_actor?
+    return false unless %w[Delete Update].include?(@activity['type'])
+
+    actor_uri = ActivityPubOrigin.value_or_id(@activity['actor'])
+    return false if actor_uri.blank?
+    return false unless actor_uri == ActivityPubOrigin.value_or_id(@activity['object'])
+
+    !Actor.exists?(ap_id: actor_uri)
+  end
+
   # HTTP Signature検証
   def verify_http_signature
     signature_header = request.headers['Signature']

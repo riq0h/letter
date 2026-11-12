@@ -19,6 +19,7 @@ class SharedInboxesController < ApplicationController
   # Content-Type検証
   before_action :verify_content_type
   before_action :parse_activity_json
+  before_action :skip_unknown_actor_activity
   before_action :verify_http_signature
   before_action :find_or_create_sender
   before_action :find_target_actor
