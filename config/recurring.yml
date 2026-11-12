@@ -4,3 +4,10 @@ production:
     class: TrimHomeFeedJob
     queue: default
     schedule: at 4am every day
+
+  # 期限切れのリモートメディアキャッシュ(R2)と孤児blobの削除。
+  # 1回の削除件数に上限があるため、溜まっている分は数日かけて段階的に減る
+  cache_cleanup:
+    class: CacheCleanupJob
+    queue: low_priority
+    schedule: every 6 hours

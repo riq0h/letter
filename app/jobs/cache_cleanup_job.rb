@@ -4,6 +4,10 @@
 class CacheCleanupJob < ApplicationJob
   queue_as :low_priority
 
+  # 1回あたりのリモートメディア削除件数の上限(R2削除とDB更新を1回に集中させない)。
+  # config/recurring.yml で6時間ごとに実行
+  MAX_MEDIA_PURGE_PER_RUN = 5_000
+
   def perform
     cleanup_expired_cache_files
     cleanup_cached_remote_media
@@ -42,6 +46,7 @@ class CacheCleanupJob < ApplicationJob
   def cleanup_cached_remote_media
     stale = MediaAttachment.where(processing_status: 'cached')
                            .where(updated_at: ...RemoteImageCacheService::CACHE_DURATION.ago)
+                           .limit(MAX_MEDIA_PURGE_PER_RUN)
 
     expired_count = 0
     stale.find_each do |media|

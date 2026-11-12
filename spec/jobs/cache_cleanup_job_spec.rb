@@ -56,4 +56,22 @@ RSpec.describe CacheCleanupJob do
       expect(ActiveStorage::Blob.exists?(blob.id)).to be true
     end
   end
+
+  describe '#cleanup_cached_remote_media' do
+    it 'purges at most MAX_MEDIA_PURGE_PER_RUN expired cached media per run' do
+      stub_const("#{described_class}::MAX_MEDIA_PURGE_PER_RUN", 2)
+      media = create_list(:media_attachment, 3, processing_status: 'cached')
+      MediaAttachment.where(id: media.map(&:id)).update_all(updated_at: 8.days.ago)
+
+      described_class.new.send(:cleanup_cached_remote_media)
+
+      expect(MediaAttachment.where(id: media.map(&:id), processing_status: 'pending').count).to eq(2)
+    end
+  end
+
+  it 'is scheduled as a recurring task in production' do
+    recurring = YAML.load_file(Rails.root.join('config/recurring.yml'), aliases: true)
+
+    expect(recurring.dig('production', 'cache_cleanup', 'class')).to eq('CacheCleanupJob')
+  end
 end
