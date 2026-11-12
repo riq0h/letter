@@ -152,6 +152,7 @@ module Search
 
     def create_remote_object(data, is_pinned_only: false)
       return nil unless %w[Note Question].include?(data['type'])
+      return nil unless origin_consistent?(data)
 
       actor = resolve_actor_for_object(data)
       return nil unless actor
@@ -167,8 +168,18 @@ module Search
       nil
     end
 
+    # 投稿のidと作者(attributedTo)が同じホストにあることを確認する。
+    # 他サーバの人の名義をかたった文書を、その人の投稿として保存しないため
+    def origin_consistent?(data)
+      author = ActivityPubOrigin.value_or_id(data['attributedTo'])
+      return true if author && ActivityPubOrigin.same_host?(data['id'], author)
+
+      Rails.logger.warn "🛡️ Rejected object whose author is on another host: #{data['id']} (attributedTo #{author.inspect})"
+      false
+    end
+
     def resolve_actor_for_object(data)
-      actor_uri = data['attributedTo']
+      actor_uri = ActivityPubOrigin.value_or_id(data['attributedTo'])
       actor = Actor.find_by(ap_id: actor_uri)
 
       unless actor

@@ -26,7 +26,7 @@ RSpec.describe ActorFetcher do
     before do
       # テスト用ドメインは名前解決できずSSRFチェックで弾かれるため無効化
       allow(fetcher).to receive(:validate_url_for_ssrf!).and_return(true)
-      allow(ActivityPubHttpClient).to receive(:fetch_object).with(actor.ap_id).and_return(actor_data)
+      allow(ActivityPubHttpClient).to receive(:fetch_verified).with(actor.ap_id).and_return(actor_data)
       # 画像の実ダウンロードは行わない
       allow(fetcher).to receive(:reattach_remote_images)
     end
@@ -49,7 +49,7 @@ RSpec.describe ActorFetcher do
     end
 
     it 'returns nil without raising when the fetch fails' do
-      allow(ActivityPubHttpClient).to receive(:fetch_object).and_return(nil)
+      allow(ActivityPubHttpClient).to receive(:fetch_verified).and_return(nil)
 
       expect { fetcher.refresh(actor) }.not_to raise_error
       expect(fetcher.refresh(actor)).to be_nil

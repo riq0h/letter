@@ -35,6 +35,9 @@ class CreateActivityOrganizer
     object_data = @activity['object']
 
     return failure('Invalid object in Create activity') unless valid_create_object?(object_data)
+    # 投稿のidは送信者と同じホストでなければならない(他サーバのidを先取り・かたる投稿の排除。
+    # Mastodonも同じ確認をしている)
+    return failure('Object id is not on the sender host') unless object_on_sender_host?(object_data)
     return success(nil) if handle_existing_object?(object_data)
 
     # Voteオブジェクトは特別処理
@@ -74,6 +77,13 @@ class CreateActivityOrganizer
 
   def valid_create_object?(object_data)
     object_data.is_a?(Hash)
+  end
+
+  def object_on_sender_host?(object_data)
+    return true if ActivityPubOrigin.same_host?(object_data['id'], @sender&.ap_id)
+
+    Rails.logger.warn "🛡️ Rejected Create: object #{object_data['id']} is not on the host of sender #{@sender&.ap_id}"
+    false
   end
 
   def handle_existing_object?(object_data)

@@ -34,7 +34,7 @@ class ActorFetcher
   end
 
   def fetch_actor_data(actor_uri)
-    actor_data = ActivityPubHttpClient.fetch_object(actor_uri)
+    actor_data = ActivityPubHttpClient.fetch_verified(actor_uri)
     raise ActivityPub::ActorFetchError, "Failed to fetch actor: #{actor_uri}" unless actor_data
 
     validate_actor_data(actor_data, actor_uri)

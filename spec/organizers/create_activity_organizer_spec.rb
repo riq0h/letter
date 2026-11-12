@@ -5,7 +5,8 @@ require 'rails_helper'
 RSpec.describe CreateActivityOrganizer do
   include ActiveJob::TestHelper
 
-  let(:sender) { create(:actor, :remote) }
+  # 投稿のidは送信者と同じホストでなければ受理されないため、送信者をexample.comに置く
+  let(:sender) { create(:actor, :remote, domain: 'example.com', ap_id: 'https://example.com/users/sender') }
   let(:activity) do
     {
       'type' => 'Create',
@@ -34,6 +35,16 @@ RSpec.describe CreateActivityOrganizer do
 
       expect(result).to be_failure
       expect(result.error).to eq('Invalid object in Create activity')
+    end
+
+    it 'rejects an object whose id is on another host than the sender' do
+      foreign = activity.deep_dup
+      foreign['object']['id'] = 'https://victim.example/notes/1'
+
+      result = described_class.call(foreign, sender)
+
+      expect(result).to be_failure
+      expect(ActivityPubObject.exists?(ap_id: 'https://victim.example/notes/1')).to be false
     end
 
     it 'handles existing objects gracefully' do
@@ -71,7 +82,7 @@ RSpec.describe CreateActivityOrganizer do
       vote_activity = {
         'type' => 'Create',
         'object' => {
-          'id' => 'https://remote.example.com/notes/vote1',
+          'id' => 'https://example.com/notes/vote1',
           'type' => 'Note',
           'name' => 'Option 1',
           'inReplyTo' => 'https://letter.test/posts/poll1',
@@ -98,7 +109,7 @@ RSpec.describe CreateActivityOrganizer do
       vote_activity = {
         'type' => 'Create',
         'object' => {
-          'id' => 'https://remote.example.com/notes/vote2',
+          'id' => 'https://example.com/notes/vote2',
           'type' => 'Note',
           'name' => 'Option 2',
           'inReplyTo' => 'https://letter.test/posts/poll2',

@@ -15,6 +15,32 @@ class ActivityPubHttpClient
     new.fetch_object(uri, timeout: timeout)
   end
 
+  def self.fetch_verified(uri, timeout: DEFAULT_TIMEOUT, signing_actor: nil)
+    new.fetch_verified(uri, timeout: timeout, signing_actor: signing_actor)
+  end
+
+  # 識別子を検証して取得する(投稿・アクターなど、名義が問題になる文書はこちらを使う)。
+  # 文書のidが、実際に応答したURL(リダイレクト後)と一致する場合だけ返す。一致しなければ、
+  # 文書が名乗るidをリダイレクトなしで取り直し、そのURL自身が同じidを返すことを確認する。
+  # (他ホストへのリダイレクトや、他人のidを名乗る文書で名義をかたる攻撃への対策。
+  #  Mastodon GHSA-288h-6j8h-6x5j と同じ考え方)
+  def fetch_verified(uri, timeout: DEFAULT_TIMEOUT, signing_actor: nil)
+    json = fetch_object(uri, timeout: timeout, signing_actor: signing_actor)
+    return nil unless json.is_a?(Hash) && json['id'].is_a?(String)
+    return json if json['id'] == uri && @final_uri == uri
+
+    canonical = json['id']
+    @follow_redirects = false
+    @final_uri = nil
+    json = fetch_object(canonical, timeout: timeout, signing_actor: signing_actor)
+    return json if json.is_a?(Hash) && json['id'] == canonical && @final_uri == canonical
+
+    Rails.logger.warn "🛡️ Rejected ActivityPub document with unverifiable id: requested #{uri}, claims #{canonical}"
+    nil
+  ensure
+    @follow_redirects = true
+  end
+
   def fetch_object(uri, timeout: DEFAULT_TIMEOUT, signing_actor: nil)
     return nil unless validate_url_for_ssrf!(uri)
     # HTTP署名が明示的に指定されている場合は署名付きで送信
@@ -72,13 +98,21 @@ class ActivityPubHttpClient
     )
 
     if [301, 302, 307, 308].include?(response.code) && response.headers['location']
+      return response unless follow_redirects?
+
       redirect_uri = response.headers['location']
       return nil unless validate_url_for_ssrf!(redirect_uri)
 
       attempt_unsigned_request(redirect_uri, timeout, redirect_depth: redirect_depth + 1)
     else
+      @final_uri = uri
       response
     end
+  end
+
+  # fetch_verified の取り直し中はリダイレクトを追わない
+  def follow_redirects?
+    @follow_redirects != false
   end
 
   # 署名要求のハンドリング
@@ -170,6 +204,8 @@ class ActivityPubHttpClient
 
     # リダイレクトの場合はLocationヘッダーで再試行
     if [301, 302, 307, 308].include?(response.code) && response.headers['location']
+      return nil unless follow_redirects?
+
       redirect_uri = response.headers['location']
       Rails.logger.info "🔀 Following redirect to: #{redirect_uri}"
       return fetch_with_signature(redirect_uri, signing_actor, timeout, redirect_depth: redirect_depth + 1)
@@ -177,6 +213,7 @@ class ActivityPubHttpClient
 
     return nil unless response.success?
 
+    @final_uri = uri
     JSON.parse(response.body)
   rescue StandardError => e
     Rails.logger.error "❌ Failed to fetch signed ActivityPub object #{uri}: #{e.message}"

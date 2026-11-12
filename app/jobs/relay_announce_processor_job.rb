@@ -41,8 +41,10 @@ class RelayAnnounceProcessorJob < ApplicationJob
 
   def process_note_object(note_data)
     # 投稿者のアクター情報を取得
-    actor_id = note_data['attributedTo'] || note_data['actor']
+    actor_id = ActivityPubOrigin.value_or_id(note_data['attributedTo'] || note_data['actor'])
     return unless actor_id
+    # 投稿のidと作者が同じホストのものだけ取り込む(名義をかたる文書の排除)
+    return unless ActivityPubOrigin.same_host?(note_data['id'], actor_id)
 
     actor_data = fetch_activitypub_object(actor_id)
     return unless actor_data
@@ -73,6 +75,8 @@ class RelayAnnounceProcessorJob < ApplicationJob
       object_data = fetch_activitypub_object(object_data)
       return unless object_data
     end
+    # 投稿のidがアクターと同じホストのものだけ取り込む(名義をかたる文書の排除)
+    return unless ActivityPubOrigin.same_host?(object_data['id'], actor.ap_id)
 
     create_activity_pub_object(object_data, actor)
   end

@@ -89,7 +89,8 @@ class BackfillRepliesJob < ApplicationJob
     threads = uris.map do |uri|
       Thread.new do
         Thread.current.report_on_exception = false
-        ActivityPubHttpClient.fetch_object(uri, timeout: 4)
+        # 個々の投稿は名義を検証して取得する(idと取得元の一致)
+        ActivityPubHttpClient.fetch_verified(uri, timeout: 4)
       end
     end
 

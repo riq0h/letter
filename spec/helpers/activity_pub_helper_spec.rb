@@ -9,14 +9,14 @@ RSpec.describe ActivityPubHelper, type: :helper do
     let(:mock_response) { { 'type' => 'Person', 'id' => uri } }
 
     before do
-      allow(ActivityPubHttpClient).to receive(:fetch_object).and_return(mock_response)
+      allow(ActivityPubHttpClient).to receive(:fetch_verified).and_return(mock_response)
     end
 
-    it 'delegates to ActivityPubHttpClient.fetch_object' do
-      allow(ActivityPubHttpClient).to receive(:fetch_object).with(uri)
+    it 'delegates to ActivityPubHttpClient.fetch_verified' do
+      allow(ActivityPubHttpClient).to receive(:fetch_verified).with(uri)
 
       helper.fetch_activitypub_object(uri)
-      expect(ActivityPubHttpClient).to have_received(:fetch_object).with(uri)
+      expect(ActivityPubHttpClient).to have_received(:fetch_verified).with(uri)
     end
 
     it 'returns the response from ActivityPubHttpClient' do
@@ -28,38 +28,38 @@ RSpec.describe ActivityPubHelper, type: :helper do
     context 'with different URI formats' do
       it 'handles actor URIs' do
         actor_uri = 'https://mastodon.social/users/username'
-        allow(ActivityPubHttpClient).to receive(:fetch_object).with(actor_uri)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).with(actor_uri)
 
         helper.fetch_activitypub_object(actor_uri)
-        expect(ActivityPubHttpClient).to have_received(:fetch_object).with(actor_uri)
+        expect(ActivityPubHttpClient).to have_received(:fetch_verified).with(actor_uri)
       end
 
       it 'handles object URIs' do
         object_uri = 'https://mastodon.social/users/username/statuses/123456'
-        allow(ActivityPubHttpClient).to receive(:fetch_object).with(object_uri)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).with(object_uri)
 
         helper.fetch_activitypub_object(object_uri)
-        expect(ActivityPubHttpClient).to have_received(:fetch_object).with(object_uri)
+        expect(ActivityPubHttpClient).to have_received(:fetch_verified).with(object_uri)
       end
 
       it 'handles activity URIs' do
         activity_uri = 'https://example.com/activities/abc123'
-        allow(ActivityPubHttpClient).to receive(:fetch_object).with(activity_uri)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).with(activity_uri)
 
         helper.fetch_activitypub_object(activity_uri)
-        expect(ActivityPubHttpClient).to have_received(:fetch_object).with(activity_uri)
+        expect(ActivityPubHttpClient).to have_received(:fetch_verified).with(activity_uri)
       end
     end
 
     context 'when ActivityPubHttpClient raises an error' do
       it 'propagates network errors' do
-        allow(ActivityPubHttpClient).to receive(:fetch_object).and_raise(Timeout::Error)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).and_raise(Timeout::Error)
 
         expect { helper.fetch_activitypub_object(uri) }.to raise_error(Timeout::Error)
       end
 
       it 'propagates HTTP errors' do
-        allow(ActivityPubHttpClient).to receive(:fetch_object).and_raise(StandardError, 'HTTP 404')
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).and_raise(StandardError, 'HTTP 404')
 
         expect { helper.fetch_activitypub_object(uri) }.to raise_error(StandardError, 'HTTP 404')
       end
@@ -67,17 +67,17 @@ RSpec.describe ActivityPubHelper, type: :helper do
 
     context 'with nil or empty URI' do
       it 'passes nil URI to client' do
-        allow(ActivityPubHttpClient).to receive(:fetch_object).with(nil)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).with(nil)
 
         helper.fetch_activitypub_object(nil)
-        expect(ActivityPubHttpClient).to have_received(:fetch_object).with(nil)
+        expect(ActivityPubHttpClient).to have_received(:fetch_verified).with(nil)
       end
 
       it 'passes empty string to client' do
-        allow(ActivityPubHttpClient).to receive(:fetch_object).with('')
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).with('')
 
         helper.fetch_activitypub_object('')
-        expect(ActivityPubHttpClient).to have_received(:fetch_object).with('')
+        expect(ActivityPubHttpClient).to have_received(:fetch_verified).with('')
       end
     end
 
@@ -89,7 +89,7 @@ RSpec.describe ActivityPubHelper, type: :helper do
           'preferredUsername' => 'alice',
           'inbox' => 'https://example.com/users/alice/inbox'
         }
-        allow(ActivityPubHttpClient).to receive(:fetch_object).and_return(person_response)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).and_return(person_response)
 
         result = helper.fetch_activitypub_object(uri)
         expect(result['type']).to eq('Person')
@@ -103,7 +103,7 @@ RSpec.describe ActivityPubHelper, type: :helper do
           'content' => 'Hello, world!',
           'attributedTo' => 'https://example.com/users/alice'
         }
-        allow(ActivityPubHttpClient).to receive(:fetch_object).and_return(note_response)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).and_return(note_response)
 
         result = helper.fetch_activitypub_object(uri)
         expect(result['type']).to eq('Note')
@@ -117,7 +117,7 @@ RSpec.describe ActivityPubHelper, type: :helper do
           'actor' => 'https://example.com/users/alice',
           'object' => 'https://example.com/notes/123'
         }
-        allow(ActivityPubHttpClient).to receive(:fetch_object).and_return(activity_response)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).and_return(activity_response)
 
         result = helper.fetch_activitypub_object(uri)
         expect(result['type']).to eq('Create')
@@ -125,14 +125,14 @@ RSpec.describe ActivityPubHelper, type: :helper do
       end
 
       it 'handles nil responses' do
-        allow(ActivityPubHttpClient).to receive(:fetch_object).and_return(nil)
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).and_return(nil)
 
         result = helper.fetch_activitypub_object(uri)
         expect(result).to be_nil
       end
 
       it 'handles empty hash responses' do
-        allow(ActivityPubHttpClient).to receive(:fetch_object).and_return({})
+        allow(ActivityPubHttpClient).to receive(:fetch_verified).and_return({})
 
         result = helper.fetch_activitypub_object(uri)
         expect(result).to eq({})

@@ -70,7 +70,8 @@ RSpec.describe BackfillRepliesJob do
       reply_json = { 'id' => 'https://remote.example.com/notes/31', 'type' => 'Note' }
       allow(ActivityPubHttpClient).to receive(:fetch_object)
         .with('https://remote.example.com/contexts/q', timeout: 4).and_return(collection)
-      allow(ActivityPubHttpClient).to receive(:fetch_object)
+      # 個々の投稿は名義を検証して取得する
+      allow(ActivityPubHttpClient).to receive(:fetch_verified)
         .with('https://remote.example.com/notes/31', timeout: 4).and_return(reply_json)
       resolver = Search::RemoteResolverService.new
       allow(Search::RemoteResolverService).to receive(:new).and_return(resolver)
