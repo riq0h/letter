@@ -11,6 +11,7 @@ class InstanceConfig < ApplicationRecord
     blog_footer
     background_color
     timeline_limit_floor
+    media_cache_retention_days
   ].freeze
 
   validates :config_key, presence: true, inclusion: { in: ALLOWED_KEYS }
@@ -27,8 +28,20 @@ class InstanceConfig < ApplicationRecord
     'background_color' => '#ffffff',
     # タイムラインAPIのlimit下限(認証ユーザのみ)。Moshidon等limit=20固定の
     # クライアントでも1回の読み込み件数をこの値まで引き上げる。0で無効
-    'timeline_limit_floor' => '0'
+    'timeline_limit_floor' => '0',
+    # 受信したリモートメディアのキャッシュ(R2)を保持する日数。過ぎたものはCacheCleanupJobが削除し、
+    # 以後は元サーバのURLで表示する。Mastodonの`tootctl media remove`既定(7日)よりやや寛容に
+    'media_cache_retention_days' => '14'
   }.freeze
+
+  MEDIA_CACHE_RETENTION_RANGE = (1..365)
+
+  # リモートメディアキャッシュの保持期間(不正値は範囲内に丸める)
+  def self.media_cache_retention_period
+    days = get('media_cache_retention_days').to_i
+    days = DEFAULTS['media_cache_retention_days'].to_i unless days.positive?
+    days.clamp(MEDIA_CACHE_RETENTION_RANGE).days
+  end
 
   # 設定値を取得するクラスメソッド
   def self.get(key)
