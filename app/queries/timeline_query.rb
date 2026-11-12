@@ -30,8 +30,9 @@ class TimelineQuery
     end
 
     statuses = apply_pagination_filters(statuses).limit(limit * 2)
+    statuses = apply_requested_filters(statuses.to_a)
 
-    reblogs = fetch_reblogs(followed_ids)
+    reblogs = filter?(:exclude_reblogs) ? [] : fetch_reblogs(followed_ids)
 
     MergedTimeline.merge(statuses, reblogs, limit).to_a
   end
@@ -56,6 +57,9 @@ class TimelineQuery
       entries = entries.where.not(actor_id: domain_blocked_actor_ids) if domain_blocked_actor_ids.any?
     end
 
+    # Mastodon 5.0互換: ブーストを除外する指定
+    entries = entries.where(reblog_id: nil) if filter?(:exclude_reblogs)
+
     entries = entries.limit(limit * 2).to_a
 
     # フィードが空ならlegacyにフォールバック
@@ -71,6 +75,7 @@ class TimelineQuery
 
     # DMフィルタとリプライフィルタをRuby側で適用
     statuses = apply_ruby_filters(statuses, user)
+    statuses = apply_requested_filters(statuses)
 
     # sort_id順に再構成
     sort_order = entries.map(&:sort_id)
@@ -234,6 +239,21 @@ class TimelineQuery
          s.mentions.none? { |m| m.actor_id == user.id } &&
          followed_ids.exclude?(reply_actor_ids[s.in_reply_to_ap_id]))
     end
+  end
+
+  # Mastodon 5.0互換のホームTLフィルタ(GET /api/v1/timelines/home の exclude_* パラメータ)。
+  # exclude_direct はletterでは常にDMを除外しているため追加処理なし
+  def apply_requested_filters(statuses)
+    statuses = statuses.reject { |s| s.in_reply_to_ap_id.present? } if filter?(:exclude_replies)
+    if filter?(:exclude_quotes) && statuses.any?
+      quoting_ids = QuotePost.where(object_id: statuses.map(&:id)).pluck(:object_id).to_set
+      statuses = statuses.reject { |s| quoting_ids.include?(s.id) }
+    end
+    statuses
+  end
+
+  def filter?(key)
+    ActiveModel::Type::Boolean.new.cast(params[key]) == true
   end
 
   def bulk_resolve_reply_actor_ids(statuses)

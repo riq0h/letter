@@ -8,6 +8,9 @@ module Api
 
       PaginationItem = Struct.new(:id)
 
+      # Mastodon 5.0互換: ホームTLのサーバ側フィルタ
+      HOME_FILTER_PARAMS = %i[exclude_direct exclude_reblogs exclude_quotes exclude_replies].freeze
+
       before_action :doorkeeper_authorize!, only: %i[home list]
       after_action :insert_pagination_headers
 
@@ -15,7 +18,9 @@ module Api
       def home
         return render_authentication_required unless current_user
 
-        cache_key = "timeline:home:#{current_user.id}:#{params[:max_id]}:#{params[:since_id]}:#{params[:min_id]}:#{effective_timeline_limit}"
+        filters = HOME_FILTER_PARAMS.map { |key| params[key].presence }.join(',')
+        cache_key = "timeline:home:#{current_user.id}:#{params[:max_id]}:#{params[:since_id]}:#{params[:min_id]}:" \
+                    "#{effective_timeline_limit}:#{filters}"
         cached = Rails.cache.fetch(cache_key, expires_in: 5.seconds) do
           retries = 0
           begin
@@ -96,7 +101,7 @@ module Api
       end
 
       def timeline_params
-        params.permit(:max_id, :since_id, :min_id, :local).merge(limit: effective_timeline_limit)
+        params.permit(:max_id, :since_id, :min_id, :local, *HOME_FILTER_PARAMS).merge(limit: effective_timeline_limit)
       end
 
       def public_timeline_params
