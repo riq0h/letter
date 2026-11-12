@@ -177,12 +177,32 @@ class HttpSignatureVerifier
     request = build_actor_request(uri)
     response = http.request(request)
 
-    validate_response(response)
-    JSON.parse(response.body)
+    data = if response.code == '200'
+             JSON.parse(response.body)
+           elsif %w[401 403].include?(response.code)
+             # Mastodon 5.0以降、アカウント取得に署名を必須にするサーバがある(無署名だと401)。
+             # 署名付きで取り直す(idと取得元の一致も検証される)
+             fetch_actor_data_signed(actor_uri)
+           end
+    validate_response(response) unless data
+
+    # 鍵の出所の確認: 文書が名乗るidは、要求したアクターと同じホストのものに限る
+    unless ActivityPubOrigin.same_host?(data['id'], actor_uri)
+      raise ActivityPub::SignatureError, "Actor document id #{data['id'].inspect} is not on the host of #{actor_uri}"
+    end
+
+    data
   rescue JSON::ParserError => e
     raise ActivityPub::SignatureError, "Invalid JSON in actor response: #{e.message}"
   rescue StandardError => e
     raise ActivityPub::SignatureError, "Network error fetching actor: #{e.message}"
+  end
+
+  def fetch_actor_data_signed(actor_uri)
+    signer = Actor.find_by(local: true)
+    return nil unless signer
+
+    ActivityPubHttpClient.fetch_verified(actor_uri, signing_actor: signer)
   end
 
   # リモートアクター作成
