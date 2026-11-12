@@ -377,7 +377,9 @@ module StatusSerializationHelper
       found_shortcodes = remote_emojis.values.to_set(&:shortcode)
       remaining = all_shortcodes - local_emojis.keys - found_shortcodes
       if remaining.any?
-        CustomEmoji.enabled.remote.includes(image_attachment: :blob).where(shortcode: remaining.to_a).find_each do |emoji|
+        # 同名絵文字の全ドメイン分を読まず、shortcodeごとに1件だけ読む
+        fallback_ids = CustomEmoji.enabled.remote.where(shortcode: remaining.to_a).group(:shortcode).minimum(:id).values
+        CustomEmoji.includes(image_attachment: :blob).where(id: fallback_ids).find_each do |emoji|
           remote_emojis["#{emoji.shortcode}:"] ||= emoji
         end
       end
@@ -405,8 +407,27 @@ module StatusSerializationHelper
 
     return if all_shortcodes.empty?
 
-    local = CustomEmoji.enabled.visible.where(shortcode: all_shortcodes.to_a, domain: nil).index_by(&:shortcode)
-    remote = CustomEmoji.enabled.remote.where(shortcode: all_shortcodes.to_a).group_by(&:shortcode)
+    codes = all_shortcodes.to_a
+    domains = actors.filter_map(&:domain).uniq
+    # 画像(R2キャッシュ)の添付も先読みする(以前は絵文字ごとに添付・blobを個別に引き、
+    # 200件のタイムラインで約300クエリ増えていた)
+    local = CustomEmoji.enabled.visible.includes(image_attachment: :blob)
+                       .where(shortcode: codes, domain: nil).index_by(&:shortcode)
+    # 同名絵文字は多数のサーバにあるため、全ドメイン分ではなくアカウントのドメインの版を読み、
+    # どこにも無いshortcodeだけ他ドメインの1件で補う(AccountSerializer#account_emojisの選択順に対応)
+    remote = if domains.any?
+               CustomEmoji.enabled.remote.includes(image_attachment: :blob)
+                          .where(shortcode: codes, domain: domains).group_by(&:shortcode)
+             else
+               {}
+             end
+    missing = codes - remote.keys - local.keys
+    if missing.any?
+      fallback_ids = CustomEmoji.enabled.remote.where(shortcode: missing).group(:shortcode).minimum(:id).values
+      CustomEmoji.includes(image_attachment: :blob).where(id: fallback_ids).find_each do |emoji|
+        (remote[emoji.shortcode] ||= []) << emoji
+      end
+    end
 
     if defined?(@account_emoji_cache) && @account_emoji_cache
       @account_emoji_cache[:local].merge!(local)

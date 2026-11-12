@@ -42,7 +42,6 @@ module AccountSerializer
       group: false,
       created_at: account.created_at.iso8601,
       note: format_text_for_api(account.note || ''),
-      note_html: format_text_for_client(account.note || '', domain: account.domain),
       url: account.public_url || account.ap_id || '',
       uri: account.ap_id || ''
     }
@@ -128,7 +127,6 @@ module AccountSerializer
         {
           name: sanitize_field_name(field['name'] || ''),
           value: format_field_value_for_api(field['value'] || ''),
-          value_html: format_field_value_for_client(field['value'] || '', domain: account.domain),
           verified_at: field['verified_at'] || field['verifiedAt']
         }
       end
@@ -194,22 +192,6 @@ module AccountSerializer
 
   def default_header_url
     '/icon.png'
-  end
-
-  # クライアント用のテキスト処理（emoji + URLリンク化）
-  def format_text_for_client(text, domain: nil)
-    return '' if text.blank?
-
-    # 絵文字処理とURLリンク化を一括実行（二重処理を防止）
-    parse_content_for_frontend(text, domain: domain)
-  end
-
-  def format_field_value_for_client(value, domain: nil)
-    return '' if value.blank?
-
-    cleaned_value = sanitize_field_html(value)
-    # 絵文字処理とURLリンク化を一括実行（二重処理を防止）
-    parse_content_for_frontend(cleaned_value, domain: domain)
   end
 
   def format_text_for_api(text)
