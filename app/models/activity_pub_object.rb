@@ -486,8 +486,8 @@ class ActivityPubObject < ApplicationRecord
     case visibility
     when 'public', 'unlisted', 'private'
       # Public/Unlisted/フォロワー限定：フォロワー + メンションされたアクター
-      follower_inboxes = actor.followers.where(local: false).pluck(:inbox_url)
-      all_inboxes.concat(follower_inboxes)
+      # フォロワーへは共有inboxを優先(同じサーバのフォロワーへの重複配送を避ける)
+      all_inboxes.concat(Actor.delivery_inboxes(actor.followers))
     when 'direct'
       # DM：メンションされたアクターのみ（既に all_inboxes に含まれている）
     end

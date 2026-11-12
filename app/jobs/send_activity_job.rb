@@ -8,15 +8,19 @@ class SendActivityJob < ApplicationJob
   retry_on Net::OpenTimeout, Net::ReadTimeout, wait: :exponentially_longer, attempts: 3
   discard_on ActiveRecord::RecordNotFound
 
+  # 同時に配送するinbox数。応答しないサーバの待ち時間で全体が直列に積み上がらないよう並列化する
+  # (以前は直列で、180宛先への配送に平均2.5分かかっていた)
+  DELIVERY_CONCURRENCY = 8
+
   # Activity配信ジョブ
   # @param activity_id [String] 送信するActivityのID
   # @param target_inboxes [Array<String>] 配信先Inbox URLの配列
   def perform(activity_id, target_inboxes)
     @activity = Activity.find(activity_id)
+    # 配送内容は宛先によらず同じなので1回だけ組み立てる
+    @activity_data = build_activity_data(@activity)
 
-    target_inboxes.each do |inbox_url|
-      send_to_inbox(inbox_url)
-    end
+    deliver_concurrently(Array(target_inboxes).uniq)
 
     @activity.update!(
       delivered: true,
@@ -34,15 +38,32 @@ class SendActivityJob < ApplicationJob
 
   private
 
+  def deliver_concurrently(inboxes)
+    queue = Queue.new
+    inboxes.each { |inbox| queue << inbox }
+    queue.close
+
+    workers = Array.new([DELIVERY_CONCURRENCY, inboxes.size].min) do
+      Thread.new do
+        Rails.application.executor.wrap do
+          while (inbox_url = queue.pop)
+            send_to_inbox(inbox_url)
+          end
+        end
+      end
+    end
+    # 待機中に配送スレッド側のオートロードを妨げない
+    ActiveSupport::Dependencies.interlock.permit_concurrent_loads { workers.each(&:join) }
+  end
+
   def send_to_inbox(inbox_url)
     # 配信前に利用不可能なサーバをチェック
     return skip_unavailable_server(inbox_url) if server_unavailable?(inbox_url)
 
-    activity_data = build_activity_data(@activity)
     sender = ActivitySender.new
 
     result = sender.send_activity(
-      activity: activity_data,
+      activity: @activity_data,
       target_inbox: inbox_url,
       signing_actor: @activity.actor
     )

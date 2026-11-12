@@ -170,8 +170,7 @@ class StatusActionOrganizer
 
     # フォロワーへの配信（Announce/Like共通）
     if activity.activity_type == 'Announce' && @status.visibility == 'public'
-      follower_inboxes = @actor.followers.where(local: false).pluck(:shared_inbox_url, :inbox_url)
-                               .filter_map { |shared, inbox| shared.presence || inbox }
+      follower_inboxes = Actor.delivery_inboxes(@actor.followers)
       target_inboxes.concat(follower_inboxes)
     end
 

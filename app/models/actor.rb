@@ -101,6 +101,9 @@ class Actor < ApplicationRecord
   # コールバック
   before_validation :set_ap_urls, if: :local?, on: :create
   before_validation :generate_key_pair, if: :local?, on: :create
+  # 共有inboxを列にも保存する(配送先の一括取得はpluckで列を読むため。
+  # 以前は列が常に空で、同じサーバのフォロワーにも1人ずつ配送していた)
+  before_save :store_shared_inbox_url, if: -> { !local? && will_save_change_to_raw_data? }
   before_create :set_admin_for_local_users, if: :local?
   after_update :distribute_profile_update, if: :should_distribute_profile_update?
 
@@ -320,8 +323,16 @@ class Actor < ApplicationRecord
     end
   end
 
+  # 配送先inbox一覧(共有inboxがあれば優先し重複を除去)。
+  # 列が未設定の古いレコードはraw_dataから補う
+  def self.delivery_inboxes(relation)
+    relation.where(local: false).select(:id, :local, :username, :domain, :inbox_url, :shared_inbox_url, :raw_data)
+            .filter_map(&:preferred_inbox).uniq
+  end
+
   # Shared inbox URLを取得（ActivityPub federation用）
   def shared_inbox_url
+    return self[:shared_inbox_url] if self[:shared_inbox_url].present?
     return nil if raw_data.blank?
 
     begin
@@ -339,6 +350,12 @@ class Actor < ApplicationRecord
   end
 
   private
+
+  def store_shared_inbox_url
+    self[:shared_inbox_url] = parse_actor_data&.dig('endpoints', 'sharedInbox').presence
+  rescue StandardError
+    nil
+  end
 
   def parse_actor_data
     case raw_data

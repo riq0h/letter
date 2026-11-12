@@ -7,8 +7,13 @@ class ActivitySender
   include HTTParty
   include SsrfProtection
 
+  # Mastodon(接続5秒/読み取り10秒)の2倍。遅いサーバへの配送を取りこぼさない余裕を残しつつ、
+  # 応答しないサーバで長く待たない(以前は30秒/60秒で、停止中のサーバ1件ごとに配送が直列で止まっていた)
+  OPEN_TIMEOUT = 10
+  READ_TIMEOUT = 20
+
   def initialize
-    @timeout = 60
+    @timeout = READ_TIMEOUT
   end
 
   def send_activity(activity:, target_inbox:, signing_actor:)
@@ -62,7 +67,7 @@ class ActivitySender
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = uri.scheme == 'https'
-    http.open_timeout = 30
+    http.open_timeout = OPEN_TIMEOUT
     http.read_timeout = @timeout
 
     request = Net::HTTP::Post.new(uri.path)

@@ -7,9 +7,7 @@ module ActivityDistribution
   private
 
   def distribute_activity(activity, actor)
-    follower_inboxes = actor.followers.where(local: false).pluck(:shared_inbox_url, :inbox_url)
-                            .filter_map { |shared, inbox| shared.presence || inbox }
-                            .uniq
+    follower_inboxes = Actor.delivery_inboxes(actor.followers)
 
     follower_inboxes.each do |inbox_url|
       send_activity_to_inbox(activity, inbox_url, actor)
