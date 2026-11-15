@@ -11,9 +11,9 @@ module Api
       include ListSerializer
       include FileUploadHandler
 
-      before_action :doorkeeper_authorize!, except: [:show]
+      before_action :doorkeeper_authorize!, except: %i[show lookup]
       after_action :insert_pagination_headers, only: %i[statuses followers following]
-      before_action :doorkeeper_authorize!, only: [:show], if: -> { request.authorization.present? }
+      before_action :doorkeeper_authorize!, only: %i[show lookup], if: -> { request.authorization.present? }
       before_action :set_account, only: %i[show statuses followers following follow unfollow block unblock mute unmute note lists]
       before_action :set_account_for_featured_tags, only: [:featured_tags]
 
@@ -197,14 +197,13 @@ module Api
       end
 
       # GET /api/v1/accounts/lookup
+      # Mastodonと同じくログインなしでも引ける。ただし未ログインでは他サーバへの問い合わせ(WebFinger)はせず、
+      # 既知のアカウントだけを返す(誰でも外部への取得を起こせないように)
       def lookup
-        return unless doorkeeper_authorize! :read
-        return render_authentication_required unless current_user
-
         acct = params[:acct].to_s.strip
         return render_missing_parameter('acct') if acct.blank?
 
-        account = lookup_account(acct)
+        account = lookup_account(acct, resolve: current_user.present?)
         if account
           render json: serialized_account(account)
         else
@@ -330,7 +329,7 @@ module Api
         local_accounts
       end
 
-      def lookup_account(acct)
+      def lookup_account(acct, resolve: true)
         # URL形式の場合
         if acct.match?(/^https?:\/\//)
           uri = URI.parse(acct)
@@ -343,11 +342,14 @@ module Api
           end
         elsif acct.include?('@')
           username, domain = acct.split('@', 2)
+          # 自サーバのドメイン付き(user@このサーバ)はローカルユーザ
+          return Actor.find_by(username: username, local: true) if domain.casecmp?(Rails.application.config.activitypub.domain)
+
           # まずローカルDBから検索
           actor = Actor.find_by(username: username, domain: domain)
 
           # 見つからない場合はWebFinger解決を試行
-          actor ||= resolve_remote_account(acct)
+          actor ||= resolve_remote_account(acct) if resolve
 
           actor
         else
