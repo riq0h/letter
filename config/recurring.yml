@@ -1,9 +1,17 @@
 production:
-  # home_feed_entries（キャッシュDB）の無限成長を防ぐ定期トリム
+  # home_feed_entries（キャッシュDB）の無限成長を防ぐ定期トリム。
+  # 毎時0分のcache_cleanupと同時に登録するとqueue DBの書き込みが競合し得るため、30分にずらす
   trim_home_feed:
     class: TrimHomeFeedJob
     queue: default
-    schedule: at 4am every day
+    schedule: at 4:30am every day
+
+  # 完了済みジョブの履歴(solid_queue_jobs)の削除。Solid Queueは自動では消さない。
+  # 完了から1日(SolidQueue.clear_finished_jobs_after)を過ぎたものを500件ずつ、間を空けて消す
+  clear_solid_queue_finished_jobs:
+    command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
+    queue: low_priority
+    schedule: every hour at minute 12
 
   # 期限切れのリモートメディアキャッシュ(R2)と孤児blobの削除。
   # 毎時少しずつ処理する(定常状態は1回数十件で数秒。溜まった分も1日程度で解消)
