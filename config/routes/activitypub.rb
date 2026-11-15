@@ -9,7 +9,7 @@ Rails.application.routes.draw do
   get '/users/:username/outbox', to: 'outbox#show', as: :user_outbox
   post '/users/:username/outbox', to: 'outbox#create'
 
-  # ActivityPubアクタープロフィール  
+  # ActivityPubアクタープロフィール
   get '/users/:username', to: 'actors#show', as: :user_actor
 
   # WebFinger discovery
@@ -31,6 +31,8 @@ Rails.application.routes.draw do
 
   # ActivityPubオブジェクトエンドポイント
   get '/users/:username/posts/:id', to: 'objects#show'
+  get '/users/:username/posts/:id/likes', to: 'objects#likes'
+  get '/users/:username/posts/:id/shares', to: 'objects#shares'
   get '/activities/:id', to: 'activities#show'
 
   # Shared inbox

@@ -5,7 +5,7 @@ class ObjectsController < ApplicationController
   include TextLinkingHelper
 
   skip_before_action :verify_authenticity_token
-  before_action :set_object, only: [:show]
+  before_action :set_object, only: %i[show likes shares]
   before_action :ensure_activitypub_request, only: [:show]
 
   # GET /objects/{id}
@@ -17,7 +17,26 @@ class ObjectsController < ApplicationController
            content_type: 'application/activity+json; charset=utf-8'
   end
 
+  # GET /users/:username/posts/:id/likes, /shares
+  # 投稿が名乗るlikes/sharesコレクション。Mastodonと同じく件数だけを返し、誰がしたかは載せない
+  def likes
+    render_count_collection("#{@object.ap_id}/likes", @object.favourites_count)
+  end
+
+  def shares
+    render_count_collection("#{@object.ap_id}/shares", @object.reblogs_count)
+  end
+
   private
+
+  def render_count_collection(id, count)
+    render json: {
+      '@context' => Rails.application.config.activitypub.context_url,
+      'id' => id,
+      'type' => 'Collection',
+      'totalItems' => count || 0
+    }, content_type: 'application/activity+json; charset=utf-8'
+  end
 
   def set_object
     # URLのユーザ名の投稿者が書いた、このサーバのオブジェクトのみを返す。
