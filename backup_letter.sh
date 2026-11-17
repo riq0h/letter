@@ -53,7 +53,8 @@ log "🚀 letter SQLite バックアップを開始します..."
 cd "$INSTANCE_DIR"
 
 # コンテナが動作中か確認
-if ! docker ps --format "table {{.Names}}" | grep -q "^${WEB_CONTAINER}$"; then
+# (docker ps | grep -q は、grepが先に終わるとdockerがSIGPIPEで異常終了し、pipefailで誤って失敗扱いになる)
+if [[ "$(docker inspect -f '{{.State.Running}}' "$WEB_CONTAINER" 2>/dev/null)" != "true" ]]; then
 	error "コンテナ ${WEB_CONTAINER} が実行されていません"
 	exit 1
 fi
