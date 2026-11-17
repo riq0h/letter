@@ -10,6 +10,20 @@ module ActivityBuilders
       hashtag_tags + mention_tags + emoji_tags
     end
 
+    # 投稿のtagに載せるEmoji。idは /emojis/:shortcode で同じ内容を返す(EmojisController)
+    def self.emoji_tag(emoji)
+      {
+        'type' => 'Emoji',
+        'id' => "#{Rails.application.config.activitypub.base_url}/emojis/#{emoji.shortcode}",
+        'name' => ":#{emoji.shortcode}:",
+        'icon' => {
+          'type' => 'Image',
+          'mediaType' => 'image/png',
+          'url' => emoji.image_url
+        }
+      }
+    end
+
     private
 
     def hashtag_tags
@@ -41,19 +55,7 @@ module ActivityBuilders
     def emoji_tags
       return [] if @object.content.blank?
 
-      emojis = EmojiPresenter.extract_emojis_from(@object.content)
-      emojis.map do |emoji|
-        {
-          'type' => 'Emoji',
-          'id' => "#{Rails.application.config.activitypub.base_url}/emojis/#{emoji.shortcode}",
-          'name' => ":#{emoji.shortcode}:",
-          'icon' => {
-            'type' => 'Image',
-            'mediaType' => 'image/png',
-            'url' => emoji.image_url
-          }
-        }
-      end
+      EmojiPresenter.extract_emojis_from(@object.content).map { |emoji| self.class.emoji_tag(emoji) }
     end
   end
 end

@@ -34,6 +34,7 @@ Rails.application.routes.draw do
   get '/users/:username/posts/:id/likes', to: 'objects#likes'
   get '/users/:username/posts/:id/shares', to: 'objects#shares'
   get '/activities/:id', to: 'activities#show'
+  get '/emojis/:shortcode', to: 'emojis#show'
 
   # Shared inbox
   post '/inbox', to: 'shared_inboxes#create'
