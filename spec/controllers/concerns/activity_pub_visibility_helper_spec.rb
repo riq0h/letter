@@ -18,6 +18,16 @@ RSpec.describe ActivityPubVisibilityHelper do
     expect(visibility(to: ["#{author}/followers"], cc: [public_collection])).to eq('unlisted')
   end
 
+  # JSON-LDの短縮表記で届く公開コレクション(Fedify製サーバ等)も公開・未収載として扱う
+  it 'recognizes the compact forms of the public collection' do
+    %w[as:Public Public].each do |compact|
+      expect(visibility(to: [compact], cc: ["#{author}/followers"])).to eq('public')
+      expect(visibility(to: compact)).to eq('public')
+      expect(visibility(to: ["#{author}/followers"], cc: [compact])).to eq('unlisted')
+      expect(visibility(to: [compact], tag: mention_tag)).to eq('public')
+    end
+  end
+
   it 'classifies a followers-only reply that mentions someone as private, not direct' do
     result = visibility(to: ["#{author}/followers"], cc: [mentioned], tag: mention_tag)
 
