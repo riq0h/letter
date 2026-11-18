@@ -255,7 +255,7 @@ class MediaAttachmentCreationService
     # バイトデータを整数配列に変換
     pixels = pixel_data.unpack('C*')
 
-    Blurhash.encode(image.width, image.height, pixels, x_components: 4, y_components: 4)
+    Blurhash.encode(image.width, image.height, pixels, x_comp: 4, y_comp: 4)
   rescue StandardError => e
     Rails.logger.warn "Failed to generate blurhash with libvips: #{e.message}"
     'L0Eyb[0000000000000000000000'

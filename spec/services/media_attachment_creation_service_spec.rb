@@ -157,6 +157,19 @@ RSpec.describe MediaAttachmentCreationService do
         expect(blurhash.length).to be > 0
       end
 
+      # 代替値(単色)ではなく、画像から計算した4x4成分のblurhashになる
+      it 'encodes the actual image instead of falling back to the placeholder' do
+        require 'vips'
+        red = Vips::Image.black(32, 32).new_from_image([220, 30, 30])
+        blue = Vips::Image.black(32, 32).new_from_image([30, 30, 220])
+        image = red.join(blue, :horizontal).copy(interpretation: :srgb)
+
+        blurhash = service.send(:generate_blurhash_from_vips, image)
+
+        expect(blurhash).not_to eq('L0Eyb[0000000000000000000000')
+        expect(Blurhash.components(blurhash)).to eq([4, 4])
+      end
+
       it 'handles errors and returns fallback blurhash' do
         require 'vips'
         invalid_image = instance_double(Vips::Image)
