@@ -187,7 +187,7 @@ class MediaAttachmentCreationService
   end
 
   def extract_video_info_with_ffprobe(file_path)
-    cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', file_path]
+    cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', '-show_format', file_path]
     stdout, stderr, status = Open3.capture3(*cmd)
 
     if status.success?
@@ -208,21 +208,19 @@ class MediaAttachmentCreationService
 
     width = video_stream['width'].to_i
     height = video_stream['height'].to_i
-    blurhash, thumbnail_path = extract_blurhash_and_thumbnail(file_path)
+    duration = Float(info.dig('format', 'duration') || video_stream['duration'], exception: false)
+    blurhash, thumbnail_path = extract_blurhash_and_thumbnail(file_path, duration)
 
     { width: width, height: height, blurhash: blurhash, thumbnail_path: thumbnail_path }
   end
 
-  def extract_blurhash_and_thumbnail(file_path)
+  def extract_blurhash_and_thumbnail(file_path, duration = nil)
     require 'vips'
 
     thumb_file = Tempfile.new(['thumb', '.jpg'])
     thumb_file.close
 
-    thumb_cmd = ['ffmpeg', '-ss', '1', '-i', file_path, '-vframes', '1', '-q:v', '2', '-y', thumb_file.path]
-    _, _, thumb_status = Open3.capture3(*thumb_cmd)
-
-    if thumb_status.success? && File.exist?(thumb_file.path) && File.size(thumb_file.path).positive?
+    if VideoFrameExtractor.extract(file_path, thumb_file.path, duration: duration)
       image = Vips::Image.new_from_file(thumb_file.path)
       blurhash = generate_blurhash_from_vips(image)
       [blurhash, thumb_file.path]

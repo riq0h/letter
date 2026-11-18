@@ -61,22 +61,10 @@ class GenerateVideoThumbnailJob < ApplicationJob
     output_file = Tempfile.new(['thumbnail', '.jpg'])
     output_file.close
 
-    cmd = [
-      'ffmpeg',
-      '-ss', '1',
-      '-i', input_path,
-      '-vframes', '1',
-      '-q:v', '2',
-      '-y',
-      output_file.path
-    ]
-
-    _, stderr, status = Open3.capture3(*cmd)
-
-    if status.success? && File.exist?(output_file.path) && File.size(output_file.path).positive?
+    if VideoFrameExtractor.extract(input_path, output_file.path)
       StringIO.new(File.binread(output_file.path))
     else
-      Rails.logger.error "FFmpeg thumbnail extraction failed: #{stderr}"
+      Rails.logger.error "FFmpeg thumbnail extraction failed: #{input_path}"
       nil
     end
   ensure

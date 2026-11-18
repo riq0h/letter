@@ -141,6 +141,31 @@ RSpec.describe MediaAttachmentCreationService do
       end
     end
 
+    describe '#extract_video_metadata' do
+      let(:dir) { Dir.mktmpdir }
+
+      before { skip 'ffmpeg not available' unless system('ffmpeg', '-version', out: File::NULL, err: File::NULL) }
+
+      after { FileUtils.remove_entry(dir) }
+
+      it 'creates a thumbnail for a video shorter than 1 second' do
+        path = File.join(dir, 'short.mp4')
+        system('ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=64x48:d=0.5',
+               '-pix_fmt', 'yuv420p', '-y', path, exception: true)
+        uploaded = ActionDispatch::Http::UploadedFile.new(filename: 'short.mp4', type: 'video/mp4',
+                                                          tempfile: File.open(path, 'rb'))
+
+        metadata = service.send(:extract_video_metadata, uploaded)
+
+        expect(metadata).to include(width: 64, height: 48)
+        expect(metadata[:thumbnail_path]).to be_present
+        expect(File.size(metadata[:thumbnail_path])).to be_positive
+        expect(metadata[:blurhash]).not_to eq('L0Eyb[0000000000000000000000')
+      ensure
+        FileUtils.rm_f(metadata[:thumbnail_path]) if metadata&.dig(:thumbnail_path)
+      end
+    end
+
     describe '#generate_blurhash_from_vips' do
       before do
         skip 'Test image file not found' unless Rails.root.join('spec', 'fixtures', 'files', 'test_image.png').exist?
