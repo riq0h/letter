@@ -233,29 +233,9 @@ class MediaAttachmentCreationService
   end
 
   def generate_blurhash_from_vips(image)
-    require 'blurhash'
-
-    # libvipsの画像をRGB形式に変換し、適切なサイズにリサイズ
-    # Blurhashは小さい画像で十分なので、最大128x128にリサイズ
-    max_size = 128
-    if image.width > max_size || image.height > max_size
-      scale = [max_size.to_f / image.width, max_size.to_f / image.height].min
-      image = image.resize(scale)
-    end
-
-    # RGB形式に変換（アルファチャンネルがある場合は削除）
-    image = image.colourspace('srgb') unless image.interpretation == :srgb
-    image = image.extract_band(0, n: 3) if image.bands > 3
-
-    # ピクセルデータを取得
-    pixel_data = image.write_to_memory
-
-    # バイトデータを整数配列に変換
-    pixels = pixel_data.unpack('C*')
-
-    Blurhash.encode(image.width, image.height, pixels, x_comp: 4, y_comp: 4)
+    BlurhashGenerator.from_vips(image)
   rescue StandardError => e
     Rails.logger.warn "Failed to generate blurhash with libvips: #{e.message}"
-    'L0Eyb[0000000000000000000000'
+    BlurhashGenerator::PLACEHOLDER
   end
 end

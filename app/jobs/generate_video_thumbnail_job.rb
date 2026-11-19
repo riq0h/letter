@@ -22,6 +22,7 @@ class GenerateVideoThumbnailJob < ApplicationJob
       folder: 'thumb'
     )
     media_attachment.thumbnail.attach(blob)
+    media_attachment.fill_placeholder_blurhash { BlurhashGenerator.from_buffer(thumbnail_io.string) }
   rescue StandardError => e
     Rails.logger.error "Failed to generate video thumbnail for #{media_attachment_id}: #{e.message}"
   end

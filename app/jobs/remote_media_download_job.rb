@@ -49,6 +49,7 @@ class RemoteMediaDownloadJob < ApplicationJob
       )
 
       GenerateVideoThumbnailJob.perform_later(media.id) if media.video? && !media.thumbnail.attached?
+      media.fill_placeholder_blurhash { BlurhashGenerator.from_file(tempfile.path) } if media.image?
 
       Rails.logger.info "📦 Remote media cached: #{media.id} (#{blob.byte_size} bytes)"
     ensure

@@ -86,6 +86,15 @@ class MediaAttachment < ApplicationRecord
     media_type == 'document'
   end
 
+  # blurhashが単色の代替値のまま(相手サーバが送ってこなかった場合など)なら、
+  # ブロックで計算した値に置き換える
+  def fill_placeholder_blurhash
+    return if blurhash.present? && blurhash != BlurhashGenerator::PLACEHOLDER
+
+    computed = yield
+    update_column(:blurhash, computed) if computed.present?
+  end
+
   def attached?
     object_id.present?
   end
@@ -347,8 +356,6 @@ class MediaAttachment < ApplicationRecord
   end
 
   def generate_placeholder_blurhash
-    # プレースホルダーとして単色のblurhashを生成
-    # RGB(128,128,128) のニュートラルグレー（4x3 components）
-    'L0Eyb[0000000000000000000000'
+    BlurhashGenerator::PLACEHOLDER
   end
 end
