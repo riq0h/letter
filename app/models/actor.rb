@@ -68,17 +68,18 @@ class Actor < ApplicationRecord
   has_many :conversations, through: :conversation_participants
 
   # OAuth 2.0関連
+  # Doorkeeperの側にはresource_ownerの関連が無い(多態の所有者を使っていない)ため、逆向きの関連は指定しない
   has_many :access_grants,
            class_name: 'Doorkeeper::AccessGrant',
            foreign_key: :resource_owner_id,
            dependent: :delete_all,
-           inverse_of: :resource_owner
+           inverse_of: false
 
   has_many :access_tokens,
            class_name: 'Doorkeeper::AccessToken',
            foreign_key: :resource_owner_id,
            dependent: :delete_all,
-           inverse_of: :resource_owner
+           inverse_of: false
 
   # バリデーション
   validates :username, presence: true, format: { with: /\A[a-zA-Z0-9_.-]+\z/ }

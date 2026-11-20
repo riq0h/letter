@@ -154,6 +154,8 @@ module ActivityPubObjectHandlers
     Rails.logger.info '🗑️ Processing Delete activity'
 
     object_id = extract_delete_object_id
+    return handle_account_deletion if account_deletion?(object_id)
+
     object = ActivityPubObject.find_by(ap_id: object_id)
 
     if authorized_to_delete?(object)
@@ -169,6 +171,19 @@ module ActivityPubObjectHandlers
 
   def extract_delete_object_id
     extract_activity_object_id(@activity['object'])
+  end
+
+  # アカウント自身を対象にしたDeleteは、そのアカウントが削除されたことを表す
+  def account_deletion?(object_id)
+    object_id.present? && object_id == @sender.ap_id && !@sender.local?
+  end
+
+  # 投稿などの後始末は件数が多いことがあるため、ジョブで行う(Mastodonと同じく投稿ごと消す)
+  def handle_account_deletion
+    DeleteRemoteActorJob.perform_later(@sender.id)
+    Rails.logger.info "🗑️ Account deletion scheduled: #{@sender.ap_id}"
+
+    head :accepted
   end
 
   def authorized_to_delete?(object)
