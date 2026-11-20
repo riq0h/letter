@@ -56,7 +56,8 @@ module TextLinkingHelper
       end
     end
 
-    urls.uniq.select { |url| valid_preview_url?(url) }
+    # 本文はHTMLなので、URL中の & などは &amp; と書かれている。元の文字に戻してから使う
+    urls.map { |url| CGI.unescapeHTML(url) }.uniq.select { |url| valid_preview_url?(url) }
   end
 
   def valid_preview_url?(url)

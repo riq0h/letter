@@ -186,6 +186,13 @@ RSpec.describe TextLinkingHelper, type: :helper do
       expect(result).not_to include('https://example.com/image.jpg')
     end
 
+    it 'decodes HTML entities in URLs' do
+      url = 'https://news.example/article?id=1&amp;lang=ja'
+      content = %(<p><a href="#{url}">#{url}</a></p>)
+
+      expect(helper.send(:extract_urls_from_content, content)).to eq(['https://news.example/article?id=1&lang=ja'])
+    end
+
     it 'filters out hashtag links' do
       content = '<p>Check this <a href="/tags/ruby" class="hashtag">#ruby</a> and <a href="https://example.com">normal link</a></p>'
       result = helper.send(:extract_urls_from_content, content)
