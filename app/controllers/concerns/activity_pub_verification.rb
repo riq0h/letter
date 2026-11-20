@@ -155,6 +155,7 @@ module ActivityPubVerification
     end
 
     @forwarded_by = forwarder_uri
+    resume_delivery_to(forwarder_uri)
   end
 
   def perform_signature_verification(verify_actor_uri)
@@ -164,7 +165,7 @@ module ActivityPubVerification
       signature_result = verifier.verify!(verify_actor_uri)
       Rails.logger.debug { "✅ Signature verification result: #{signature_result}" }
 
-      return if signature_result
+      return resume_delivery_to(verify_actor_uri) if signature_result
     rescue StandardError => e
       Rails.logger.warn "🔐 Signature verification error for #{verify_actor_uri}: #{e.message}"
       Rails.logger.debug { "   Error class: #{e.class}" }
@@ -180,6 +181,13 @@ module ActivityPubVerification
 
     Rails.logger.warn "🔐 HTTP signature verification failed for actor: #{verify_actor_uri}"
     raise ::ActivityPub::SignatureError, 'Signature verification failed'
+  end
+
+  # 署名を確かめられた相手のサーバは動いているので、配送の失敗記録を消して配送を再開する(Mastodonと同じ)
+  def resume_delivery_to(actor_uri)
+    UnavailableServer.record_success(URI(actor_uri.to_s).host)
+  rescue StandardError => e
+    Rails.logger.warn "⚠️ Failed to clear delivery failures for #{actor_uri}: #{e.message}"
   end
 
   def relay_activity?

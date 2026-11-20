@@ -19,6 +19,8 @@ class SendActivityJob < ApplicationJob
     @activity = Activity.find(activity_id)
     # 配送内容は宛先によらず同じなので1回だけ組み立てる
     @activity_data = build_activity_data(@activity)
+    # 配送に失敗し続けているサーバ(件数は少ない)。宛先ごとに引かないよう先に読んでおく
+    @failing_servers = UnavailableServer.all.index_by(&:domain)
 
     deliver_concurrently(Array(target_inboxes).uniq)
 
@@ -57,19 +59,20 @@ class SendActivityJob < ApplicationJob
   end
 
   def send_to_inbox(inbox_url)
-    # 配信前に利用不可能なサーバをチェック
-    return skip_unavailable_server(inbox_url) if server_unavailable?(inbox_url)
+    domain = inbox_domain(inbox_url)
+    if @failing_servers[domain]&.unavailable?
+      Rails.logger.info "⏭️ Skipping delivery to unavailable server: #{domain}"
+      return false
+    end
 
-    sender = ActivitySender.new
-
-    result = sender.send_activity(
+    result = ActivitySender.new.send_activity(
       activity: @activity_data,
       target_inbox: inbox_url,
       signing_actor: @activity.actor
     )
 
-    # 410応答の特別処理
-    handle_delivery_result(result, inbox_url)
+    track_delivery(domain, result)
+    result[:success]
   rescue StandardError => e
     Rails.logger.error "💥 Failed to send to #{inbox_url}: #{e.message}"
     false
@@ -110,26 +113,23 @@ class SendActivityJob < ApplicationJob
     }
   end
 
-  # 利用不可能なサーバかチェック
-  def server_unavailable?(inbox_url)
-    return false unless inbox_url
-
-    begin
-      domain = URI(inbox_url).host
-      UnavailableServer.unavailable?(domain)
-    rescue URI::InvalidURIError
-      false
-    end
+  def inbox_domain(inbox_url)
+    UnavailableServer.normalize_domain_name(URI(inbox_url.to_s).host)
+  rescue URI::InvalidURIError
+    nil
   end
 
-  # 利用不可能なサーバへの配信をスキップ
-  def skip_unavailable_server(inbox_url)
-    domain = URI(inbox_url).host
-    Rails.logger.info "⏭️ Skipping delivery to unavailable server: #{domain}"
-    false
-  rescue URI::InvalidURIError
-    Rails.logger.error "🔗 Invalid inbox URI: #{inbox_url}"
-    false
+  # 配送の成否をサーバごとに記録する。失敗が続いたサーバだけが配送停止になり、成功すれば再開する
+  def track_delivery(domain, result)
+    return if domain.blank?
+
+    if UnavailableServer.delivery_failure?(result)
+      UnavailableServer.record_failure(domain, result[:error])
+    elsif @failing_servers.key?(domain)
+      UnavailableServer.record_success(domain)
+    end
+  rescue StandardError => e
+    Rails.logger.warn "⚠️ Failed to record delivery result for #{domain}: #{e.message}"
   end
 
   # Voteアクティビティかどうかを判定
@@ -140,15 +140,5 @@ class SendActivityJob < ApplicationJob
     parsed.key?('vote_choice')
   rescue JSON::ParserError
     false
-  end
-
-  # 配信結果の処理
-  def handle_delivery_result(result, inbox_url)
-    success = result[:success]
-
-    # 410応答でドメインが利用不可能にマークされた場合の特別処理
-    Rails.logger.warn "🚫 Domain marked unavailable due to 410 response: #{inbox_url}" if result[:code] == 410 && result[:domain_marked_unavailable]
-
-    success
   end
 end

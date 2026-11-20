@@ -24,64 +24,71 @@ RSpec.describe UnavailableServer, type: :model do
   end
 
   describe '.unavailable?' do
-    it 'returns true when domain is marked as unavailable' do
-      create(:unavailable_server, domain: 'unavailable.com')
-      expect(described_class.unavailable?('unavailable.com')).to be true
+    it 'stops delivery once failures have lasted for the failure period' do
+      create(:unavailable_server, domain: 'down.example', first_error_at: 15.days.ago, last_error_at: 1.hour.ago)
+
+      expect(described_class.unavailable?('down.example')).to be true
     end
 
-    it 'returns false when domain is not marked as unavailable' do
-      expect(described_class.unavailable?('available.com')).to be false
+    it 'keeps delivering while failures are more recent than the failure period' do
+      create(:unavailable_server, domain: 'flaky.example', first_error_at: 3.days.ago, last_error_at: 1.hour.ago)
+
+      expect(described_class.unavailable?('flaky.example')).to be false
+    end
+
+    it 'returns false when the domain has no failures' do
+      expect(described_class.unavailable?('available.example')).to be false
     end
 
     it 'normalizes domain names' do
-      create(:unavailable_server, domain: 'example.com')
-      expect(described_class.unavailable?('EXAMPLE.COM')).to be true
+      create(:unavailable_server, domain: 'down.example', first_error_at: 15.days.ago, last_error_at: 1.hour.ago)
+
+      expect(described_class.unavailable?('DOWN.EXAMPLE')).to be true
     end
   end
 
-  describe '.record_gone_response' do
-    it 'creates new record for new domain' do
-      expect do
-        described_class.record_gone_response('gone.example.com', '410 Gone')
-      end.to change(described_class, :count).by(1)
-
-      server = described_class.find_by(domain: 'gone.example.com')
-      expect(server.reason).to eq('gone')
-      expect(server.error_count).to eq(1)
-      expect(server.last_error_message).to eq('410 Gone')
-      expect(server.auto_detected).to be true
+  describe '.delivery_failure?' do
+    it 'counts no response, server errors and retryable client errors' do
+      expect(described_class.delivery_failure?({ success: false, error: 'Timeout: execution expired' })).to be true
+      expect(described_class.delivery_failure?({ success: false, code: 503 })).to be true
+      expect(described_class.delivery_failure?({ success: false, code: 429 })).to be true
     end
 
-    context 'when updating existing record' do
-      let!(:server) do
-        create(:unavailable_server,
-               domain: 'existing.com',
-               error_count: 1,
-               first_error_at: 2.days.ago)
-      end
+    # 410は「その宛先(アカウント)は無い」という応答で、サーバ自体は動いている
+    it 'does not count gone or other client errors' do
+      expect(described_class.delivery_failure?({ success: false, code: 410 })).to be false
+      expect(described_class.delivery_failure?({ success: false, code: 404 })).to be false
+      expect(described_class.delivery_failure?({ success: true, code: 202 })).to be false
+    end
+  end
 
-      before do
-        described_class.record_gone_response('existing.com', 'Second error')
-        server.reload
-      end
+  describe '.record_failure' do
+    it 'starts a failure record for a new domain' do
+      server = described_class.record_failure('down.example', 'Timeout: execution expired')
 
-      it 'does not create new record' do
-        expect do
-          described_class.record_gone_response('existing.com', 'Third error')
-        end.not_to change(described_class, :count)
-      end
+      expect(server).to have_attributes(reason: 'timeout', error_count: 1, last_error_message: 'Timeout: execution expired')
+      expect(server.first_error_at).to eq(server.last_error_at)
+    end
 
-      it 'increments error count' do
-        expect(server.error_count).to eq(2)
-      end
+    it 'extends an existing record without moving its first failure' do
+      first = 3.days.ago
+      create(:unavailable_server, domain: 'down.example', first_error_at: first, last_error_at: 2.days.ago, error_count: 1)
 
-      it 'updates last error message' do
-        expect(server.last_error_message).to eq('Second error')
-      end
+      server = described_class.record_failure('down.example', '503 - unavailable')
 
-      it 'updates last error timestamp' do
-        expect(server.last_error_at).to be > 1.minute.ago
-      end
+      expect(server.error_count).to eq(2)
+      expect(server.first_error_at).to be_within(1.second).of(first)
+      expect(server.last_error_at).to be > 1.minute.ago
+    end
+  end
+
+  describe '.record_success' do
+    it 'removes the failure record so that delivery resumes' do
+      create(:unavailable_server, domain: 'down.example', first_error_at: 15.days.ago, last_error_at: 1.hour.ago)
+
+      described_class.record_success('down.example')
+
+      expect(described_class.exists?(domain: 'down.example')).to be false
     end
   end
 

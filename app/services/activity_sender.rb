@@ -112,8 +112,6 @@ class ActivitySender
   def handle_response(response, activity_type, target_inbox = nil)
     if response.success?
       { success: true, code: response.code }
-    elsif response.code == 410
-      handle_gone_response(target_inbox, response, activity_type)
     else
       error_msg = "#{response.code} - #{body_snippet(response)}"
       Rails.logger.error "❌ #{activity_type} sending failed: #{error_msg}"
@@ -125,8 +123,7 @@ class ActivitySender
 
   # レスポンスボディの先頭をログ用に安全に切り出す。
   # response.bodyはASCII-8BIT（バイナリ）の場合があり、そのままUTF-8文字列に
-  # 補間するとEncoding::UndefinedConversionErrorになり、後続処理
-  # （UnavailableServer登録など）まで飛ばされてしまう
+  # 補間するとEncoding::UndefinedConversionErrorになり、後続処理まで飛ばされてしまう
   def body_snippet(response)
     response.body.to_s.dup.force_encoding(Encoding::UTF_8).scrub('?')[0, 200]
   end
@@ -179,31 +176,5 @@ class ActivitySender
   def generate_digest(body)
     digest = Digest::SHA256.digest(body)
     "SHA-256=#{Base64.strict_encode64(digest)}"
-  end
-
-  # 410 Gone応答の処理
-  def handle_gone_response(target_inbox, response, _activity_type)
-    return { success: false, error: 'No target inbox provided', code: 410 } unless target_inbox
-
-    begin
-      domain = URI(target_inbox).host
-      error_msg = "410 Gone - #{body_snippet(response)}"
-
-      Rails.logger.warn "🚫 Server gone (410): #{domain} - marking as unavailable"
-
-      # UnavailableServerに記録
-      unavailable_server = UnavailableServer.record_gone_response(domain, error_msg)
-
-      # フォロー関係のクリーンアップを非同期で実行
-      CleanupUnavailableServerJob.perform_later(unavailable_server.id)
-
-      { success: false, error: error_msg, code: 410, domain_marked_unavailable: true }
-    rescue URI::InvalidURIError => e
-      Rails.logger.error "🔗 Invalid inbox URI: #{target_inbox} - #{e.message}"
-      { success: false, error: "Invalid inbox URI: #{e.message}", code: 410 }
-    rescue StandardError => e
-      Rails.logger.error "💥 Error handling 410 response: #{e.message}"
-      { success: false, error: "Error handling 410: #{e.message}", code: 410 }
-    end
   end
 end
