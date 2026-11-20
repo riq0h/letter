@@ -32,4 +32,18 @@ RSpec.describe GenerateVideoThumbnailJob do
 
     expect(media.reload.blurhash).to eq('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
   end
+
+  # 同じ動画のジョブが同時に動くと、サムネイルが2つ付いてしまう
+  it 'runs one job at a time for the same video' do
+    expect(described_class.new(42).concurrency_key).to eq('GenerateVideoThumbnailJob/42')
+    expect(described_class.concurrency_limit).to eq(1)
+  end
+
+  it 'does nothing when the video already has a thumbnail' do
+    media = create(:media_attachment, :video)
+    job.perform(media.id)
+
+    expect { job.perform(media.id) }.not_to(change { ActiveStorage::Attachment.where(record: media).count })
+    expect(job).to have_received(:generate_thumbnail).once
+  end
 end

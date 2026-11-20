@@ -6,6 +6,10 @@ class GenerateVideoThumbnailJob < ApplicationJob
 
   queue_as :default
 
+  # 他サーバの動画は、登録時とダウンロード後の2回このジョブが登録される。
+  # 同じ動画では1つずつ動かし、後のジョブはサムネイルが付いているのを見て何もせず終わる
+  limits_concurrency to: 1, key: ->(media_attachment_id) { media_attachment_id }, duration: 15.minutes
+
   def perform(media_attachment_id)
     media_attachment = MediaAttachment.find_by(id: media_attachment_id)
     return unless media_attachment
