@@ -43,6 +43,9 @@
         <% if pinned %>
           <span class="mr-2">固定投稿</span>
         <% end %>
+        <% if post.quoted? %>
+          <span class="mr-2">引用</span>
+        <% end %>
         <%= link_to post_html_path(post.actor.username, post.id), 
                     class: "hover:text-gray-700 transition-colors",
                     data: { turbo_frame: "_top" } do %>
@@ -59,14 +62,18 @@
     <% 
       # 最適化された処理：メンションは投稿時/受信時に既にリンク化済み
       # URLリンク化 + 絵文字HTML変換を一括処理
-      final_content = parse_content_for_frontend(post.content, domain: post.actor&.domain)
+      final_content = parse_content_for_frontend(content_without_quote_fallback(post), domain: post.actor&.domain)
     %>
     <div class="whitespace-pre-wrap break-words"><%= final_content.html_safe %></div>
   </div>
 
-  <!-- リンクプレビュー -->
-  <%= render 'shared/post_card_link_preview', 
-             content: post.content %>
+  <!-- 引用元(引用元を表示するので、リンクプレビューは出さない) -->
+  <% if post.quoted? %>
+    <%= render 'shared/post_card_quote', post: post %>
+  <% else %>
+    <%= render 'shared/post_card_link_preview', 
+               content: post.content %>
+  <% end %>
 
   <!-- メディア添付（ブログ記事内の画像として表示） -->
   <% if post.media_attachments.any? %>

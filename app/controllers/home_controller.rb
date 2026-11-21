@@ -45,7 +45,7 @@ class HomeController < ApplicationController
                      .where(actors: { local: true })
                      .where(visibility: %w[public unlisted])
                      .where(local: true)
-                     .includes(:actor, :media_attachments)
+                     .includes(:actor, :media_attachments, quote_posts: { quoted_object: %i[actor media_attachments] })
                      .order(published_at: :desc, id: :desc)
   end
 
@@ -56,7 +56,7 @@ class HomeController < ApplicationController
     Reblog.where(actor_id: Actor.local.select(:id))
           .joins(:object)
           .where(objects: { visibility: %w[public unlisted] })
-          .includes(:actor, object: %i[actor media_attachments])
+          .includes(:actor, object: [:actor, :media_attachments, { quote_posts: { quoted_object: %i[actor media_attachments] } }])
           .order(created_at: :desc, id: :desc)
   end
 

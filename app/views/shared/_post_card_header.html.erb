@@ -1,6 +1,6 @@
 <%
   # 投稿カードヘッダー部分
-  # パラメータ: actor, published_at, post, pinned, reblog
+  # パラメータ: actor, published_at, post, pinned, reblog, quote
 %>
 
 <header class="mb-2">
@@ -30,6 +30,9 @@
       <% end %>
       <% if reblog %>
         <span class="mr-2">再投稿</span>
+      <% end %>
+      <% if local_assigns[:quote] %>
+        <span class="mr-2">引用</span>
       <% end %>
       <%= render 'shared/post_card_time_link', actor: actor, post: post, published_at: published_at %>
     </div>

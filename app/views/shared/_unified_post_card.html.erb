@@ -5,7 +5,7 @@
   actor ||= nil
   
   display_actor = actor || post.actor
-  display_content = post.content
+  display_content = content_without_quote_fallback(post)
   display_published_at = post.published_at
   display_replies_count = post.replies_count
   display_media = post.media_attachments
@@ -33,15 +33,20 @@
              published_at: display_published_at, 
              post: post,
              pinned: pinned,
-             reblog: reblog %>
+             reblog: reblog,
+             quote: post.quoted? && !reblog %>
 
   <!-- 共通本文 -->
   <%= render 'shared/post_card_content', 
              content: display_content %>
 
-  <!-- リンクプレビュー -->
-  <%= render 'shared/post_card_link_preview', 
-             content: display_content %>
+  <!-- 引用元(引用元を表示するので、リンクプレビューは出さない) -->
+  <% if post.quoted? %>
+    <%= render 'shared/post_card_quote', post: post %>
+  <% else %>
+    <%= render 'shared/post_card_link_preview', 
+               content: display_content %>
+  <% end %>
 
   <!-- 共通メディア -->
   <% if display_media.any? %>

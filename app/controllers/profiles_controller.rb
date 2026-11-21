@@ -105,7 +105,7 @@ class ProfilesController < ApplicationController
       .where(visibility: %w[public unlisted])
       .where(object_type: 'Note')
       .where(local: true)
-      .includes(:actor)
+      .includes(:actor, quote_posts: { quoted_object: %i[actor media_attachments] })
       .order(published_at: :desc, id: :desc)
   end
 
@@ -113,7 +113,7 @@ class ProfilesController < ApplicationController
     Reblog.joins(:actor, :object)
           .where(actor: @actor)
           .where(objects: { visibility: %w[public unlisted] })
-          .includes(:actor, object: %i[actor media_attachments])
+          .includes(:actor, object: [:actor, :media_attachments, { quote_posts: { quoted_object: %i[actor media_attachments] } }])
           .order(created_at: :desc, id: :desc)
   end
 

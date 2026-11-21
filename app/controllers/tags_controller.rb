@@ -39,7 +39,7 @@ class TagsController < ApplicationController
     ActivityPubObject.joins(:actor, :tags)
                      .where(tags: { id: @tag.id })
                      .where(visibility: 'public')
-                     .includes(:actor, :media_attachments)
+                     .includes(:actor, :media_attachments, quote_posts: { quoted_object: %i[actor media_attachments] })
                      .order(published_at: :desc, id: :desc)
   end
 
