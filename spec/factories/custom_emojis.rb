@@ -2,8 +2,8 @@
 
 FactoryBot.define do
   factory :custom_emoji do
-    # Faker::Lorem.wordには1文字語("a"等)がありshortcode_length(2文字以上)に落ちてflakeになる。
-    # 単語の重複(uniqueness scope: domain)も起こすため、決定的なsequenceで生成する
+    # Faker::Lorem.wordは単語が重複して一意性(uniqueness scope: domain)に落ちることがあるため、
+    # 決定的なsequenceで生成する
     sequence(:shortcode) { |n| "emoji#{n}" }
     visible_in_picker { true }
     disabled { false }

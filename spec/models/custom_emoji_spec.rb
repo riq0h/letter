@@ -23,8 +23,9 @@ RSpec.describe CustomEmoji do
       expect(shortcode_errors(build(:custom_emoji, :remote, shortcode: 'a' * 101))).to be_present
     end
 
-    it 'rejects a shortcode shorter than 2 chars' do
-      expect(shortcode_errors(build(:custom_emoji, :remote, shortcode: 'a'))).to be_present
+    # Misskeyは1文字の絵文字名を使う
+    it 'accepts a one-character shortcode' do
+      expect(shortcode_errors(build(:custom_emoji, :remote, shortcode: 'a'))).to be_empty
     end
   end
 end

@@ -13,6 +13,10 @@ RSpec.describe EmojiPresenter do
       expect(result).to contain_exactly('smile', 'heart')
     end
 
+    it 'extracts one-character shortcodes' do
+      expect(described_class.new('Misskey :a: emoji').extract_shortcodes).to eq(['a'])
+    end
+
     it 'returns empty array for text without shortcodes' do
       text = 'Hello world!'
       presenter = described_class.new(text)

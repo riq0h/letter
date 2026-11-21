@@ -3,15 +3,17 @@
 class CustomEmoji < ApplicationRecord
   include RemoteLocalHelper
 
-  # ショートコード検出用正規表現（EmojiFormatterから参照）
-  SHORTCODE_RE_FRAGMENT = '[a-zA-Z0-9_-]{2,}'
+  # ショートコード検出用正規表現（EmojiFormatterから参照）。
+  # Misskeyは1文字の絵文字名(:a: など)も使うため1文字から認める(Mastodonは2文字以上)。
+  # 画像に置き換えるのは実在する絵文字だけなので、本文中の「a:b:c」のような文字列は変わらない
+  SHORTCODE_RE_FRAGMENT = '[a-zA-Z0-9_-]+'
   SCAN_RE = /:(#{SHORTCODE_RE_FRAGMENT}):/o
 
   # ショートコード長の上限。Misskey等は長いショートコード(35文字超)を使うため
   # 従来の30では正当なリモート絵文字が保存できなかった。ローカル/リモートで
   # 上限を分けると、リモート絵文字をローカルにコピーする際(RemoteEmojiCopyService)に
   # ローカル上限で弾かれてしまうため、単一の上限に統一する。
-  SHORTCODE_MIN_LENGTH = 2
+  SHORTCODE_MIN_LENGTH = 1
   SHORTCODE_MAX_LENGTH = 100
 
   # バリデーション
