@@ -63,7 +63,7 @@ RSpec.describe QuoteAuthorization, type: :model do
     context 'with valid authorization' do
       it 'returns true for valid quote' do
         result = described_class.validate_quote(
-          quote_post.ap_id,
+          quote_post.object.ap_id,
           quoted_object.ap_id,
           quote_authorization.ap_id
         )

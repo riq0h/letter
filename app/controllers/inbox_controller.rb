@@ -70,6 +70,8 @@ class InboxController < ApplicationController
       handle_add_activity
     when 'Remove'
       handle_remove_activity
+    when 'QuoteRequest'
+      handle_quote_request_activity
     else
       handle_unsupported_activity
     end

@@ -49,7 +49,7 @@ RSpec.describe QuotePost, type: :model do
         auth = quote_post.quote_authorization
         expect(auth.ap_id).to eq(quote_post.quote_authorization_url)
         expect(auth.actor).to eq(quoted_object.actor)
-        expect(auth.interacting_object_id).to eq(quote_post.ap_id)
+        expect(auth.interacting_object_id).to eq(quote_post.object.ap_id)
         expect(auth.interaction_target_id).to eq(quoted_object.ap_id)
       end
     end

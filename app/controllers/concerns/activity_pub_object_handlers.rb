@@ -162,6 +162,14 @@ module ActivityPubObjectHandlers
     head :accepted
   end
 
+  # 他サーバからの引用リクエスト(FEP-044f)。投稿の取得と応答の配送があるため、ジョブで処理する
+  def handle_quote_request_activity
+    ProcessQuoteRequestJob.perform_later(@activity.to_h, @sender.id)
+    Rails.logger.info "💬 Quote request from #{@sender.ap_id} for #{ActivityPubOrigin.value_or_id(@activity['object'])}"
+
+    head :accepted
+  end
+
   # Delete Activity処理
   def handle_delete_activity
     Rails.logger.info '🗑️ Processing Delete activity'

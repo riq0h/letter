@@ -35,7 +35,7 @@ class QuoteAuthorization < ApplicationRecord
   end
 
   # 引用の妥当性を検証
-  def self.validate_quote(quote_post_ap_id, quoted_object_ap_id, quote_authorization_url)
+  def self.validate_quote(quoting_object_ap_id, quoted_object_ap_id, quote_authorization_url)
     return false if quote_authorization_url.blank?
 
     begin
@@ -45,7 +45,7 @@ class QuoteAuthorization < ApplicationRecord
 
       # 4つの要素を検証
       auth.ap_id == quote_authorization_url &&
-        auth.interacting_object_id == quote_post_ap_id &&
+        auth.interacting_object_id == quoting_object_ap_id &&
         auth.interaction_target_id == quoted_object_ap_id &&
         auth.actor == ActivityPubObject.find_by(ap_id: quoted_object_ap_id)&.actor
     rescue StandardError => e

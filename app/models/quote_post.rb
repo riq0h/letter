@@ -45,7 +45,8 @@ class QuotePost < ApplicationRecord
     }
   end
 
-  # 自己完結型引用承認を作成
+  # 自己完結型引用承認を作成。interactingObjectは引用した投稿そのもの(FEP-044f。
+  # Mastodonは承認を受け取ると、これが引用した投稿のURIと一致するかを確かめる)
   def create_self_authorization!
     return if quote_authorization.present?
 
@@ -55,7 +56,7 @@ class QuotePost < ApplicationRecord
       ap_id: auth_id,
       actor: quoted_object.actor,
       quote_post: self,
-      interacting_object_id: ap_id,
+      interacting_object_id: object.ap_id,
       interaction_target_id: quoted_object.ap_id
     )
 
