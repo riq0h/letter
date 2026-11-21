@@ -170,12 +170,42 @@ module ActivityPubObjectHandlers
     head :accepted
   end
 
+  # こちらが送った引用の承認リクエストへの応答(Accept/Reject)か
+  def quote_request_answer?
+    QuotePost.from_quote_request_ap_id(ActivityPubOrigin.value_or_id(@activity['object'])).present?
+  end
+
+  # 承認の証明の確認と投稿の配送し直しがあるため、ジョブで処理する
+  def handle_quote_request_answer
+    quote_post = QuotePost.from_quote_request_ap_id(ActivityPubOrigin.value_or_id(@activity['object']))
+    ProcessQuoteRequestAnswerJob.perform_later(quote_post.id, @activity['type'], @sender.id,
+                                               ActivityPubOrigin.value_or_id(@activity['result']))
+    Rails.logger.info "💬 Quote request #{@activity['type']}: #{quote_post.quote_request_ap_id}"
+
+    head :accepted
+  end
+
+  # 引用を承認した作者が、承認の証明を削除(=承認を取り消し)したか
+  def revoked_quote_authorization?(object_id)
+    object_id.present? && QuotePost.exists?(quote_authorization_url: object_id)
+  end
+
+  def handle_quote_authorization_revoked(object_id)
+    QuotePost.where(quote_authorization_url: object_id).find_each do |quote_post|
+      ProcessQuoteRequestAnswerJob.perform_later(quote_post.id, 'Revoke', @sender.id)
+    end
+    Rails.logger.info "💬 Quote authorization revoked: #{object_id}"
+
+    head :accepted
+  end
+
   # Delete Activity処理
   def handle_delete_activity
     Rails.logger.info '🗑️ Processing Delete activity'
 
     object_id = extract_delete_object_id
     return handle_account_deletion if account_deletion?(object_id)
+    return handle_quote_authorization_revoked(object_id) if revoked_quote_authorization?(object_id)
 
     object = ActivityPubObject.find_by(ap_id: object_id)
 

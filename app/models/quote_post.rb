@@ -15,7 +15,9 @@ class QuotePost < ApplicationRecord
   # コールバック
   before_save :set_default_interaction_policy
   after_create :notify_quoted_status_author
-  after_create :create_self_authorization!
+  # 承認の証明を出せるのは、引用された投稿の作者のサーバだけ
+  after_create :create_self_authorization!, if: -> { quoted_object.actor&.local? }
+  after_create_commit :request_quote_approval, if: :needs_remote_approval?
 
   scope :recent, -> { order(created_at: :desc) }
   scope :shallow, -> { where(shallow_quote: true) }
@@ -43,6 +45,20 @@ class QuotePost < ApplicationRecord
         'automaticApproval' => ['https://www.w3.org/ns/activitystreams#Public']
       }
     }
+  end
+
+  # 承認を求めるQuoteRequestのid。作者のサーバの応答(Accept/Reject)はこのidを指して届く
+  def quote_request_ap_id
+    "#{actor.ap_id}#quote_requests/#{id}"
+  end
+
+  def self.from_quote_request_ap_id(uri)
+    quote_post = find_by(id: uri.to_s[/#quote_requests\/(\d+)\z/, 1])
+    quote_post if quote_post&.quote_request_ap_id == uri
+  end
+
+  def approved?
+    quote_authorization_url.present?
   end
 
   # 自己完結型引用承認を作成。interactingObjectは引用した投稿そのもの(FEP-044f。
@@ -129,6 +145,15 @@ class QuotePost < ApplicationRecord
 
   def build_audience_list(type)
     ActivityBuilders::AudienceBuilder.new(self).build(type)
+  end
+
+  # 他サーバの投稿を引用したときは、作者のサーバに承認を求める(FEP-044f。Mastodon 4.5以降)
+  def needs_remote_approval?
+    actor&.local? && quoted_object.actor.present? && !quoted_object.actor.local?
+  end
+
+  def request_quote_approval
+    SendQuoteRequestJob.perform_later(id)
   end
 
   def notify_quoted_status_author

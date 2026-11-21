@@ -3,6 +3,23 @@
 class ActivityPubObjectSerializer
   include TextLinkingHelper
 
+  id_ref = ->(id) { { '@id' => id, '@type' => '@id' } }
+  FEP044F_CONTEXT = [
+    'https://www.w3.org/ns/activitystreams',
+    {
+      'toot' => 'http://joinmastodon.org/ns#',
+      'quote' => id_ref.call('https://w3id.org/fep/044f#quote'),
+      'quoteAuthorization' => id_ref.call('https://w3id.org/fep/044f#quoteAuthorization'),
+      'quoteUrl' => 'toot:quoteUrl',
+      'quoteUri' => 'http://fedibird.com/ns#quoteUri',
+      '_misskey_quote' => 'https://misskey-hub.net/ns#_misskey_quote',
+      'gts' => 'https://gotosocial.org/ns#',
+      'interactionPolicy' => id_ref.call('gts:interactionPolicy'),
+      'canQuote' => id_ref.call('gts:canQuote'),
+      'automaticApproval' => id_ref.call('gts:automaticApproval')
+    }
+  ].freeze
+
   def initialize(object)
     @object = object
   end
@@ -152,9 +169,11 @@ class ActivityPubObjectSerializer
     return unless quote_post&.quoted_object
 
     quoted_ap_id = quote_post.quoted_object.ap_id
+    data['quote'] = quoted_ap_id # FEP-044f(Mastodon 4.5以降はこれと承認の証明で引用を表示する)
     data['quoteUrl'] = quoted_ap_id
     data['_misskey_quote'] = quoted_ap_id
     data['quoteUri'] = quoted_ap_id # Fedibird互換
+    data['quoteAuthorization'] = quote_post.quote_authorization_url if quote_post.approved?
   end
 
   def build_interaction_policy
@@ -165,31 +184,9 @@ class ActivityPubObjectSerializer
     }
   end
 
+  # FEP-044f用のJSON-LDコンテキストを追加
   def add_fep044f_context(data)
-    # FEP-044f用のJSON-LDコンテキストを追加
-    context = [
-      'https://www.w3.org/ns/activitystreams',
-      {
-        'toot' => 'http://joinmastodon.org/ns#',
-        'quoteUrl' => 'toot:quoteUrl',
-        '_misskey_quote' => 'https://misskey-hub.net/ns#_misskey_quote',
-        'gts' => 'https://gotosocial.org/ns#',
-        'interactionPolicy' => {
-          '@id' => 'gts:interactionPolicy',
-          '@type' => '@id'
-        },
-        'canQuote' => {
-          '@id' => 'gts:canQuote',
-          '@type' => '@id'
-        },
-        'automaticApproval' => {
-          '@id' => 'gts:automaticApproval',
-          '@type' => '@id'
-        }
-      }
-    ]
-
-    data['@context'] = context
+    data['@context'] = FEP044F_CONTEXT
     data
   end
 end

@@ -179,6 +179,11 @@ class ActivityPubObject < ApplicationRecord
     quote_posts.any?
   end
 
+  # 内容は変えずに最新の状態をUpdateとして配送し直す(引用の承認が届いたときなど)
+  def redistribute!
+    create_update_activity if local?
+  end
+
   def root_conversation
     return self unless reply?
 

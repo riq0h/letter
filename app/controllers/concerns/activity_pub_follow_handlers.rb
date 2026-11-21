@@ -70,6 +70,8 @@ module ActivityPubFollowHandlers
 
   # Accept Activity処理
   def handle_accept_activity
+    return handle_quote_request_answer if quote_request_answer?
+
     Rails.logger.info '✅ Processing Accept activity'
 
     object = @activity['object']
@@ -97,6 +99,8 @@ module ActivityPubFollowHandlers
 
   # Reject Activity処理
   def handle_reject_activity
+    return handle_quote_request_answer if quote_request_answer?
+
     Rails.logger.info '❌ Processing Reject activity'
 
     object = @activity['object']
