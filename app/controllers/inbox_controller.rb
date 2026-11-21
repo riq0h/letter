@@ -76,6 +76,8 @@ class InboxController < ApplicationController
   end
 
   def handle_create_activity_with_organizer
+    return handle_referenced_create if referenced_create?
+
     result = CreateActivityOrganizer.call(@activity, @sender)
 
     Rails.logger.error "Create activity failed: #{result.error}" unless result.success?

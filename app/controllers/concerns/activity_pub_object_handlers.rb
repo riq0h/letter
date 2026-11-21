@@ -149,6 +149,19 @@ module ActivityPubObjectHandlers
     Rails.logger.warn "⚠️ Failed to create media attachment: #{e.message}"
   end
 
+  # 投稿の本文を含まず、URLだけを示すCreate(fedibirdの限定公開の投稿など)
+  def referenced_create?
+    @activity['object'].is_a?(String)
+  end
+
+  # Mastodonと同じく、投稿を元のサーバから署名付きで取りに行って取り込む
+  def handle_referenced_create
+    FetchForwardedObjectJob.perform_later(@activity['object'], @sender.ap_id)
+    Rails.logger.info "📝 Create by reference: fetching #{@activity['object']} from its origin"
+
+    head :accepted
+  end
+
   # Delete Activity処理
   def handle_delete_activity
     Rails.logger.info '🗑️ Processing Delete activity'

@@ -13,7 +13,7 @@ RSpec.describe FetchForwardedObjectJob do
   end
 
   it 'imports the copy fetched from the origin, attributed to its real author' do
-    allow(ActivityPubHttpClient).to receive(:fetch_verified).with(object_uri).and_return(original)
+    allow(ActivityPubHttpClient).to receive(:fetch_verified).with(object_uri, signing_actor: anything).and_return(original)
 
     described_class.perform_now(object_uri, author.ap_id)
 

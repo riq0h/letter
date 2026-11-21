@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
-# 転送(署名者≠actor)やリレー経由で届いたCreateの投稿を、元のサーバから取り直して取り込むジョブ。
+# 転送(署名者≠actor)・リレー経由、または本文を含まずURLだけで届いたCreateの投稿を、
+# 元のサーバから取り直して取り込むジョブ。
 # 転送されてきた本文は転送者しか署名しておらず、作者本人のものと確認できないため使わない。
 # 投稿のidから直接取得し(idと取得元の一致を検証)、作者が名乗られた本人であることを確かめてから、
 # 作者本人から直接届いた場合と同じ処理(CreateActivityOrganizer)に渡す。
+# フォロワー限定などの投稿も取れるよう、ローカルのアカウントで署名して取得する(Mastodonも署名付きで取得する)
 class FetchForwardedObjectJob < ApplicationJob
   queue_as :default
 
@@ -11,7 +13,7 @@ class FetchForwardedObjectJob < ApplicationJob
     return if ActivityPubObject.exists?(ap_id: object_uri)
     return unless ActivityPubOrigin.same_host?(object_uri, claimed_actor_uri)
 
-    object = ActivityPubHttpClient.fetch_verified(object_uri)
+    object = ActivityPubHttpClient.fetch_verified(object_uri, signing_actor: Actor.find_by(local: true))
     return unless object.is_a?(Hash) && object['id'] == object_uri
 
     author_uri = ActivityPubOrigin.value_or_id(object['attributedTo'])
