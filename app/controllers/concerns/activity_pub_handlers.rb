@@ -5,6 +5,7 @@ module ActivityPubHandlers
 
   include ActivityPubFollowHandlers
   include ActivityPubInteractionHandlers
+  include ActivityPubMoveHandlers
 
   private
 

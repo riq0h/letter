@@ -29,6 +29,7 @@ Rails.application.routes.draw do
       post '/accounts/:id/mute', to: 'accounts#mute'
       post '/accounts/:id/unmute', to: 'accounts#unmute'
       post '/accounts/:id/note', to: 'accounts#note'
+      post '/accounts/:id/remove_from_followers', to: 'follower_removals#create'
       get '/accounts/:id/lists', to: 'accounts#lists'
 
       # ステータス

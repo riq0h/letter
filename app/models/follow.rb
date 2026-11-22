@@ -64,9 +64,13 @@ class Follow < ApplicationRecord
   def reject!
     return unless pending?
 
-    # Reject アクティビティを作成（ローカルユーザが拒否する場合）
-    create_reject_activity if target_actor.local?
+    notify_rejection
+    destroy
+  end
 
+  # こちらのユーザをフォローしている他サーバの相手を、フォロワーから外す(MastodonのRemove from followers)
+  def remove_follower!
+    notify_rejection
     destroy
   end
 
@@ -171,16 +175,11 @@ class Follow < ApplicationRecord
     Rails.logger.error "Failed to sync follower counts: #{e.message}"
   end
 
-  def create_reject_activity
-    Activity.create!(
-      ap_id: ApIdGeneration.generate_ap_id,
-      activity_type: 'Reject',
-      actor: target_actor,
-      target_ap_id: follow_activity_ap_id,
-      published_at: Time.current,
-      local: true,
-      processed: true
-    )
+  # 相手のサーバにフォローを断ったことを伝える(相手側のフォローも外れる)
+  def notify_rejection
+    return unless target_actor&.local? && actor && !actor.local?
+
+    SendRejectFollowJob.perform_later(target_actor.id, actor.id, follow_activity_ap_id)
   end
 
   def create_undo_activity

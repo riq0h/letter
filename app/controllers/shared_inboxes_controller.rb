@@ -137,6 +137,8 @@ class SharedInboxesController < ApplicationController
       handle_remove_activity
     when 'QuoteRequest'
       handle_quote_request_activity
+    when 'Move'
+      handle_move_activity
     else
       Rails.logger.warn "⚠️ Unsupported activity type: #{@activity['type']}"
       head :accepted

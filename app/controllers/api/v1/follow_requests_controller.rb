@@ -38,7 +38,7 @@ module Api
           return
         end
 
-        @follow_request.destroy!
+        @follow_request.reject!
         render json: serialized_relationship(@follow_request.actor)
       end
 
