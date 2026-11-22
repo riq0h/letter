@@ -10,6 +10,13 @@ class WebPushSubscription < ApplicationRecord
   validates :p256dh_key, presence: true
   validates :auth_key, presence: true
 
+  # 送信先が通知を保持する時間(TTLヘッダ)
+  PUSH_TTL = 48.hours
+
+  # 送信先(中継サーバなど)が「もう届かない」と判断したときに購読を消せるよう、送信ごとに解除用URLを付ける。
+  # 送信先が届けるのを諦めた後でも呼べるよう、有効期間はTTLの倍にする
+  generates_token_for :unsubscribe, expires_in: PUSH_TTL * 2
+
   scope :active, -> { where.not(endpoint: nil).where('created_at > ?', subscription_expiry_threshold) }
   scope :expired, -> { where(created_at: ..subscription_expiry_threshold) }
 
@@ -24,7 +31,10 @@ class WebPushSubscription < ApplicationRecord
   end
 
   def alerts
-    data_hash['alerts'] || default_alerts
+    stored = data_hash['alerts']
+    return default_alerts unless stored.is_a?(Hash)
+
+    stored.transform_values { |value| self.class.alert_enabled?(value) }
   end
 
   def alerts=(alert_hash)
@@ -93,6 +103,16 @@ class WebPushSubscription < ApplicationRecord
     created_at <= self.class.subscription_expiry_threshold
   end
 
+  # ログアウトなどでトークンが無効になった購読には送らない(クライアントはそのトークンで通知を取りに来られない)
+  def token_usable?
+    access_token.present? && access_token.accessible?
+  end
+
+  def unsubscribe_url
+    path = Rails.application.routes.url_helpers.web_push_unsubscribe_path(generate_token_for(:unsubscribe))
+    "#{Rails.application.config.activitypub.base_url}#{path}"
+  end
+
   def expires_at
     created_at + self.class.subscription_expiry_duration
   end
@@ -104,6 +124,11 @@ class WebPushSubscription < ApplicationRecord
   end
 
   class << self
+    # 通知設定は文字列("true"/"false")で送ってくるクライアントもあるので、真偽値として読む
+    def alert_enabled?(value)
+      ActiveModel::Type::Boolean.new.cast(value) == true
+    end
+
     def subscription_expiry_duration
       3650.days
     end

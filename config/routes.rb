@@ -3,6 +3,8 @@
 Rails.application.routes.draw do
   # QuoteAuthorization endpoint for FEP-044f
   get '/quote_auth/:id', to: 'activity_pub/quote_authorizations#show', as: :quote_authorization
+  # プッシュ通知の送信先から購読を解除する口(送信時のUnsubscribe-URL)
+  delete '/api/web/push_subscriptions/:id', to: 'api/web/push_subscriptions#destroy', as: :web_push_unsubscribe
   # ヘルスチェックエンドポイント
   get 'up' => 'rails/health#show', :as => :rails_health_check
 
@@ -37,7 +39,9 @@ Rails.application.routes.draw do
   # ================================
 
   # OAuth 2.0 Routes
-  use_doorkeeper
+  use_doorkeeper do
+    controllers tokens: 'oauth/tokens'
+  end
 
   # ================================
   # キャッチオールルート（最後に配置）

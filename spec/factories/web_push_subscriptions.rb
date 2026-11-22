@@ -3,6 +3,10 @@
 FactoryBot.define do
   factory :web_push_subscription do
     association :actor, factory: :actor
+    access_token do
+      application = Doorkeeper::Application.create!(name: 'Push Client', redirect_uri: 'https://localhost', confidential: false)
+      Doorkeeper::AccessToken.create!(resource_owner_id: actor.id, application: application, scopes: 'read write follow push')
+    end
 
     endpoint { 'https://fcm.googleapis.com/fcm/send/example' }
     p256dh_key { 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4wZjZftyNVPpFe1KGWd2NvsXpjBSGkNNDvs_' }

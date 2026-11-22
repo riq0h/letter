@@ -39,6 +39,40 @@ RSpec.describe WebPushDelivery do
       end
     end
 
+    context 'when the access token of a subscription is no longer valid' do
+      it 'removes the subscription instead of sending to it' do
+        subscription.access_token.revoke
+
+        expect(SendWebPushNotificationJob).not_to receive(:perform_later)
+        described_class.deliver_to_actor(actor, 'mention', 'Test Title', 'Test Body')
+
+        expect(WebPushSubscription.exists?(subscription.id)).to be false
+      end
+    end
+
+    context 'when the subscription limits who can notify' do
+      let(:local_status) { create(:activity_pub_object, actor: remote_actor, content: 'Hi') }
+
+      before do
+        subscription.policy = 'follower'
+        subscription.save!
+      end
+
+      it 'applies the limit to mentions as well' do
+        expect(SendWebPushNotificationJob).not_to receive(:perform_later)
+
+        described_class.deliver_mention_notification(local_status, actor, 1)
+      end
+
+      it 'sends when the sender is a follower, without passing the sender to the job' do
+        create(:follow, actor: remote_actor, target_actor: actor, accepted: true)
+        expect(SendWebPushNotificationJob).to receive(:perform_later)
+          .with(subscription.id, 'mention', String, 'Hi', hash_excluding(:from_actor))
+
+        described_class.deliver_mention_notification(local_status, actor, 1)
+      end
+    end
+
     context 'when actor has no subscriptions' do
       it 'does not queue any jobs' do
         expect(SendWebPushNotificationJob).not_to receive(:perform_later)
@@ -157,7 +191,8 @@ RSpec.describe WebPushDelivery do
           {
             notification_id: 123,
             url: local_status.ap_id,
-            icon: local_status.actor.avatar_url
+            icon: local_status.actor.avatar_url,
+            from_actor: local_status.actor
           }
         )
 
@@ -251,7 +286,8 @@ RSpec.describe WebPushDelivery do
           {
             notification_id: 202,
             url: local_status.ap_id,
-            icon: local_status.actor.avatar_url
+            icon: local_status.actor.avatar_url,
+            from_actor: local_status.actor
           }
         )
 
@@ -269,7 +305,8 @@ RSpec.describe WebPushDelivery do
           {
             notification_id: 303,
             url: local_status.ap_id,
-            icon: local_status.actor.avatar_url
+            icon: local_status.actor.avatar_url,
+            from_actor: local_status.actor
           }
         )
 
@@ -287,7 +324,8 @@ RSpec.describe WebPushDelivery do
           {
             notification_id: 404,
             url: local_status.ap_id,
-            icon: local_status.actor.avatar_url
+            icon: local_status.actor.avatar_url,
+            from_actor: local_status.actor
           }
         )
 
@@ -321,22 +359,24 @@ RSpec.describe WebPushDelivery do
 
   describe '.build_notification_options' do
     it 'builds proper notification options' do
-      result = described_class.send(:build_notification_options, 123, '@user', 'icon.png')
+      result = described_class.send(:build_notification_options, 123, '@user', remote_actor)
 
       expect(result).to eq({
                              notification_id: 123,
                              url: "#{Rails.application.config.activitypub.base_url}/@user",
-                             icon: 'icon.png'
+                             icon: remote_actor.avatar_url,
+                             from_actor: remote_actor
                            })
     end
 
     it 'handles full URLs' do
-      result = described_class.send(:build_notification_options, 123, 'https://example.com/status', 'icon.png')
+      result = described_class.send(:build_notification_options, 123, 'https://example.com/status', remote_actor)
 
       expect(result).to eq({
                              notification_id: 123,
                              url: 'https://example.com/status',
-                             icon: 'icon.png'
+                             icon: remote_actor.avatar_url,
+                             from_actor: remote_actor
                            })
     end
   end
@@ -409,6 +449,58 @@ RSpec.describe WebPushDelivery do
       allow(AesgcmEncryption).to receive(:encrypt).and_raise(ArgumentError, 'Invalid key')
 
       expect(described_class.send(:valid_webpush_keys?, subscription)).to be false
+    end
+  end
+
+  describe 'sending to the push service' do
+    let(:vapid_pem) { OpenSSL::PKey::EC.generate('prime256v1').to_pem }
+    let(:client_key) { OpenSSL::PKey::EC.generate('prime256v1') }
+    let(:subscription) do
+      create(:web_push_subscription, :with_alerts, actor: actor,
+                                                   p256dh_key: Base64.urlsafe_encode64(client_key.public_key.to_bn.to_s(2)),
+                                                   auth_key: Base64.urlsafe_encode64(SecureRandom.random_bytes(16)))
+    end
+    let(:http) { instance_double(Net::HTTP, :use_ssl= => nil) }
+
+    def push_response(code, message = '')
+      instance_double(Net::HTTPResponse, code: code.to_s, message: message, body: '')
+    end
+
+    before do
+      allow(ENV).to receive(:[]).with('VAPID_PUBLIC_KEY').and_return(Base64.encode64(vapid_pem))
+      allow(ENV).to receive(:[]).with('VAPID_PRIVATE_KEY').and_return(Base64.encode64(vapid_pem))
+      allow(Net::HTTP).to receive(:new).and_return(http)
+      allow(described_class).to receive(:ssrf_safe_url?).and_return(true)
+    end
+
+    it 'tells the push service where to unsubscribe' do
+      sent = nil
+      allow(http).to receive(:request) do |request|
+        sent = request
+        push_response(201)
+      end
+
+      described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
+
+      prefix = "#{Rails.application.config.activitypub.base_url}/api/web/push_subscriptions/"
+      expect(sent['Unsubscribe-URL']).to start_with(prefix)
+      token = CGI.unescape(sent['Unsubscribe-URL'].delete_prefix(prefix))
+      expect(WebPushSubscription.find_by_token_for(:unsubscribe, token)).to eq(subscription)
+    end
+
+    it 'removes the subscription when the push service rejects it' do
+      allow(http).to receive(:request).and_return(push_response(404, 'Not Found'))
+
+      described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')
+
+      expect(WebPushSubscription.exists?(subscription.id)).to be false
+    end
+
+    it 'keeps the subscription when the push service is only busy' do
+      allow(http).to receive(:request).and_return(push_response(429, 'Too Many Requests'))
+
+      expect(described_class.deliver_to_subscription(subscription, 'mention', 'Test', 'Body')).to be false
+      expect(WebPushSubscription.exists?(subscription.id)).to be true
     end
   end
 

@@ -123,6 +123,8 @@ module Api
             case key.to_s
             when 'followRequest'
               converted_alerts['follow_request'] = value
+            when 'admin'
+              next
             else
               converted_alerts[key.to_s] = value
             end
@@ -133,7 +135,7 @@ module Api
           converted_alerts['admin.sign_up'] = admin_alerts[:sign_up] if admin_alerts.key?(:sign_up)
           converted_alerts['admin.report'] = admin_alerts[:report] if admin_alerts.key?(:report)
 
-          default_alerts.merge(converted_alerts)
+          default_alerts.merge(converted_alerts.transform_values { |value| WebPushSubscription.alert_enabled?(value) })
         end
 
         def serialized_subscription(subscription)

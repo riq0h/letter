@@ -448,6 +448,15 @@ Doorkeeper.configure do
   #   puts "AFTER HOOK FIRED! #{request}, #{response}"
   # end
 
+  # リフレッシュでトークンを発行し直したら、プッシュ通知の購読も新しいトークンに付け替える。
+  # 古いトークンは失効するので、付け替えないと購読ごと使えなくなる
+  after_successful_strategy_response do |request, response|
+    if request.is_a?(Doorkeeper::OAuth::RefreshTokenRequest)
+      WebPushSubscription.where(access_token_id: request.refresh_token.id)
+                         .update_all(access_token_id: response.token.id)
+    end
+  end
+
   # Hook into Authorization flow in order to implement Single Sign Out
   # or add any other functionality. Inside the block you have an access
   # to `controller` (authorizations controller instance) and `context`

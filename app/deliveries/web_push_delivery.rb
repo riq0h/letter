@@ -9,8 +9,9 @@ class WebPushDelivery
     return unless actor&.web_push_subscriptions&.any?
 
     from_actor = options[:from_actor]
+    job_options = options.except(:from_actor)
 
-    actor.web_push_subscriptions.active.find_each do |subscription|
+    actor.web_push_subscriptions.active.includes(:access_token).find_each do |subscription|
       # 期限切れチェック
       if subscription.expired?
         Rails.logger.info "🧹 Removing expired WebPush subscription for #{actor.username}"
@@ -18,12 +19,18 @@ class WebPushDelivery
         next
       end
 
+      unless subscription.token_usable?
+        Rails.logger.info "🧹 Removing WebPush subscription #{subscription.id} whose access token is no longer valid"
+        subscription.destroy
+        next
+      end
+
       next unless subscription.should_send_alert?(notification_type)
 
-      # ポリシーベースのフィルタリング（from_actorが指定されている場合のみ）
+      # 通知を受け取る相手の制限(全員/フォロー中/フォロワー/なし)
       next if from_actor && !subscription.should_receive_notification_from?(from_actor, actor, notification_type)
 
-      SendWebPushNotificationJob.perform_later(subscription.id, notification_type, title, body, options)
+      SendWebPushNotificationJob.perform_later(subscription.id, notification_type, title, body, job_options)
     end
   end
 
@@ -43,7 +50,7 @@ class WebPushDelivery
       'follow',
       "#{follower.display_name_or_username}さんがあなたをフォローしました",
       follower.note.present? ? strip_tags(follower.note) : '',
-      build_notification_options(notification_id, "@#{follower.username}", follower.avatar_url)
+      build_notification_options(notification_id, "@#{follower.username}", follower)
     )
   end
 
@@ -55,7 +62,7 @@ class WebPushDelivery
       'mention',
       "#{status.actor.display_name_or_username}さんからメンション",
       strip_tags(status.content || ''),
-      build_notification_options(notification_id, status.ap_id, status.actor.avatar_url)
+      build_notification_options(notification_id, status.ap_id, status.actor)
     )
   end
 
@@ -67,9 +74,7 @@ class WebPushDelivery
       'favourite',
       "#{favourite.actor.display_name_or_username}さんがいいねしました",
       strip_tags(favourite.object.content || ''),
-      build_notification_options(notification_id, favourite.object.ap_id, favourite.actor.avatar_url).merge(
-        from_actor: favourite.actor
-      )
+      build_notification_options(notification_id, favourite.object.ap_id, favourite.actor)
     )
   end
 
@@ -81,9 +86,7 @@ class WebPushDelivery
       'reblog',
       "#{reblog.actor.display_name_or_username}さんがリブログしました",
       strip_tags(reblog.object.content || ''),
-      build_notification_options(notification_id, reblog.object.ap_id, reblog.actor.avatar_url).merge(
-        from_actor: reblog.actor
-      )
+      build_notification_options(notification_id, reblog.object.ap_id, reblog.actor)
     )
   end
 
@@ -95,7 +98,7 @@ class WebPushDelivery
       'follow_request',
       "#{follower.display_name_or_username}さんからフォローリクエスト",
       follower.note.present? ? strip_tags(follower.note) : '',
-      build_notification_options(notification_id, "@#{follower.username}", follower.avatar_url)
+      build_notification_options(notification_id, "@#{follower.username}", follower)
     )
   end
 
@@ -107,7 +110,7 @@ class WebPushDelivery
       'poll',
       '投票が終了しました',
       strip_tags(status.content || ''),
-      build_notification_options(notification_id, status.ap_id, status.actor.avatar_url)
+      build_notification_options(notification_id, status.ap_id, status.actor)
     )
   end
 
@@ -119,7 +122,7 @@ class WebPushDelivery
       'status',
       "#{status.actor.display_name_or_username}さんが投稿しました",
       strip_tags(status.content || ''),
-      build_notification_options(notification_id, status.ap_id, status.actor.avatar_url)
+      build_notification_options(notification_id, status.ap_id, status.actor)
     )
   end
 
@@ -131,7 +134,7 @@ class WebPushDelivery
       'update',
       "#{status.actor.display_name_or_username}さんが投稿を編集しました",
       strip_tags(status.content || ''),
-      build_notification_options(notification_id, status.ap_id, status.actor.avatar_url)
+      build_notification_options(notification_id, status.ap_id, status.actor)
     )
   end
 
@@ -143,19 +146,20 @@ class WebPushDelivery
       'quote',
       "#{quote_post.actor.display_name_or_username}さんがあなたの投稿を引用しました",
       strip_tags(quote_post.object.content || ''),
-      build_notification_options(notification_id, quote_post.object.ap_id, quote_post.actor.avatar_url)
+      build_notification_options(notification_id, quote_post.object.ap_id, quote_post.actor)
     )
   end
 
   class << self
     private
 
-    # 通知オプションの構築
-    def build_notification_options(notification_id, url_path, icon_url)
+    # 通知オプションの構築。from_actorは通知を起こした相手で、アイコンと受け取る相手の制限に使う
+    def build_notification_options(notification_id, url_path, from_actor)
       {
         notification_id: notification_id,
         url: build_notification_url(url_path),
-        icon: icon_url
+        icon: from_actor.avatar_url,
+        from_actor: from_actor
       }
     end
 
@@ -232,7 +236,7 @@ class WebPushDelivery
       request = Net::HTTP::Post.new(uri.request_uri)
       request['Content-Type'] = 'application/octet-stream'
       request['Content-Encoding'] = 'aesgcm'
-      request['TTL'] = '172800'
+      request['TTL'] = WebPushSubscription::PUSH_TTL.to_i.to_s
       request['Urgency'] = 'normal'
 
       salt_base64 = Base64.urlsafe_encode64(encrypted[:salt]).tr('=', '')
@@ -243,6 +247,7 @@ class WebPushDelivery
       vapid_headers = build_vapid_headers(subscription.endpoint)
       request['Authorization'] = vapid_headers[:authorization]
       request['Crypto-Key'] = "dh=#{server_pub_base64};#{vapid_headers[:crypto_key]}"
+      request['Unsubscribe-URL'] = subscription.unsubscribe_url
 
       request.body = encrypted[:ciphertext]
       http.request(request)
@@ -254,8 +259,8 @@ class WebPushDelivery
         return
       end
 
-      if response.code.to_i == 410
-        Rails.logger.warn "📱 Push subscription expired (HTTP 410) for #{subscription.actor.username}, removing subscription"
+      if subscription_rejected?(response.code.to_i)
+        Rails.logger.warn "📱 Push subscription rejected (HTTP #{response.code}) for #{subscription.actor.username}, removing subscription"
         subscription.destroy
         return
       end
@@ -263,6 +268,12 @@ class WebPushDelivery
       Rails.logger.error "❌ WebPush notification failed (HTTP #{response.code}): #{response.message} for #{subscription.actor.username}"
       Rails.logger.error "Response body: #{response.body}" if response.body.present?
       raise "HTTP #{response.code}: #{response.message}"
+    end
+
+    # 送信先が4xxを返したら、その購読はもう使えないとみなす(Mastodonと同じ)。
+    # タイムアウト(408)と送りすぎ(429)は一時的なものなので残す
+    def subscription_rejected?(code)
+      (400..499).cover?(code) && [408, 429].exclude?(code)
     end
 
     # プッシュエラーの処理
