@@ -18,11 +18,24 @@ RSpec.describe PersistentLogger do
     expect(runs).to eq(1)
   end
 
-  it 'writes the same tagged lines to standard output and the file' do
+  it 'writes the same tagged lines to standard output and the file, with time and severity in the file' do
     logger.tagged('request-1') { logger.info('hello') }
 
-    expect(stdout.string).to include('[request-1] hello')
-    expect(File.read(path)).to include('[request-1] hello')
+    expect(stdout.string).to eq("[request-1] hello\n")
+    expect(File.read(path)).to match(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z INFO \[request-1\] hello$/)
+  end
+
+  it 'lets jobs be enqueued and performed with their tags' do
+    job_class = Class.new(ApplicationJob) do
+      def self.name = 'LoggedJob'
+      def perform = logger.info('working')
+    end
+    job_class.logger = logger
+
+    expect { job_class.perform_later }.not_to raise_error
+    job_class.perform_now
+
+    expect(File.read(path)).to match(/\[ActiveJob\] \[LoggedJob\] \[[0-9a-f-]+\] working$/)
   end
 
   it 'keeps the tags pushed for a request in both outputs' do

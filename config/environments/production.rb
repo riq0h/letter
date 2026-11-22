@@ -40,9 +40,10 @@ Rails.application.configure do
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
   # Log to STDOUT with the current request id as a default log tag.
-  # コンテナを作り直すとdocker logsは消えるので、永続ボリュームのlog/production.logにも書く(50MBごとに5世代)
+  # コンテナを作り直すとdocker logsは消えるので、永続ボリュームのlog/letter.logにも書く(50MBごとに5世代)。
+  # 起動時の掃除(bin/setupのlog:clearと、entrypointの大きいログの切り詰め)はlog/<環境名>.logを空にするので別の名前にする
   config.log_tags = [ :request_id ]
-  config.logger   = PersistentLogger.build(STDOUT, Rails.root.join("log/production.log"), generations: 5, size: 50.megabytes)
+  config.logger   = PersistentLogger.build(STDOUT, Rails.root.join("log/letter.log"), generations: 5, size: 50.megabytes)
 
   # Change to "debug" to log everything (including potentially personally-identifiable information!)
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
