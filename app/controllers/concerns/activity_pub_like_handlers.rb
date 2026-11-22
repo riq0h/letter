@@ -102,6 +102,16 @@ module ActivityPubLikeHandlers
     end
   rescue ActiveRecord::RecordNotUnique
     Rails.logger.info '❤️ Like already exists (concurrent request)'
+  rescue ActiveRecord::RecordInvalid => e
+    # 同時に届いた2つ目(Pleroma系は1つの投稿に複数のリアクションを送る)は、存在の確認を
+    # すり抜けて作成の検証で重複に当たる。ふぁぼは1人1つなので受け取り済みとして扱う
+    raise unless duplicate_like?(e.record)
+
+    Rails.logger.info '❤️ Like already exists (concurrent request)'
+  end
+
+  def duplicate_like?(record)
+    record.errors.of_kind?(:actor_id, :taken) || record.errors.of_kind?(:ap_id, :taken)
   end
 
   def create_like_activity_record(target_object)

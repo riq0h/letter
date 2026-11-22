@@ -112,4 +112,17 @@ RSpec.describe ActivityPubLikeHandlers, type: :controller do
       expect(Favourite.last.reaction).to eq('🙏')
     end
   end
+
+  describe 'reactions arriving at the same time' do
+    it 'accepts the one that loses the race as already received' do
+      perform(like_activity('type' => 'EmojiReact', 'content' => '👍'))
+      # 同時に届いた2つ目は、存在の確認をすり抜けて作成まで進む
+      allow(controller).to receive(:like_already_exists?).and_return(false)
+
+      perform(like_activity('type' => 'EmojiReact', 'content' => '🎉'))
+
+      expect(response).to have_http_status(:accepted)
+      expect(Favourite.where(actor: remote_actor, object: status).pluck(:reaction)).to eq(['👍'])
+    end
+  end
 end
