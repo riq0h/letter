@@ -172,6 +172,7 @@ module AccountSerializer
         privacy: 'public',
         sensitive: false,
         language: account_language(account),
+        quote_policy: account.setting('posting:default:quote_policy'),
         note: account.note || '',
         fields: account_fields(account)
       }

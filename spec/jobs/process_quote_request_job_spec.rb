@@ -67,6 +67,24 @@ RSpec.describe ProcessQuoteRequestJob do
     expect(sent.first[:activity]).to include('type' => 'Reject')
   end
 
+  it 'rejects a request to quote a post nobody else may quote' do
+    quoted.update!(quote_policy: 'nobody')
+
+    described_class.perform_now(request, requester.id)
+
+    expect(sent.first[:activity]).to include('type' => 'Reject')
+  end
+
+  it 'accepts a request to quote a followers policy only from a follower' do
+    quoted.update!(quote_policy: 'followers')
+    described_class.perform_now(request, requester.id)
+    expect(sent.last[:activity]).to include('type' => 'Reject')
+
+    create(:follow, actor: requester, target_actor: owner, accepted: true)
+    described_class.perform_now(request, requester.id)
+    expect(sent.last[:activity]).to include('type' => 'Accept')
+  end
+
   it 'does not answer when the post does not actually quote the target' do
     allow(ActivityPubHttpClient).to receive(:fetch_verified).with(quoting_uri, signing_actor: owner)
                                                             .and_return(quoting_note(quote: nil))

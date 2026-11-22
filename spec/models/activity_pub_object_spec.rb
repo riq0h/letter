@@ -314,21 +314,6 @@ RSpec.describe ActivityPubObject, type: :model do
         expect(distributor_instance).to have_received(:create_delete_activity)
       end
     end
-
-    describe '#create_quote_activity' do
-      it 'calls ActivityPubActivityDistributor but may fail due to missing job classes' do
-        quoted_object = create(:activity_pub_object, :remote)
-
-        # ActivityPubActivityDistributorの呼び出しをモック
-        distributor_instance = instance_double(ActivityPubActivityDistributor)
-        allow(ActivityPubActivityDistributor).to receive(:new).with(object).and_return(distributor_instance)
-        allow(distributor_instance).to receive(:create_quote_activity).and_return(true)
-
-        object.create_quote_activity(quoted_object)
-
-        expect(distributor_instance).to have_received(:create_quote_activity)
-      end
-    end
   end
 
   describe 'type checking methods' do

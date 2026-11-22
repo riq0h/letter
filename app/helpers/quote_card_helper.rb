@@ -26,19 +26,4 @@ module QuoteCardHelper
   def actor_handle(actor)
     actor.domain.present? ? "@#{actor.username}@#{actor.domain}" : "@#{actor.username}"
   end
-
-  # 引用元の作者のサーバに承認を求めて、まだ返事がないか。
-  # 承認の仕組みを持つサーバ(投稿に引用の許可設定がある)の投稿のときだけ。持たないサーバ
-  # (Misskeyなど)は返事をしないので、承認待ちとは表示しない
-  def quote_awaiting_approval?(quote_post)
-    return false unless quote_post.actor&.local? && !quote_post.approved?
-
-    quoted = quote_post.quoted_object
-    return false if quoted.nil? || quoted.actor&.local?
-
-    data = JSON.parse(quoted.raw_data.to_s)
-    data.is_a?(Hash) && data['interactionPolicy'].is_a?(Hash) && data['interactionPolicy'].key?('canQuote')
-  rescue JSON::ParserError
-    false
-  end
 end

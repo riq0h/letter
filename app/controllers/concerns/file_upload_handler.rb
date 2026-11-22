@@ -57,6 +57,7 @@ module FileUploadHandler
   end
 
   def update_account_attributes
+    update_default_quote_policy
     update_params = account_params.except(:avatar, :header, :fields_attributes)
 
     # fields_attributesをfieldsに変換
@@ -76,6 +77,14 @@ module FileUploadHandler
     else
       render_account_update_errors
     end
+  end
+
+  # 新しい投稿の引用の許可設定の既定値(Mastodon 4.5のsource[quote_policy])
+  def update_default_quote_policy
+    quote_policy = params.dig(:source, :quote_policy)
+    return unless QuotePolicy::SETTINGS.include?(quote_policy)
+
+    current_user.update_setting('posting:default:quote_policy', quote_policy)
   end
 
   def render_account_update_errors

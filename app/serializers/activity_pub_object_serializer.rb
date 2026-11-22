@@ -111,9 +111,27 @@ class ActivityPubObjectSerializer
   end
 
   def build_activitypub_content
-    return object.content if object.content.blank?
+    content = object.content.blank? ? object.content : auto_link_urls(object.content)
+    with_quote_fallback(content)
+  end
 
-    auto_link_urls(object.content)
+  # 引用を理解しないサーバでも何を引用したかわかるよう、本文が引用元にリンクしていなければ
+  # 「RE: URL」の段落を先頭に付ける(Mastodon 4.5と同じ。対応するクライアントやサーバはquote-inlineを隠す)
+  def with_quote_fallback(content)
+    quoted = quote_post&.quoted_object
+    return content unless quoted
+
+    url = quoted.public_url.presence || quoted.ap_id
+    return content if [url, quoted.ap_id].uniq.any? { |link| content.to_s.include?(ERB::Util.html_escape(link)) }
+
+    escaped = ERB::Util.html_escape(url)
+    %(<p class="quote-inline">RE: <a href="#{escaped}">#{escaped}</a></p>#{content})
+  end
+
+  def quote_post
+    return @quote_post if defined?(@quote_post)
+
+    @quote_post = object.quote_posts.first
   end
 
   def build_audience_list(type)
@@ -165,7 +183,6 @@ class ActivityPubObjectSerializer
   end
 
   def add_quote_data(data)
-    quote_post = object.quote_posts.first
     return unless quote_post&.quoted_object
 
     quoted_ap_id = quote_post.quoted_object.ap_id
@@ -177,11 +194,7 @@ class ActivityPubObjectSerializer
   end
 
   def build_interaction_policy
-    {
-      'canQuote' => {
-        'automaticApproval' => ['https://www.w3.org/ns/activitystreams#Public']
-      }
-    }
+    QuotePolicy.new(object).to_interaction_policy
   end
 
   # FEP-044f用のJSON-LDコンテキストを追加

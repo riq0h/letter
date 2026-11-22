@@ -58,23 +58,6 @@ class ActivityPubActivityDistributor
     activity
   end
 
-  def create_quote_activity(quoted_object)
-    return unless object.local?
-
-    activity = Activity.create!(
-      ap_id: generate_activity_id,
-      activity_type: 'Create',
-      actor: object.actor,
-      target_ap_id: quoted_object.ap_id,
-      published_at: object.published_at,
-      local: true,
-      processed: false
-    )
-
-    queue_activity_delivery(activity)
-    activity
-  end
-
   private
 
   attr_reader :object

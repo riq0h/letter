@@ -37,8 +37,8 @@ module Api
           contact: contact_info,
           rules: [],
           api_versions: {
-            # Mastodon 4.5系が名乗る値(公式docsの実例と同じ)。クライアントの新しい機能判定手段
-            mastodon: 6
+            # Mastodon 4.5と同じ7。クライアントは7以上のときに引用の作成(quoted_status_id)を使う
+            mastodon: 7
           }
         }
       end

@@ -14,11 +14,15 @@ module StatusEditHandler
 
   def build_edit_params
     # Mastodon API poll format: poll[options][] または poll: { options: [] }
-    edit_params = params.permit(:status, :spoiler_text, :language, :sensitive,
+    edit_params = params.permit(:status, :spoiler_text, :language, :sensitive, :quote_approval_policy,
                                 media_ids: [], poll: { options: [] })
 
     # spoiler_textをsummaryにマッピング（ActivityPubObjectで使用されるフィールド名）
     edit_params[:summary] = edit_params.delete(:spoiler_text) if edit_params.key?(:spoiler_text)
+
+    if edit_params.key?(:quote_approval_policy)
+      edit_params[:quote_policy] = QuotePolicy.setting_for(@status.visibility, edit_params.delete(:quote_approval_policy))
+    end
 
     # contentパラメータをstatusからマッピング
     edit_params[:content] = edit_params.delete(:status) if edit_params.key?(:status)

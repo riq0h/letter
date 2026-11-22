@@ -55,6 +55,7 @@ module StatusSerializationHelper
       pinned: pinned_by_current_user?(status),
       quoted: quoted_by_current_user?(status),
       quotes_count: quotes_count_for(status),
+      quote_approval: quote_approval_data(status),
       filtered: [],
       application: status.local? ? { name: 'letter', website: nil } : nil
     }
@@ -170,8 +171,15 @@ module StatusSerializationHelper
     current_user.quote_posts.exists?(quoted_object: status)
   end
 
+  # 誰が引用できるか(Mastodon 4.5のQuoteApproval)。クライアントはcurrent_userが
+  # automaticかmanualのときだけ引用ボタンを出す
+  def quote_approval_data(status)
+    policy = QuotePolicy.new(status)
+    { automatic: policy.automatic, manual: policy.manual, current_user: policy.for(current_user) }
+  end
+
   # Mastodon 4.5公式のQuoteエンティティ形({state:, quoted_status:})で出力する。
-  # letterは引用許可制を持たない(常に受理)ため、stateは常にaccepted
+  # 作者のサーバの承認待ちはpending、見る権限のない引用元はunauthorizedで、どちらも中身を出さない
   def build_quote_data(status)
     # キャッシュがあればそれを使用
     quote_post = if defined?(@quote_cache) && @quote_cache
@@ -186,6 +194,8 @@ module StatusSerializationHelper
 
     quoted_actor = quoted_object.actor
     return nil unless quoted_actor
+    return { state: 'pending', quoted_status: nil } if quote_post.awaiting_approval?
+    return { state: 'unauthorized', quoted_status: nil } unless quoted_object.visible_to?(current_user)
 
     {
       state: 'accepted',
@@ -287,7 +297,7 @@ module StatusSerializationHelper
   def preload_quote_data(statuses)
     status_ids = statuses.map(&:id)
     quote_posts = QuotePost.where(object_id: status_ids)
-                           .includes(quoted_object: [
+                           .includes(:actor, quoted_object: [
                                        { actor: { avatar_attachment: :blob, header_attachment: :blob } },
                                        { media_attachments: { file_attachment: :blob, thumbnail_attachment: :blob } }
                                      ])

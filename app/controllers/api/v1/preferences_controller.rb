@@ -3,6 +3,11 @@
 module Api
   module V1
     class PreferencesController < Api::BaseController
+      # Mastodon本来の形(キー名に:を含む)。クライアントは投稿の既定値をここから読む
+      STANDARD_KEYS = %w[posting:default:visibility posting:default:sensitive posting:default:language
+                         posting:default:quote_policy reading:expand:media reading:expand:spoilers
+                         reading:autoplay:gifs].freeze
+
       before_action :doorkeeper_authorize!
       before_action :require_user!
 
@@ -15,6 +20,10 @@ module Api
 
       def mastodon_preferences
         prefs = current_user.preferences
+        STANDARD_KEYS.index_with { |key| prefs[key] }.merge(legacy_preferences(prefs))
+      end
+
+      def legacy_preferences(prefs)
         {
           default_privacy: prefs['posting:default:visibility'] || 'public',
           default_sensitive: prefs['posting:default:sensitive'] || false,

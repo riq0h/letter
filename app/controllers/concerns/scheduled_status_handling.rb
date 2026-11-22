@@ -40,6 +40,7 @@ module ScheduledStatusHandling
   def prepare_scheduled_params
     # 予約投稿パラメータ許可
     permitted = params.permit(:status, :text, :in_reply_to_id, :sensitive, :spoiler_text, :visibility, :language,
+                              :quoted_status_id, :quote_approval_policy,
                               poll: [:expires_in, :multiple, :hide_totals, { options: [] }])
 
     base_params = permitted.to_h.compact

@@ -349,6 +349,8 @@ class CreateActivityOrganizer
     # 引用元の投稿を検索
     quoted_object = ActivityPubObject.find_by(ap_id: quoted_url)
     return unless quoted_object
+    # こちらの投稿の引用の許可設定が認めない相手の引用は記録しない(承認の証明も通知も出さない)
+    return if quoted_object.local? && QuotePolicy.new(quoted_object).for(object.actor) == 'denied'
 
     # QuotePostレコードを作成
     quote_post = QuotePost.create!(

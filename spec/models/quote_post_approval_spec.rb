@@ -38,4 +38,28 @@ RSpec.describe QuotePost do
     expect(described_class.from_quote_request_ap_id(quote_post.quote_request_ap_id)).to eq(quote_post)
     expect(described_class.from_quote_request_ap_id("https://other.example/users/x#quote_requests/#{quote_post.id}")).to be_nil
   end
+
+  describe '#awaiting_approval?' do
+    let(:policy_quoted) do
+      create(:activity_pub_object, :remote, actor: author,
+                                            raw_data: { 'interactionPolicy' => { 'canQuote' => {} } }.to_json)
+    end
+
+    it 'is true while a server that supports approvals has not answered yet' do
+      quote_post = described_class.create!(actor: me, object: my_post, quoted_object: policy_quoted, ap_id: "#{my_post.ap_id}#quote")
+
+      expect(quote_post).to be_awaiting_approval
+    end
+
+    it 'is false for servers without quote approvals, which never answer' do
+      expect(quote!).not_to be_awaiting_approval
+    end
+
+    it 'is false once approved' do
+      quote_post = described_class.create!(actor: me, object: my_post, quoted_object: policy_quoted, ap_id: "#{my_post.ap_id}#quote")
+      quote_post.update!(quote_authorization_url: authorization_uri)
+
+      expect(quote_post).not_to be_awaiting_approval
+    end
+  end
 end

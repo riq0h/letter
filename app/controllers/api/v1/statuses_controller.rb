@@ -9,7 +9,6 @@ module Api
       include ScheduledStatusHandling
       include StatusContextBuilder
       include StatusEditHandler
-      include QuotePostHandler
       include StatusCreationHandler
       include StatusParamsHandler
       include MentionProcessor
@@ -53,14 +52,15 @@ module Api
       def create
         return render_authentication_required unless current_user
 
-        # 予約投稿の処理
-        return create_scheduled_status if params[:scheduled_at].present?
-
-        # Mastodon 4.5公式の引用パラメータ。既存のQuotePost機構にマッピングする
+        # Mastodon 4.5公式の引用パラメータ(予約投稿でも同じ)。既存のQuotePost機構にマッピングする
         if params[:quoted_status_id].present?
           @quoted_status = ActivityPubObject.find_by(id: params[:quoted_status_id])
-          return render_not_found('Status') unless @quoted_status
+          return render_not_found('Status') unless @quoted_status&.visible_to?(current_user)
+          return render_validation_failed('You are not allowed to quote this post') unless QuotePolicy.new(@quoted_status).allows?(current_user)
         end
+
+        # 予約投稿の処理
+        return create_scheduled_status if params[:scheduled_at].present?
 
         @status = build_status_object
         attach_media_to_status if @media_ids&.any?
@@ -87,7 +87,7 @@ module Api
             process_mentions_and_tags
 
             # 公式引用パラメータで指定された引用関係を記録
-            create_quote_post_record(@quoted_status, @status) if @quoted_status
+            QuotePost.record_local!(@status, @quoted_status) if @quoted_status
 
             # 投票を作成（ステータス保存後）
             if @poll_data.present?
@@ -108,9 +108,6 @@ module Api
         end
 
         return unless success
-
-        # 引用の連合配信(独自エンドポイントPOST /statuses/:id/quoteと同じ処理)
-        @status.create_quote_activity(@quoted_status) if @quoted_status && @status.local?
 
         HomeFeedManager.add_status(@status)
         render json: serialized_status(@status), status: :created
@@ -188,27 +185,34 @@ module Api
       end
 
       # POST /api/v1/statuses/:id/quote
+      # 独自エンドポイント。POST /api/v1/statusesにquoted_status_idを付けたのと同じ
       def quote
+        params[:quoted_status_id] = @status.id.to_s
+        create
+      end
+
+      # PUT /api/v1/statuses/:id/interaction_policy
+      def interaction_policy
         return render_authentication_required unless current_user
+        return render_not_authorized unless @status.actor == current_user
 
-        quote_params = build_quote_params
-        quoted_status = @status
+        @status.update!(quote_policy: QuotePolicy.setting_for(@status.visibility, params[:quote_approval_policy]))
+        @status.redistribute!
+        render json: serialized_status(@status)
+      end
 
-        # 新しいポストオブジェクトを作成
-        @status = build_quote_status_object(quoted_status, quote_params)
+      # POST /api/v1/statuses/:id/quotes/:quoting_status_id/revoke
+      # 自分の投稿への引用を取り消す。引用していた投稿を返す
+      def revoke_quote
+        return render_authentication_required unless current_user
+        return render_not_authorized unless @status.actor == current_user
 
-        if @status.save
-          # DB IDが確定したのでAP IDを設定
-          base_url = Rails.application.config.activitypub.base_url
-          @status.update_column(:ap_id, "#{base_url}/users/#{current_user.username}/posts/#{@status.id}")
+        quote_post = @status.quotes_of_this.find_by(object_id: params[:quoting_status_id])
+        return render_not_found('Quote') unless quote_post
 
-          create_quote_post_record(quoted_status, @status)
-          process_mentions_and_tags if @status.content.present?
-          @status.create_quote_activity(quoted_status) if @status.local?
-          render json: serialized_status(@status), status: :created
-        else
-          render_validation_error(@status)
-        end
+        quoting = quote_post.object
+        quote_post.revoke!
+        render json: serialized_status(quoting.reload)
       end
 
       # GET /api/v1/statuses/:id/quoted_by
@@ -448,11 +452,18 @@ module Api
 
       def status_creation_params
         # 引用関係はobjectsのカラムではなくQuotePostレコードが保持する
-        status_params.merge(
+        creation_params = status_params
+        creation_params.merge(
           object_type: 'Note',
           published_at: Time.current,
-          local: true
+          local: true,
+          quote_policy: QuotePolicy.setting_for(creation_params['visibility'], requested_quote_policy)
         )
+      end
+
+      # 指定がなければユーザの既定の設定
+      def requested_quote_policy
+        params[:quote_approval_policy].presence || current_user.setting('posting:default:quote_policy')
       end
 
       def attach_media_to_status
@@ -493,17 +504,7 @@ module Api
       end
 
       def check_status_visibility
-        return if @status.visibility.in?(%w[public unlisted])
-
-        if @status.visibility == 'private'
-          return if current_user && (@status.actor == current_user ||
-                    Follow.exists?(actor: current_user, target_actor: @status.actor, accepted: true))
-        elsif @status.visibility == 'direct'
-          return if current_user && (@status.actor == current_user ||
-                    @status.mentions.exists?(actor: current_user))
-        end
-
-        render_not_found
+        render_not_found unless @status.visible_to?(current_user)
       end
 
       def handle_direct_message_conversation

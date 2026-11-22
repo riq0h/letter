@@ -2,13 +2,12 @@
 
 # 他サーバからの引用リクエスト(FEP-044fのQuoteRequest。Mastodon 4.5以降が送る)に応答する。
 # 応答しないと、相手サーバでは引用が「承認待ち」のまま表示されない。
-# 引用されたのがこちらの公開・未収載の投稿なら承認(Accept)し、承認の証明(QuoteAuthorization)の
-# URLを返す。フォロワー限定・DMの投稿や、ブロックしている相手からのリクエストは拒否(Reject)する。
+# 投稿の引用の許可設定(QuotePolicy)が相手を認めていれば承認(Accept)し、承認の証明
+# (QuoteAuthorization)のURLを返す。認めていなければ拒否(Reject)する。
 # 引用した投稿を取得できない・その投稿が実際には引用していない場合は、判断できないので応答しない
 class ProcessQuoteRequestJob < ApplicationJob
   queue_as :default
 
-  QUOTABLE_VISIBILITIES = %w[public unlisted].freeze
   QUOTE_KEYS = %w[quote quoteUri quoteUrl _misskey_quote].freeze
   CONTEXT = [
     'https://www.w3.org/ns/activitystreams',
@@ -34,11 +33,7 @@ class ProcessQuoteRequestJob < ApplicationJob
   private
 
   def approvable?
-    return false unless QUOTABLE_VISIBILITIES.include?(@quoted.visibility)
-
-    owner = @quoted.actor
-    !Block.exists?(actor: owner, target_actor: @requester) &&
-      !DomainBlock.exists?(actor: owner, domain: @requester.domain)
+    QuotePolicy.new(@quoted).for(@requester) == 'automatic'
   end
 
   def quoting_uri

@@ -2,6 +2,7 @@
 
 class QuotePost < ApplicationRecord
   include RemoteLocalHelper
+  include ActivityDeliveryHelper
 
   belongs_to :actor
   belongs_to :object, class_name: 'ActivityPubObject', primary_key: :id
@@ -57,8 +58,41 @@ class QuotePost < ApplicationRecord
     quote_post if quote_post&.quote_request_ap_id == uri
   end
 
+  # letterの投稿objectがquoted_objectを引用したことを記録する
+  def self.record_local!(object, quoted_object)
+    create!(
+      actor: object.actor,
+      object: object,
+      quoted_object: quoted_object,
+      shallow_quote: object.content.blank?,
+      quote_text: object.content,
+      visibility: object.visibility,
+      ap_id: "#{object.ap_id}#quote"
+    )
+  end
+
   def approved?
     quote_authorization_url.present?
+  end
+
+  # 引用された投稿の作者(こちら)が引用を取り消す。承認の証明を削除したことを、引用した側と
+  # こちらのフォロワーのサーバに伝え(Mastodon 4.5と同じ)、引用の記録と承認の証明を消す
+  def revoke!
+    authorization = quote_authorization
+    quoting = object
+    transaction do
+      announce_revocation(authorization) if authorization
+      destroy!
+    end
+    # こちらの投稿による引用なら、引用を外した投稿を配信し直す
+    quoting.redistribute! if actor.local?
+  end
+
+  # 他サーバの投稿を引用して、作者のサーバの承認をまだ受けていないか。
+  # 承認の仕組みを持つサーバ(投稿に引用の許可設定がある)のときだけ。持たないサーバ
+  # (Misskeyなど)は返事をしないので、承認待ちとは扱わない
+  def awaiting_approval?
+    needs_remote_approval? && !approved? && QuotePolicy.new(quoted_object).declared?
   end
 
   # 自己完結型引用承認を作成。interactingObjectは引用した投稿そのもの(FEP-044f。
@@ -154,6 +188,21 @@ class QuotePost < ApplicationRecord
 
   def request_quote_approval
     SendQuoteRequestJob.perform_later(id)
+  end
+
+  def announce_revocation(authorization)
+    owner = quoted_object.actor
+    activity = Activity.create!(
+      ap_id: "#{authorization.ap_id}#delete",
+      activity_type: 'Delete',
+      actor: owner,
+      target_ap_id: authorization.ap_id,
+      published_at: Time.current,
+      local: true
+    )
+    inboxes = Actor.delivery_inboxes(owner.followers)
+    inboxes.unshift(actor.preferred_inbox) unless actor.local?
+    enqueue_send_activity(activity, inboxes.compact.uniq)
   end
 
   def notify_quoted_status_author

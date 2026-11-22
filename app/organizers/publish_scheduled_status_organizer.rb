@@ -36,6 +36,8 @@ class PublishScheduledStatusOrganizer
       # 投票作成処理
       create_poll_for_status(status) if poll_params.present?
 
+      record_quote(status)
+
       # スケジュール済みステータスを削除
       @scheduled_status.destroy!
 
@@ -74,7 +76,8 @@ class PublishScheduledStatusOrganizer
       in_reply_to_ap_id: reply_target_ap_id(status_params[:in_reply_to_id]),
       published_at: Time.current,
       local: true,
-      ap_id: generate_ap_id
+      ap_id: generate_ap_id,
+      quote_policy: QuotePolicy.setting_for(status_params[:visibility] || 'public', requested_quote_policy(status_params))
     )
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create status: #{e.message}"
@@ -129,6 +132,19 @@ class PublishScheduledStatusOrganizer
     return in_reply_to_id if in_reply_to_id.to_s.start_with?('http')
 
     ActivityPubObject.find_by(id: in_reply_to_id)&.ap_id
+  end
+
+  def requested_quote_policy(status_params)
+    status_params[:quote_approval_policy].presence || @actor.setting('posting:default:quote_policy')
+  end
+
+  # 予約時に指定された投稿を引用する。引用元が消えていれば引用なしで公開する
+  def record_quote(status)
+    quoted_id = @scheduled_status.params['quoted_status_id']
+    return if quoted_id.blank?
+
+    quoted = ActivityPubObject.find_by(id: quoted_id)
+    QuotePost.record_local!(status, quoted) if quoted
   end
 
   # 投票パラメータの取得

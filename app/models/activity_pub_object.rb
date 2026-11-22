@@ -113,6 +113,19 @@ class ActivityPubObject < ApplicationRecord
     visibility == 'direct'
   end
 
+  # viewerがこの投稿を見てよいか(viewerがnilなら未ログイン)
+  def visible_to?(viewer)
+    return true if publicly_accessible?
+    return false if viewer.nil?
+    return true if actor_id == viewer.id
+
+    case visibility
+    when 'private' then viewer.follows.accepted.exists?(target_actor_id: actor_id)
+    when 'direct' then mentions.exists?(actor: viewer)
+    else false
+    end
+  end
+
   def sensitive?
     sensitive
   end
@@ -250,6 +263,7 @@ class ActivityPubObject < ApplicationRecord
     update_attributes[:summary] = params[:summary] if params.key?(:summary)
     update_attributes[:sensitive] = params[:sensitive] if params.key?(:sensitive)
     update_attributes[:language] = params[:language] if params.key?(:language)
+    update_attributes[:quote_policy] = params[:quote_policy] if params.key?(:quote_policy)
     update_attributes[:edited_at] = Time.current
 
     return false unless update(update_attributes)
@@ -278,11 +292,6 @@ class ActivityPubObject < ApplicationRecord
     create_update_activity if local?
 
     true
-  end
-
-  # Quote活動を作成してActivityPub配信
-  def create_quote_activity(quoted_object)
-    ActivityPubActivityDistributor.new(self).create_quote_activity(quoted_object)
   end
 
   # 投票の編集処理

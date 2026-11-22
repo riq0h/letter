@@ -3,7 +3,6 @@
 require 'rails_helper'
 
 RSpec.describe QuoteCardHelper, type: :helper do
-  let(:me) { create(:actor) }
   let(:author) { create(:actor, :remote) }
 
   def quote(post, quoted)
@@ -23,32 +22,6 @@ RSpec.describe QuoteCardHelper, type: :helper do
       post = create(:activity_pub_object, :remote, actor: author, content: '<p class="quote-inline">RE: x</p>')
 
       expect(helper.content_without_quote_fallback(post)).to eq('<p class="quote-inline">RE: x</p>')
-    end
-  end
-
-  describe '#quote_awaiting_approval?' do
-    let(:my_post) { create(:activity_pub_object, actor: me) }
-
-    it 'is true while a server that supports approvals has not answered yet' do
-      quoted = create(:activity_pub_object, :remote, actor: author,
-                                                     raw_data: { 'interactionPolicy' => { 'canQuote' => {} } }.to_json)
-
-      expect(helper.quote_awaiting_approval?(quote(my_post, quoted))).to be true
-    end
-
-    it 'is false for servers without quote approvals, which never answer' do
-      quoted = create(:activity_pub_object, :remote, actor: author, raw_data: { 'type' => 'Note' }.to_json)
-
-      expect(helper.quote_awaiting_approval?(quote(my_post, quoted))).to be false
-    end
-
-    it 'is false once approved' do
-      quoted = create(:activity_pub_object, :remote, actor: author,
-                                                     raw_data: { 'interactionPolicy' => { 'canQuote' => {} } }.to_json)
-      quote_post = quote(my_post, quoted)
-      quote_post.update!(quote_authorization_url: 'https://remote.example.com/approvals/1')
-
-      expect(helper.quote_awaiting_approval?(quote_post)).to be false
     end
   end
 end

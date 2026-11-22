@@ -44,7 +44,7 @@
       <div style="font-size: 14px; font-weight: 300; color: #6b7280;">引用元の投稿は公開範囲の設定で表示できません。</div>
     <% end %>
   </div>
-  <% if quote_awaiting_approval?(quote_post) %>
+  <% if quote_post.awaiting_approval? %>
     <div style="margin-top: 8px; font-size: 13px; font-weight: 300; color: #6b7280;">引用元の作者の承認待ち</div>
   <% end %>
 <% end %>

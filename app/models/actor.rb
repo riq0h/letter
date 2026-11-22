@@ -122,6 +122,7 @@ class Actor < ApplicationRecord
       'posting:default:visibility' => 'public',
       'posting:default:sensitive' => false,
       'posting:default:language' => 'ja',
+      'posting:default:quote_policy' => QuotePolicy::DEFAULT_SETTING,
       'reading:expand:media' => 'default',
       'reading:expand:spoilers' => false,
       'reading:autoplay:gifs' => true,

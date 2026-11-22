@@ -32,6 +32,7 @@ Rails.application.routes.draw do
       get '/accounts/:id/lists', to: 'accounts#lists'
 
       # ステータス
+      post '/statuses/:id/quotes/:quoting_status_id/revoke', to: 'statuses#revoke_quote'
       resources :statuses, only: %i[show create destroy update] do
         member do
           get :context
@@ -44,6 +45,7 @@ Rails.application.routes.draw do
           post :quote
           get :quoted_by
           get :quotes
+          put :interaction_policy
           get :reblogged_by
           get :favourited_by
           post :pin
