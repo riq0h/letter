@@ -8,13 +8,12 @@ class TagUsageHistory < ApplicationRecord
   def self.record_usage(tag, _actor_id = nil)
     history = find_or_create_by(tag: tag, date: Date.current)
     history.increment!(:uses)
-    # ユニークアカウント数を更新（同日の同タグ使用アカウントを集計）
-    unique_accounts = ObjectTag.where(tag: tag)
+    # 今日このタグを使ったアカウント数。今日付いたタグだけから数える(タグの全使用分を投稿と
+    # 突き合わせると、よく使われるタグで1回1秒を超え、受信処理が遅くなる)
+    unique_accounts = ObjectTag.where(tag: tag, created_at: Date.current.beginning_of_day..)
                                .joins(:object)
-                               .where(objects: { published_at: Date.current.beginning_of_day.. })
-                               .joins('INNER JOIN actors ON actors.id = objects.actor_id')
                                .distinct
-                               .count('actors.id')
+                               .count('objects.actor_id')
     history.update_column(:accounts, unique_accounts)
   rescue ActiveRecord::RecordNotUnique
     retry
