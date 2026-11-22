@@ -119,6 +119,16 @@ RSpec.describe PublishScheduledStatusOrganizer do
         expect(result).to be_success
         expect(result.status.in_reply_to_ap_id).to eq(parent_status.ap_id)
       end
+
+      it 'replies to the post whose id the client scheduled with' do
+        scheduled = create(:scheduled_status, actor: actor,
+                                              params: { 'status' => 'This is a reply', 'in_reply_to_id' => parent_status.id.to_s })
+
+        result = described_class.new(scheduled).call
+
+        expect(result.status.in_reply_to_ap_id).to eq(parent_status.ap_id)
+        expect(result.status.conversation_ap_id).to eq(parent_status.conversation_ap_id)
+      end
     end
 
     context 'with sensitive content' do

@@ -71,7 +71,7 @@ class PublishScheduledStatusOrganizer
       visibility: status_params[:visibility] || 'public',
       sensitive: status_params[:sensitive] || false,
       summary: status_params[:spoiler_text],
-      in_reply_to_ap_id: status_params[:in_reply_to_id],
+      in_reply_to_ap_id: reply_target_ap_id(status_params[:in_reply_to_id]),
       published_at: Time.current,
       local: true,
       ap_id: generate_ap_id
@@ -121,6 +121,14 @@ class PublishScheduledStatusOrganizer
     Rails.logger.info "📊 Created poll for status #{status.id}"
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create poll: #{e.message}"
+  end
+
+  # 予約時のin_reply_to_idは投稿のID(Mastodon API)なので、返信先の投稿のURIにして保存する
+  def reply_target_ap_id(in_reply_to_id)
+    return if in_reply_to_id.blank?
+    return in_reply_to_id if in_reply_to_id.to_s.start_with?('http')
+
+    ActivityPubObject.find_by(id: in_reply_to_id)&.ap_id
   end
 
   # 投票パラメータの取得
