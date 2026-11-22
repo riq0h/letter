@@ -193,6 +193,27 @@ RSpec.describe TextLinkingHelper, type: :helper do
       expect(helper.send(:extract_urls_from_content, content)).to eq(['https://news.example/article?id=1&lang=ja'])
     end
 
+    it 'uses the link target rather than a shortened link text' do
+      href = 'https://news.example/2026/11/22/a-long-article-title/'
+      content = %(<p>Read this<br /><a href="#{href}" target="_blank">https://news.example/2026/11/22/a-long-artic...</a></p>)
+
+      expect(helper.send(:extract_urls_from_content, content)).to eq([href])
+    end
+
+    it 'ignores link text split into hidden and visible parts' do
+      content = '<p><a href="https://news.example/a/long/path"><span class="invisible">https://</span>' \
+                '<span class="ellipsis">news.example/a/lo</span><span class="invisible">ng/path</span></a></p>'
+
+      expect(helper.send(:extract_urls_from_content, content)).to eq(['https://news.example/a/long/path'])
+    end
+
+    it 'keeps the order in which links and bare URLs appear' do
+      content = 'First https://first.example/page then <a href="https://second.example/page">second</a>'
+
+      expect(helper.send(:extract_urls_from_content, content))
+        .to eq(['https://first.example/page', 'https://second.example/page'])
+    end
+
     it 'filters out hashtag links' do
       content = '<p>Check this <a href="/tags/ruby" class="hashtag">#ruby</a> and <a href="https://example.com">normal link</a></p>'
       result = helper.send(:extract_urls_from_content, content)

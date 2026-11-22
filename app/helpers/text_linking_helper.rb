@@ -28,32 +28,16 @@ module TextLinkingHelper
     text.gsub(/<img[^>]*alt=":([^"]+):"[^>]*\/?>/, ':\1:')
   end
 
+  # リンク(<a>)か、リンクになっていない素のURL(ローカル投稿など)
+  LINK_OR_BARE_URL = /(<a\b[^>]*>.*?<\/a>)|(https?:\/\/[^\s<>＜＞"']+)/mi
+
+  # 本文中のURLを出てくる順に返す。リンクはリンク先(href)を使う。
+  # リンクの表示文字列は「https://example.com/long-artic...」のように途中で切られていることがあるので使わない
   def extract_urls_from_content(content)
     return [] if content.blank?
 
-    urls = []
-
-    # まずプレーンテキストのURLを抽出（ローカル投稿など、未処理のテキスト用）
-    # これがないとWeb UIでローカル投稿のプレビューが表示されない
-    content.scan(/(https?:\/\/[^\s<>＜＞"']+)/i) do |url|
-      url_text = url[0]
-      urls << url_text
-    end
-
-    # HTMLリンク化済みの場合も <a href="URL">形式のURLを抽出（API側との互換性）
-    # ただし、ハッシュタグリンク（/tags/やclassにhashtag含む）は除外
-    content.scan(/<a[^>]+href=["']([^"']+)["'][^>]*>/i) do |match|
-      href = match[0]
-      full_tag = ::Regexp.last_match(0) # マッチした全体のタグ
-
-      # ハッシュタグリンクの場合はスキップ
-      # /tags/ で始まるパス、または class属性に hashtag が含まれる場合
-      if !(href.start_with?('/tags/') || full_tag.include?('hashtag')) && urls.none? do |existing_url|
-        existing_url.include?(href) || href.include?(existing_url)
-      end
-        # プレーンテキストで既に見つからなかった場合のみ追加（重複回避）
-        urls << href
-      end
+    urls = content.scan(LINK_OR_BARE_URL).filter_map do |link, bare_url|
+      link ? preview_link_target(link) : bare_url
     end
 
     # 本文はHTMLなので、URL中の & などは &amp; と書かれている。元の文字に戻してから使う
@@ -95,6 +79,15 @@ module TextLinkingHelper
   end
 
   private
+
+  # ハッシュタグのリンクはプレビューの対象にしない
+  def preview_link_target(link)
+    opening_tag = link[/\A<a\b[^>]*>/i]
+    return if opening_tag.include?('hashtag')
+
+    href = opening_tag[/href=["']([^"']+)["']/i, 1]
+    href unless href.nil? || href.start_with?('/tags/')
+  end
 
   def sanitize_html_for_display(html)
     # LoofahベースのサニタイザーでリモートHTMLコンテンツを安全にする

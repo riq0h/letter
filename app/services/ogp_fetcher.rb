@@ -53,9 +53,10 @@ class OgpFetcher
   end
 
   def extract_title(doc)
-    doc.at_css('meta[property="og:title"]')&.[]('content') ||
-      doc.at_css('meta[name="twitter:title"]')&.[]('content') ||
-      doc.at_css('title')&.text&.strip
+    title = doc.at_css('meta[property="og:title"]')&.[]('content') ||
+            doc.at_css('meta[name="twitter:title"]')&.[]('content') ||
+            doc.at_css('title')&.text&.strip
+    title&.truncate(255)
   end
 
   def extract_description(doc)
