@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require_relative "../../lib/persistent_logger"
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -39,8 +40,9 @@ Rails.application.configure do
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
   # Log to STDOUT with the current request id as a default log tag.
+  # コンテナを作り直すとdocker logsは消えるので、永続ボリュームのlog/production.logにも書く(50MBごとに5世代)
   config.log_tags = [ :request_id ]
-  config.logger   = ActiveSupport::TaggedLogging.logger(STDOUT)
+  config.logger   = PersistentLogger.build(STDOUT, Rails.root.join("log/production.log"), generations: 5, size: 50.megabytes)
 
   # Change to "debug" to log everything (including potentially personally-identifiable information!)
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
