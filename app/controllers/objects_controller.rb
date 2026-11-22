@@ -2,18 +2,16 @@
 
 class ObjectsController < ApplicationController
   include ActivityPubRequestHandling
-  include TextLinkingHelper
 
   skip_before_action :verify_authenticity_token
   before_action :set_object, only: %i[show likes shares]
   before_action :ensure_activitypub_request, only: [:show]
 
-  # GET /objects/{id}
-  # ActivityPub Object を返す
+  # GET /users/:username/posts/:id
+  # 配信(Create/Update)と同じ表現を返す。他サーバは引用の許可設定や、引用の承認の確認に
+  # 取得したこの内容を使う
   def show
-    object_data = build_object_data(@object)
-
-    render json: object_data,
+    render json: ActivityPubObjectSerializer.new(@object).to_activitypub,
            content_type: 'application/activity+json; charset=utf-8'
   end
 
@@ -59,113 +57,5 @@ class ObjectsController < ApplicationController
 
   def ensure_activitypub_request
     super(status: :moved_permanently)
-  end
-
-  def build_object_data(object)
-    base_data = build_base_object_data(object)
-    base_data.merge(build_extended_object_data(object))
-  end
-
-  def build_base_object_data(object)
-    base_data = {
-      '@context' => Rails.application.config.activitypub.context_url,
-      'id' => object.ap_id,
-      'type' => object.object_type,
-      'attributedTo' => object.actor.ap_id,
-      'content' => build_activitypub_content(object.content),
-      'published' => object.published_at.iso8601,
-      'url' => object.public_url
-    }
-
-    # 編集済みの場合はupdatedフィールドを追加
-    base_data['updated'] = object.edited_at.iso8601 if object.edited?
-
-    base_data
-  end
-
-  def build_extended_object_data(object)
-    {
-      'inReplyTo' => object.in_reply_to_ap_id,
-      'to' => build_audience(object, :to),
-      'cc' => build_audience(object, :cc),
-      'attachment' => build_attachments(object),
-      'tag' => ActivityBuilders::TagBuilder.new(object).build,
-      'mentions' => build_mentions(object),
-      'summary' => object.summary,
-      'sensitive' => object.sensitive?,
-      'replies' => build_replies_collection(object),
-      'source' => build_source_data(object)
-    }.compact
-  end
-
-  def build_replies_collection(object)
-    {
-      'type' => 'Collection',
-      'totalItems' => object.replies_count
-    }
-  end
-
-  def build_source_data(object)
-    {
-      'content' => object.content_plaintext,
-      'mediaType' => 'text/plain'
-    }
-  end
-
-  def build_audience(object, type)
-    ActivityBuilders::AudienceBuilder.new(object).build(type)
-  end
-
-  def build_attachments(object)
-    object.media_attachments.map do |attachment|
-      {
-        'type' => 'Document',
-        'mediaType' => attachment.content_type,
-        'url' => build_absolute_media_url(attachment),
-        'name' => attachment.description || attachment.file_name,
-        'width' => attachment.width,
-        'height' => attachment.height,
-        'blurhash' => attachment.blurhash
-      }.compact
-    end
-  end
-
-  def build_mentions(object)
-    return [] if object.mentions.blank?
-
-    object.mentions.includes(:actor).map do |mention|
-      {
-        'type' => 'Mention',
-        'href' => mention.actor.ap_id,
-        'name' => "@#{mention.actor.username}@#{mention.actor.domain}"
-      }
-    end
-  rescue StandardError => e
-    Rails.logger.warn "Failed to build mentions for object #{object.id}: #{e.message}"
-    []
-  end
-
-  def build_activitypub_content(content)
-    return content if content.blank?
-
-    # ActivityPub配信用: 絵文字HTMLをショートコードに戻す
-    # Mastodonは content でショートコード、tag配列で絵文字メタデータを期待
-    convert_emoji_html_to_shortcode(content)
-  end
-
-  def build_absolute_media_url(attachment)
-    # ローカルファイルの場合はurlメソッドを使用
-    return attachment.url if attachment.file.attached?
-
-    # リモートURLがある場合は相対URLを絶対URLに変換
-    return nil if attachment.remote_url.blank?
-
-    if attachment.remote_url.start_with?('/')
-      # .envから設定されたActivityPubドメインを使用
-      base_url = Rails.application.config.activitypub.base_url
-      "#{base_url}#{attachment.remote_url}"
-    else
-      attachment.remote_url
-    end
   end
 end
