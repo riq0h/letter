@@ -146,10 +146,37 @@ RSpec.describe MediaAttachment, type: :model do
       expect(media).to be_valid
     end
 
-    it 'rejects unsupported content type for video' do
-      media = build(:media_attachment, :video, content_type: 'video/x-unknown')
+    it 'rejects an uploaded video of an unsupported type' do
+      media = build(:media_attachment, :video, content_type: 'video/x-unknown', remote_url: nil)
       expect(media).not_to be_valid
       expect(media.errors[:content_type]).to be_present
+    end
+  end
+
+  describe 'remote attachments of an unsupported type' do
+    it 'keeps a file of unknown type as a document' do
+      media = build(:media_attachment, content_type: 'application/octet-stream',
+                                       remote_url: 'https://remote.example/files/3f2a9c', file_name: '3f2a9c')
+
+      expect(media).to be_valid
+      expect(media.media_type).to eq('document')
+      expect(media.supported_format?).to be false
+    end
+
+    it 'keeps an image the server cannot show as a document' do
+      media = build(:media_attachment, content_type: 'image/svg+xml',
+                                       remote_url: 'https://remote.example/files/logo.svg', file_name: 'logo.svg')
+
+      expect(media).to be_valid
+      expect(media.media_type).to eq('document')
+    end
+
+    it 'leaves a supported image as an image' do
+      media = build(:media_attachment, content_type: 'image/jpeg; charset=binary')
+
+      expect(media).to be_valid
+      expect(media.media_type).to eq('image')
+      expect(media.supported_format?).to be true
     end
   end
 

@@ -16,6 +16,8 @@ class RemoteMediaDownloadJob < ApplicationJob
     media = MediaAttachment.find_by(id: media_attachment_id)
     return if media.nil? || media.file.attached?
     return if media.remote_url.blank?
+    # 扱えない形式のファイルは保存せず、元のURLへのリンクのままにする(Mastodonと同じ)
+    return unless media.supported_format?
     return unless validate_url_for_ssrf!(media.remote_url)
 
     download_and_attach(media)

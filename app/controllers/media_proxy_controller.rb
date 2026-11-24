@@ -9,7 +9,7 @@ class MediaProxyController < ApplicationController
     if media.file.attached?
       redirect_to media.url, allow_other_host: true
     elsif media.remote_url.present?
-      RemoteMediaDownloadJob.perform_later(media.id)
+      RemoteMediaDownloadJob.perform_later(media.id) if media.supported_format?
       redirect_to media.remote_url, allow_other_host: true
     else
       head :not_found

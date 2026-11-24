@@ -66,6 +66,7 @@ class MediaAttachment < ApplicationRecord
   # === コールバック ===
   before_validation :set_defaults, on: :create
   before_validation :extract_metadata
+  before_validation :keep_unsupported_remote_media_as_file
   after_commit :enqueue_thumbnail_generation, on: :create
 
   # === 判定メソッド ===
@@ -84,6 +85,12 @@ class MediaAttachment < ApplicationRecord
 
   def document?
     media_type == 'document'
+  end
+
+  # 形式が、そのメディアの種類として扱えるものか
+  def supported_format?
+    format = content_type.to_s.split(';').first.to_s.strip.downcase.split('/').last.to_s
+    valid_formats_for_media_type.include?(MIME_SUBTYPE_ALIASES.fetch(format, format))
   end
 
   # blurhashが単色の代替値のまま(相手サーバが送ってこなかった場合など)なら、
@@ -328,16 +335,17 @@ class MediaAttachment < ApplicationRecord
     end
   end
 
+  # 相手サーバの添付は、扱えない形式でも捨てずにファイルとして残す(Mastodonが種類不明の添付として残すのと同じ)。
+  # ダウンロードはせず、元のURLへのリンクとして表示する
+  def keep_unsupported_remote_media_as_file
+    return if remote_url.blank? || content_type.blank? || supported_format?
+
+    self.media_type = 'document'
+  end
+
+  # 形式の検査はアップロードされたファイルだけに行う。相手サーバの添付は上で振り分け済み
   def validate_mime_type_by_media_type
-    valid_formats = valid_formats_for_media_type
-
-    return if valid_formats.empty?
-
-    # MIME typeから拡張子を抽出してチェック（サブタイプが拡張子と一致しない場合はエイリアスで変換）
-    format_from_mime = content_type.split('/').last
-    format_from_mime = MIME_SUBTYPE_ALIASES.fetch(format_from_mime, format_from_mime)
-
-    return if valid_formats.include?(format_from_mime)
+    return if remote_url.present? || supported_format?
 
     errors.add(:content_type, "#{content_type} is not supported for #{media_type} files")
   end

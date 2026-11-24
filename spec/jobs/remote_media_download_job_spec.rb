@@ -41,4 +41,14 @@ RSpec.describe RemoteMediaDownloadJob do
 
     expect(media.reload.blurhash).to eq('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
   end
+
+  it 'does not download a file of a type the server cannot handle' do
+    media = create(:media_attachment, content_type: 'application/octet-stream',
+                                      remote_url: 'https://remote.example/files/3f2a9c', file_name: '3f2a9c')
+
+    job.perform(media.id)
+
+    expect(job).not_to have_received(:download_to_tempfile)
+    expect(media.reload.file).not_to be_attached
+  end
 end

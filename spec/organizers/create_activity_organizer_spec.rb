@@ -384,6 +384,29 @@ RSpec.describe CreateActivityOrganizer do
     end
   end
 
+  describe 'attachments' do
+    let(:activity_with_attachments) do
+      activity.deep_merge(
+        'object' => {
+          'attachment' => [
+            { 'type' => 'Document', 'mediaType' => 'image/jpeg', 'url' => 'https://example.com/files/photo.jpg' },
+            { 'type' => 'Document', 'mediaType' => 'application/octet-stream',
+              'url' => 'https://example.com/files/3f2a9c' }
+          ]
+        }
+      )
+    end
+
+    it 'keeps an attachment of an unsupported type as a file and downloads only the supported one' do
+      expect { described_class.call(activity_with_attachments, sender) }
+        .to have_enqueued_job(RemoteMediaDownloadJob).exactly(:once)
+
+      media = ActivityPubObject.find_by(ap_id: 'https://example.com/posts/123').media_attachments.order(:id)
+      expect(media.map(&:media_type)).to eq(%w[image document])
+      expect(media.last.remote_url).to eq('https://example.com/files/3f2a9c')
+    end
+  end
+
   describe 'Result class' do
     describe '#success?' do
       it 'returns true for successful result' do

@@ -29,7 +29,7 @@ module ActivityPubMediaHandler
     media = MediaAttachment.create!(media_attrs)
 
     # リモートメディアを非同期でダウンロード・キャッシュ
-    RemoteMediaDownloadJob.perform_later(media.id)
+    RemoteMediaDownloadJob.perform_later(media.id) if media.supported_format?
 
     Rails.logger.info "📎 Media attachment created for object #{object.id}: #{url}"
   rescue ActiveRecord::RecordInvalid => e
