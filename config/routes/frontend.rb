@@ -6,8 +6,9 @@ Rails.application.routes.draw do
   root 'home#index'
 
   # RSS/Atom feeds
-  get '/@:username.rss', to: 'feeds#user', format: :rss
-  get '/local.atom', to: 'feeds#local', format: :atom
+  # 形式はAcceptヘッダーでなくURLの拡張子で決める(ブラウザで開いてもフィードを返す)
+  get '/@:username.rss', to: 'feeds#user', format: false, defaults: { format: 'rss' }
+  get '/local.atom', to: 'feeds#local', format: false, defaults: { format: 'atom' }
 
   # ユーザプロフィール
   get '/@:username', to: 'profiles#show', as: :profile
