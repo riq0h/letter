@@ -213,6 +213,13 @@ class ActivityPubHttpClient
 
     return nil unless response.success?
 
+    # 署名しても普通のWebページが返るURLは、ActivityPubの文書ではない
+    # (アプリが投稿内のリンクを検索して、他サーバの投稿か確かめるときなど)
+    if html_response_to_activitypub_request?(response)
+      Rails.logger.info "ℹ️ Not an ActivityPub document (got a web page): #{uri}"
+      return nil
+    end
+
     @final_uri = uri
     JSON.parse(response.body)
   rescue StandardError => e

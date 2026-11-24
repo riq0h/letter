@@ -21,6 +21,23 @@ RSpec.describe ActivityPubHttpClient do
     end
   end
 
+  describe '#fetch_object for an ordinary web page' do
+    # 署名付きの取り直しは Actor.find_by(local: true) で署名する
+    before { create(:actor, local: true) }
+
+    it 'returns nil without logging an error after the signed retry also gets the page' do
+      page = fake_response(code: 200, headers: { 'content-type' => 'text/html; charset=utf-8' },
+                           body: '<!DOCTYPE html><html><body>article</body></html>')
+      allow(client).to receive(:validate_url_for_ssrf!).and_return(true)
+      allow(HTTParty).to receive(:get).and_return(page)
+      allow(Rails.logger).to receive(:error)
+
+      expect(client.fetch_object('https://web.example/articles/1')).to be_nil
+      expect(HTTParty).to have_received(:get).twice
+      expect(Rails.logger).not_to have_received(:error)
+    end
+  end
+
   describe '#requires_signature?' do
     it 'treats 401/403 as requiring a signature' do
       expect(client.send(:requires_signature?, fake_response(code: 401))).to be true
