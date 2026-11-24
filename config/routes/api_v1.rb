@@ -96,6 +96,7 @@ Rails.application.routes.draw do
       end
 
       # 通知
+      get '/notifications/policy', to: 'notifications/policies#show'
       resources :notifications, only: %i[index show] do
         collection do
           post :clear

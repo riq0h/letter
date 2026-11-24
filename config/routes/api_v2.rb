@@ -22,6 +22,7 @@ Rails.application.routes.draw do
       get '/notifications', to: 'notifications#index'
       get '/notifications/unread_count', to: 'notifications#unread_count'
       post '/notifications/clear', to: 'notifications#clear'
+      get '/notifications/policy', to: 'notifications/policies#show'
       get '/notifications/:group_key', to: 'notifications#show'
       post '/notifications/:group_key/dismiss', to: 'notifications#dismiss'
 
