@@ -25,7 +25,7 @@ RSpec.describe ForwardedActivityHandling, type: :controller do
              'object' => { 'id' => 'https://victim.example/notes/1', 'type' => 'Note', 'content' => 'FORGED' } }
 
     expect { post :test_action, body: body.to_json }
-      .to have_enqueued_job(FetchForwardedObjectJob).with('https://victim.example/notes/1', victim_uri)
+      .to have_enqueued_job(FetchForwardedObjectJob).with('https://victim.example/notes/1', victim_uri, nil)
     expect(response).to have_http_status(:accepted)
     expect(ActivityPubObject.exists?(ap_id: 'https://victim.example/notes/1')).to be false
   end

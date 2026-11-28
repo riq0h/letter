@@ -7,6 +7,7 @@ class SharedInboxesController < ApplicationController
   include ActivityPubObjectHandlers
   include ActivityPubFollowHandlers
   include ActivityPubCollectionHandlers
+  include RelayActivityHandling
   include ErrorResponseHelper
 
   # エラーハンドリング
@@ -23,16 +24,12 @@ class SharedInboxesController < ApplicationController
   before_action :verify_http_signature
   before_action :find_or_create_sender
   before_action :find_target_actor
-  before_action :check_if_relay_activity
 
   def create
     return handle_forwarded_activity if forwarded_activity?
+    return handle_relay_activity if sending_relay
 
-    if @is_relay_activity
-      handle_relay_activity
-    else
-      handle_regular_activity
-    end
+    handle_regular_activity
   rescue StandardError => e
     handle_general_error(e)
   end
@@ -56,40 +53,6 @@ class SharedInboxesController < ApplicationController
       # Accept/Rejectの場合、objectの中のFollowのobjectが対象アクター
       follow_activity = @activity['object']
       follow_activity.is_a?(Hash) ? follow_activity['object'] : nil
-    end
-  end
-
-  def check_if_relay_activity
-    @is_relay_activity = relay_activity?
-
-    return unless @is_relay_activity
-
-    active_relays = Relay.where(state: %w[accepted pending])
-    key_id = extract_key_id_from_signature(request.headers['Signature'].to_s)
-
-    @relay = active_relays.find do |r|
-      next true if r.actor_uri == @activity['actor']
-      next false unless key_id
-
-      strict_relay_keyid_check(key_id, r)
-    end
-  end
-
-  def handle_relay_activity
-    case @activity['type']
-    when 'Accept'
-      handle_relay_accept
-    when 'Reject'
-      handle_relay_reject
-    when 'Announce'
-      handle_relay_announce
-    when 'Create'
-      handle_relay_create
-    when 'Undo'
-      handle_relay_undo
-    else
-      Rails.logger.warn "⚠️ Unsupported relay activity type: #{@activity['type']}"
-      head :accepted
     end
   end
 
@@ -148,97 +111,11 @@ class SharedInboxesController < ApplicationController
   def handle_create_activity_with_organizer
     return handle_referenced_create if referenced_create?
 
-    result = CreateActivityOrganizer.call(@activity, @sender, preserve_relay_info: @preserve_relay_info)
+    result = CreateActivityOrganizer.call(@activity, @sender)
 
     Rails.logger.error "Create activity failed: #{result.error}" unless result.success?
     # アバター未取り込みの送信者は先回りで到達確認(ジョブ・24hに1回)
     @sender&.enqueue_avatar_prefetch if result.success?
-    head :accepted
-  end
-
-  def handle_relay_accept
-    return head :bad_request unless @relay
-
-    # Follow要求が受け入れられた
-    if @activity['object'] == @relay.follow_activity_id
-      @relay.update!(
-        state: 'accepted',
-        last_error: nil,
-        delivery_attempts: 0
-      )
-    end
-
-    head :accepted
-  end
-
-  def handle_relay_reject
-    return head :bad_request unless @relay
-
-    # Follow要求が拒否された
-    if @activity['object'] == @relay.follow_activity_id
-      @relay.update!(
-        state: 'rejected',
-        last_error: 'Follow request rejected by relay',
-        follow_activity_id: nil,
-        followed_at: nil
-      )
-    end
-
-    head :accepted
-  end
-
-  def handle_relay_announce
-    return head :bad_request unless @relay
-
-    # リレーからのAnnounce（投稿の再配信）を処理
-    object_id = @activity['object']
-    return head :bad_request unless object_id.is_a?(String)
-
-    # リレーが実際に投稿を送信している場合、自動的にaccepted状態に更新
-    if @relay.pending?
-      @relay.update!(
-        state: 'accepted',
-        last_error: nil,
-        delivery_attempts: 0
-      )
-      Rails.logger.info "Relay #{@relay.domain} automatically accepted due to active announcement"
-    end
-
-    # 既に処理済みかチェック
-    existing_object = ActivityPubObject.find_by(ap_id: object_id)
-    return head :accepted if existing_object
-
-    # 元の投稿を取得して処理
-    RelayAnnounceProcessorJob.perform_later(@activity, @relay.id)
-
-    head :accepted
-  end
-
-  def handle_relay_create
-    return head :bad_request unless @relay
-
-    # リレー状態管理のみ行って、処理は既存フローに任せる
-    @relay.update!(state: 'accepted', last_error: nil) if @relay.pending?
-
-    # リレーが他人の投稿を中継してきた場合、本文はリレーの署名しか無く作者本人のものと
-    # 確認できないため、元のサーバから取り直して取り込む(転送と同じ扱い)
-    object_uri = ActivityPubOrigin.value_or_id(@activity['object'])
-    actor_uri = ActivityPubOrigin.value_or_id(@activity['actor'])
-    if actor_uri != @relay.actor_uri && object_uri && actor_uri
-      FetchForwardedObjectJob.perform_later(object_uri, actor_uri, @relay.id)
-      return head :accepted
-    end
-
-    # リレー情報を保持したまま通常処理へ
-    @preserve_relay_info = @relay
-    @is_relay_activity = false
-    handle_regular_activity
-  end
-
-  def handle_relay_undo
-    return head :bad_request unless @relay
-
-    # リレーからのUndo処理（通常はフォロー解除）
     head :accepted
   end
 

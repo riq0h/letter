@@ -20,12 +20,17 @@ module ForwardedActivityHandling
     actor_uri = ActivityPubOrigin.value_or_id(@activity['actor'])
 
     if @activity['type'] == 'Create' && object_uri && actor_uri
-      FetchForwardedObjectJob.perform_later(object_uri, actor_uri)
+      FetchForwardedObjectJob.perform_later(object_uri, actor_uri, forwarding_relay&.id)
       Rails.logger.info "🔀 Forwarded Create by #{@forwarded_by}: fetching #{object_uri} from its origin"
     else
       Rails.logger.info "🔀 Ignored forwarded #{@activity['type']} by #{@forwarded_by} (cannot verify #{actor_uri})"
     end
 
     head :accepted
+  end
+
+  # 中継したのが購読している(承認待ちを含む)リレーなら、そのリレー
+  def forwarding_relay
+    Relay.where(state: %w[accepted pending]).find { |relay| relay.actor_uri == @forwarded_by }
   end
 end

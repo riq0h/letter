@@ -123,23 +123,26 @@ module ActivityPubVerification
     signature_header = request.headers['Signature']
     key_id = extract_key_id_from_signature(signature_header)
 
-    if relay_activity?
-      # リレー経由: リレーサーバの鍵で署名検証を行う（スキップしない）
-      relay_actor_uri = key_id&.sub(/#.*$/, '') # keyIdからfragmentを除去してactor URIを取得
-      Rails.logger.debug { "🔀 Relay activity detected, verifying relay signature from: #{relay_actor_uri}" }
-      verify_actor_uri = relay_actor_uri || actor_uri
-    else
-      key_actor_uri = key_id&.sub(/#.*$/, '')
-      if key_actor_uri.present? && key_actor_uri != actor_uri
-        # keyIdとactorが不一致 → 転送アクティビティの可能性
-        verify_forwarded_activity(key_actor_uri, actor_uri)
-        return
-      end
-      verify_actor_uri = actor_uri
+    return verify_relay_signature(key_id, actor_uri) if relay_activity?
+
+    key_actor_uri = key_id&.sub(/#.*$/, '')
+    if key_actor_uri.present? && key_actor_uri != actor_uri
+      # keyIdとactorが不一致 → 転送アクティビティの可能性
+      verify_forwarded_activity(key_actor_uri, actor_uri)
+      return
     end
 
     # 通常の署名検証
-    perform_signature_verification(verify_actor_uri)
+    perform_signature_verification(actor_uri)
+  end
+
+  # リレー経由: リレーサーバの鍵で署名検証を行う（スキップしない）。リレーが他人の活動を
+  # 中継してきたものは、転送と同じく本人の操作と確かめられないので、転送として扱う
+  def verify_relay_signature(key_id, actor_uri)
+    relay_actor_uri = key_id&.sub(/#.*$/, '') || actor_uri # keyIdからfragmentを除去してactor URIを取得
+    Rails.logger.debug { "🔀 Relay activity detected, verifying relay signature from: #{relay_actor_uri}" }
+    perform_signature_verification(relay_actor_uri)
+    @forwarded_by = relay_actor_uri if relay_actor_uri != ActivityPubOrigin.value_or_id(actor_uri)
   end
 
   # 転送者の署名だけを検証する。actor本人の名義での処理はしない(ForwardedActivityHandling参照)

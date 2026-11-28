@@ -38,4 +38,27 @@ RSpec.describe FetchForwardedObjectJob do
 
     expect(ActivityPubHttpClient).not_to have_received(:fetch_verified)
   end
+
+  describe 'a post relayed by its URL only' do
+    let(:relay) { create(:relay, :accepted) }
+
+    it 'imports it, attributed to the author named by its origin, and remembers the relay' do
+      allow(ActivityPubHttpClient).to receive(:fetch_verified).with(object_uri, signing_actor: anything).and_return(original)
+
+      described_class.perform_now(object_uri, nil, relay.id)
+
+      stored = ActivityPubObject.find_by(ap_id: object_uri)
+      expect(stored.actor).to eq(author)
+      expect(stored.relay_id).to eq(relay.id)
+    end
+
+    it 'does nothing when the origin names an author on another server' do
+      allow(ActivityPubHttpClient).to receive(:fetch_verified)
+        .and_return(original(author_uri: 'https://elsewhere.example/users/mallory'))
+
+      described_class.perform_now(object_uri, nil, relay.id)
+
+      expect(ActivityPubObject.exists?(ap_id: object_uri)).to be false
+    end
+  end
 end

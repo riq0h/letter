@@ -6,6 +6,7 @@ class InboxController < ApplicationController
   include ActivityPubHandlers
   include ActivityPubObjectHandlers
   include ActivityPubCollectionHandlers
+  include RelayActivityHandling
   include ErrorResponseHelper
 
   # エラーハンドリング
@@ -26,6 +27,7 @@ class InboxController < ApplicationController
   def create
     Rails.logger.info "📥 Inbox: Received #{@activity['type']} from #{@sender&.ap_id}"
     return handle_forwarded_activity if forwarded_activity?
+    return handle_relay_activity if sending_relay
 
     process_activity
   rescue StandardError => e
