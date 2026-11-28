@@ -37,7 +37,8 @@ module AccountSerializer
       acct: account_acct(account),
       display_name: sanitize_plain_text(account.display_name || account.username),
       locked: account.manually_approves_followers || false,
-      bot: account.actor_type == 'Service',
+      # 自動のアカウント(Mastodonと同じくServiceとApplication)
+      bot: %w[Service Application].include?(account.actor_type),
       discoverable: account.discoverable || false,
       group: false,
       created_at: account.created_at.iso8601,

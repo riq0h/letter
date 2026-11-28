@@ -221,6 +221,7 @@ class HttpSignatureVerifier
       domain: domain,
       display_name: decode_actor_display_name(actor_data),
       note: decode_actor_note(actor_data),
+      actor_type: actor_data['type'].presence || 'Person',
       inbox_url: actor_data['inbox'],
       outbox_url: actor_data['outbox'],
       followers_url: actor_data['followers'],

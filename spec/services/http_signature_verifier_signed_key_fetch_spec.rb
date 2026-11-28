@@ -58,6 +58,7 @@ RSpec.describe HttpSignatureVerifier do
     allow(http).to receive(:request).and_return(response(200, relay_actor))
 
     expect(verifier.send(:fetch_actor_public_key, actor_uri)).to be_present
-    expect(Actor.find_by(ap_id: actor_uri)).to have_attributes(inbox_url: 'https://origin.example/inbox', outbox_url: '')
+    expect(Actor.find_by(ap_id: actor_uri)).to have_attributes(inbox_url: 'https://origin.example/inbox', outbox_url: '',
+                                                               actor_type: 'Service')
   end
 end

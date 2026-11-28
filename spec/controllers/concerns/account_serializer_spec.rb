@@ -209,4 +209,14 @@ RSpec.describe AccountSerializer do
       end
     end
   end
+
+  describe 'bot accounts' do
+    it 'marks automated accounts (Service and Application) as bots, as Mastodon does' do
+      bots = %w[Service Application].map { |type| create(:actor, :remote, actor_type: type) }
+      person = create(:actor, :remote, actor_type: 'Person')
+
+      expect(bots.map { |actor| helper.send(:serialized_account, actor)[:bot] }).to eq([true, true])
+      expect(helper.send(:serialized_account, person)[:bot]).to be(false)
+    end
+  end
 end
