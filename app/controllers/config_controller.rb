@@ -202,7 +202,7 @@ class ConfigController < ApplicationController
     relay = Relay.find(params[:id])
 
     # 接続済みの場合は先に切断
-    if relay.accepted?
+    if relay.accepted? || relay.pending?
       unfollow_service = RelayUnfollowService.new
       unfollow_service.call(relay)
     end
@@ -309,7 +309,7 @@ class ConfigController < ApplicationController
   end
 
   def enable_relay(relay)
-    if relay.idle?
+    if relay.idle? || relay.rejected?
       # ActivityPub Follow アクティビティを送信
       follow_service = RelayFollowService.new
       success = follow_service.call(relay)
@@ -325,13 +325,15 @@ class ConfigController < ApplicationController
   end
 
   def disable_relay(relay)
-    if relay.accepted?
+    if relay.accepted? || relay.pending?
       # ActivityPub Undo Follow アクティビティを送信
       unfollow_service = RelayUnfollowService.new
       success = unfollow_service.call(relay)
 
-      if success
+      if success && relay.last_error.blank?
         redirect_to config_relays_path, notice: t('relays.disconnected')
+      elsif success
+        redirect_to config_relays_path, alert: "切断しましたが、リレーへの通知に失敗しました: #{relay.last_error}"
       else
         redirect_to config_relays_path, alert: "リレーからの切断に失敗しました: #{relay.last_error}"
       end

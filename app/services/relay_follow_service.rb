@@ -8,7 +8,8 @@ class RelayFollowService
     @relay = relay
     @local_actor = local_actor
 
-    return false unless @local_actor && @relay&.idle?
+    # 拒否されたリレーにも申し込み直せる
+    return false unless @local_actor && (@relay&.idle? || @relay&.rejected?)
 
     begin
       relay_actor_data = fetch_relay_actor_data

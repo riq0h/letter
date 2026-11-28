@@ -69,7 +69,7 @@ class Relay < ApplicationRecord
   end
 
   def ensure_disabled
-    return unless accepted?
+    return unless accepted? || pending?
 
     RelayUnfollowService.new.call(self)
   rescue StandardError => e

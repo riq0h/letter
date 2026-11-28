@@ -49,13 +49,13 @@
                 
                 <!-- ボタン群 -->
                 <div class="flex items-center space-x-2">
-                  <% if relay.idle? %>
+                  <% if relay.idle? || relay.rejected? %>
                     <%= form_with url: config_relay_path(relay), method: :patch, local: true, class: "inline" do |f| %>
                       <%= f.hidden_field :action_type, value: 'enable' %>
                       <%= f.submit "接続", 
                           class: "btn-secondary btn-sm h-10" %>
                     <% end %>
-                  <% elsif relay.accepted? %>
+                  <% elsif relay.accepted? || relay.pending? %>
                     <%= form_with url: config_relay_path(relay), method: :patch, local: true, class: "inline" do |f| %>
                       <%= f.hidden_field :action_type, value: 'disable' %>
                       <%= f.submit "切断", 
