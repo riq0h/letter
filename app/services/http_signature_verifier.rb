@@ -54,6 +54,10 @@ class HttpSignatureVerifier
 
     Rails.logger.warn "🔐 Signature mismatch (headers: #{signature_params['headers']})" unless result
     result
+  rescue ActivityPub::SignatureError => e
+    # 鍵を取得できない(相手のアカウントが消えた・サーバが応答しないなど)のは相手側の事情
+    Rails.logger.warn "Signature verification failed: #{e.message}"
+    false
   rescue StandardError => e
     Rails.logger.error "Signature verification failed: #{e.message}"
     false

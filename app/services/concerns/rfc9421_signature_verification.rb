@@ -46,6 +46,10 @@ module Rfc9421SignatureVerification
 
     Rails.logger.warn "🔐 RFC9421 signature mismatch (components: #{input[:components].join(' ')})" unless result
     result
+  rescue ActivityPub::SignatureError => e
+    # 鍵を取得できない(相手のアカウントが消えた・サーバが応答しないなど)のは相手側の事情
+    Rails.logger.warn "RFC9421 signature verification failed: #{e.message}"
+    false
   rescue StandardError => e
     Rails.logger.error "RFC9421 signature verification failed: #{e.message}"
     false

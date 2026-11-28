@@ -36,4 +36,16 @@ RSpec.describe HttpSignatureVerifier do
 
     expect { verifier.send(:fetch_actor_data, actor_uri) }.to raise_error(ActivityPub::SignatureError, /HTTP 410/)
   end
+
+  it 'treats a key that cannot be fetched as a failed verification, not as an error of this server' do
+    allow(verifier).to receive_messages(parse_signature_header: { 'keyId' => "#{actor_uri}#main-key" },
+                                        validate_date_header: true, verify_digest_header: true)
+    allow(http).to receive(:request).and_return(response(404))
+    allow(Rails.logger).to receive(:warn)
+    allow(Rails.logger).to receive(:error)
+
+    expect(verifier.verify!(actor_uri)).to be(false)
+    expect(Rails.logger).to have_received(:warn).with(/HTTP 404/)
+    expect(Rails.logger).not_to have_received(:error)
+  end
 end
