@@ -102,6 +102,7 @@ RSpec/SpecFilePathFormat:
     - 'spec/controllers/api/v1/statuses_mute_spec.rb'
     - 'spec/controllers/api/v1/timelines_list_spec.rb'
     - 'spec/controllers/concerns/relationship_fields_spec.rb'
+    - 'spec/lib/active_record/connection_adapters/sqlite3_adapter_spec.rb'
 
 RSpec/DescribeClass:
   Exclude:

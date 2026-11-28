@@ -1,15 +1,20 @@
+# ロックが空くのを待つ時間はtimeout(ミリ秒)で指定する。Railsはその間も同じプロセスのほかのスレッドを
+# 動かしたまま待つ。SQLiteのbusy_timeoutを直接設定すると、待つ間プロセスごと止まり、ロックを持っている
+# 同じプロセスのスレッドまで止めてしまうので使わない
+#
+# pragmasはSQLiteの設定。cache_sizeは接続ごとに確保されうるので、接続数を掛けた量に注意する
+# (負の値はKiB単位)。foreign_keysは真偽値で書く(:onはsqlite3 gemが受け付けない)
 default: &default
   adapter: sqlite3
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 20 } %>
   timeout: 60000
   default_transaction_mode: :deferred
   application_name: letter
-  pragma:
+  pragmas:
     journal_mode: :wal
     synchronous: :normal
-    cache_size: 20000
-    foreign_keys: :on
-    temp_store: :memory
+    cache_size: -16384
+    foreign_keys: true
     mmap_size: 268435456
 
 development:
@@ -17,12 +22,12 @@ development:
     <<: *default
     database: storage/development.sqlite3
     application_name: letter
-  
+
   cache:
     <<: *default
     database: storage/cache_development.sqlite3
     application_name: letter
-  
+
   queue:
     <<: *default
     database: storage/queue_development.sqlite3
@@ -33,14 +38,14 @@ test:
     <<: *default
     database: storage/test.sqlite3
     application_name: letter
-    pragma:
-      foreign_keys: :on
-  
+    pragmas:
+      foreign_keys: true
+
   cache:
     <<: *default
     database: storage/cache_test.sqlite3
     application_name: letter
-  
+
   queue:
     <<: *default
     database: storage/queue_test.sqlite3
@@ -52,42 +57,39 @@ production:
     database: storage/production.sqlite3
     pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 }.to_i * ENV.fetch("WEB_CONCURRENCY") { 4 }.to_i %>
     application_name: letter
-    pragma:
+    pragmas:
       journal_mode: :wal
       synchronous: :normal
       journal_size_limit: 67108864
       wal_autocheckpoint: 10000
-      cache_size: 50000
-      foreign_keys: :on
-      temp_store: :memory
-      mmap_size: 536870912
+      cache_size: -16384
+      foreign_keys: true
+      mmap_size: 2147483648
 
   queue:
     <<: *default
     database: storage/queue_production.sqlite3
     pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 }.to_i * ENV.fetch("WEB_CONCURRENCY") { 4 }.to_i %>
     application_name: letter
-    pragma:
+    pragmas:
       journal_mode: :wal
       synchronous: :normal
       journal_size_limit: 67108864
       wal_autocheckpoint: 10000
-      cache_size: 10000
-      foreign_keys: :on
-      temp_store: :memory
-      mmap_size: 268435456
+      cache_size: -8192
+      foreign_keys: true
+      mmap_size: 2147483648
 
   cache:
     <<: *default
     database: storage/cache_production.sqlite3
     pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 }.to_i * ENV.fetch("WEB_CONCURRENCY") { 4 }.to_i %>
     application_name: letter
-    pragma:
+    pragmas:
       journal_mode: :wal
       synchronous: :normal
       journal_size_limit: 67108864
       wal_autocheckpoint: 10000
-      cache_size: 10000
-      foreign_keys: :on
-      temp_store: :memory
-      mmap_size: 268435456
+      cache_size: -8192
+      foreign_keys: true
+      mmap_size: 2147483648
