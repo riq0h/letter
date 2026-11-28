@@ -87,7 +87,7 @@ module Api
             process_mentions_and_tags
 
             # 公式引用パラメータで指定された引用関係を記録
-            QuotePost.record_local!(@status, @quoted_status) if @quoted_status
+            QuotePost.record!(@status, @quoted_status) if @quoted_status
 
             # 投票を作成（ステータス保存後）
             if @poll_data.present?

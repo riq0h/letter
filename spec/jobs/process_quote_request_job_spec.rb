@@ -41,6 +41,21 @@ RSpec.describe ProcessQuoteRequestJob do
                                                     'interactionTarget' => quoted.ap_id)
   end
 
+  it 'accepts the request when the quoting post arrives and records the quote at the same moment' do
+    quoting = create(:activity_pub_object, :remote, actor: requester, ap_id: quoting_uri,
+                                                    raw_data: quoting_note.to_json)
+    # 引用した投稿(Create)の処理が、こちらの確認と記録の間に同じ引用を記録する
+    allow(QuotePost).to receive(:create!).and_wrap_original do |original, *args, **kwargs|
+      original.call(*args, **kwargs) if QuotePost.none?
+      original.call(*args, **kwargs)
+    end
+
+    described_class.perform_now(request, requester.id)
+
+    expect(sent.first[:activity]).to include('type' => 'Accept')
+    expect(QuotePost.where(object: quoting, quoted_object: quoted).count).to eq(1)
+  end
+
   it 'uses the quoting post embedded in the request when it cannot be fetched' do
     allow(ActivityPubHttpClient).to receive(:fetch_verified).with(quoting_uri, signing_actor: owner).and_return(nil)
 

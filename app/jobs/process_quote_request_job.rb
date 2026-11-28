@@ -46,7 +46,7 @@ class ProcessQuoteRequestJob < ApplicationJob
     quoting = ActivityPubObject.find_by(ap_id: quoting_uri) || import_quoting_post
     return unless quoting && quoting.actor_id == @requester.id && quotes_target?(quoting)
 
-    quote_post = QuotePost.find_by(object: quoting, quoted_object: @quoted) || create_quote_post(quoting)
+    quote_post = QuotePost.record!(quoting, @quoted)
     align_authorization(quote_post, quoting)
     quote_post
   end
@@ -69,18 +69,6 @@ class ProcessQuoteRequestJob < ApplicationJob
     QUOTE_KEYS.any? { |key| ActivityPubOrigin.value_or_id(data[key]) == @quoted.ap_id }
   rescue JSON::ParserError
     false
-  end
-
-  def create_quote_post(quoting)
-    QuotePost.create!(
-      actor: quoting.actor,
-      object: quoting,
-      quoted_object: @quoted,
-      shallow_quote: quoting.content.blank?,
-      quote_text: quoting.content,
-      visibility: quoting.visibility,
-      ap_id: "#{quoting.ap_id}#quote"
-    )
   end
 
   # 承認の証明は、引用した投稿そのものを対象にしていなければならない

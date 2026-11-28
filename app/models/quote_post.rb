@@ -58,9 +58,11 @@ class QuotePost < ApplicationRecord
     quote_post if quote_post&.quote_request_ap_id == uri
   end
 
-  # letterの投稿objectがquoted_objectを引用したことを記録する
-  def self.record_local!(object, quoted_object)
-    create!(
+  # 投稿objectがquoted_objectを引用したことを記録する。記録済みならその記録を返す。
+  # 他サーバの引用では、引用した投稿(Create)と引用の承認依頼(QuoteRequest)がほぼ同時に届き、
+  # 両方の処理が同じ引用を記録しようとすることがある。その場合は先に記録された方を使う
+  def self.record!(object, quoted_object)
+    find_by(object: object, quoted_object: quoted_object) || create!(
       actor: object.actor,
       object: object,
       quoted_object: quoted_object,
@@ -69,6 +71,8 @@ class QuotePost < ApplicationRecord
       visibility: object.visibility,
       ap_id: "#{object.ap_id}#quote"
     )
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+    find_by(object: object, quoted_object: quoted_object) || raise
   end
 
   def approved?

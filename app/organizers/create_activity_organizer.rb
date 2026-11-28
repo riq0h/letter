@@ -352,18 +352,9 @@ class CreateActivityOrganizer
     # こちらの投稿の引用の許可設定が認めない相手の引用は記録しない(承認の証明も通知も出さない)
     return if quoted_object.local? && QuotePolicy.new(quoted_object).for(object.actor) == 'denied'
 
-    # QuotePostレコードを作成
-    quote_post = QuotePost.create!(
-      actor: object.actor,
-      object: object,
-      quoted_object: quoted_object,
-      shallow_quote: object.content.blank?,
-      quote_text: object.content,
-      visibility: object.visibility,
-      ap_id: "#{object.ap_id}#quote"
-    )
+    quote_post = QuotePost.record!(object, quoted_object)
 
-    Rails.logger.info "💬 Quote post created: #{quote_post.id} quotes #{quoted_object.ap_id}"
+    Rails.logger.info "💬 Quote post recorded: #{quote_post.id} quotes #{quoted_object.ap_id}"
   rescue StandardError => e
     Rails.logger.error "❌ Failed to create quote post: #{e.message}"
   end

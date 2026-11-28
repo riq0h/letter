@@ -407,6 +407,33 @@ RSpec.describe CreateActivityOrganizer do
     end
   end
 
+  describe 'quotes' do
+    let(:quoted) { create(:activity_pub_object) }
+    let(:quoting_activity) do
+      activity.deep_merge('object' => { 'quote' => quoted.ap_id, 'quoteUri' => quoted.ap_id })
+    end
+
+    it 'records the quote of a post on this server' do
+      result = described_class.call(quoting_activity, sender)
+
+      expect(QuotePost.find_by(object: result.object, quoted_object: quoted)).to be_present
+    end
+
+    it 'keeps the quote that the quote request recorded at the same moment, without logging an error' do
+      # 引用の承認依頼(QuoteRequest)の処理が、こちらの記録の直前に同じ引用を記録する
+      allow(QuotePost).to receive(:create!).and_wrap_original do |original, *args, **kwargs|
+        original.call(*args, **kwargs) if QuotePost.none?
+        original.call(*args, **kwargs)
+      end
+      allow(Rails.logger).to receive(:error)
+
+      result = described_class.call(quoting_activity, sender)
+
+      expect(QuotePost.where(object: result.object, quoted_object: quoted).count).to eq(1)
+      expect(Rails.logger).not_to have_received(:error)
+    end
+  end
+
   describe 'Result class' do
     describe '#success?' do
       it 'returns true for successful result' do

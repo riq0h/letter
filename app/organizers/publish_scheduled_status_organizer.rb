@@ -144,7 +144,7 @@ class PublishScheduledStatusOrganizer
     return if quoted_id.blank?
 
     quoted = ActivityPubObject.find_by(id: quoted_id)
-    QuotePost.record_local!(status, quoted) if quoted
+    QuotePost.record!(status, quoted) if quoted
   end
 
   # 投票パラメータの取得

@@ -21,6 +21,34 @@ RSpec.describe QuotePost, type: :model do
     it { is_expected.to validate_uniqueness_of(:ap_id) }
   end
 
+  describe '.record!' do
+    it 'returns the existing record for a quote already recorded' do
+      first = described_class.record!(quote_object, quoted_object)
+
+      expect(described_class.record!(quote_object, quoted_object)).to eq(first)
+      expect(described_class.count).to eq(1)
+    end
+
+    it 'uses the record that another process made at the same moment' do
+      # 記録が無いのを確かめたあと、自分が記録する前に別の処理が同じ引用を記録する
+      allow(described_class).to receive(:create!).and_wrap_original do |original, *args, **kwargs|
+        original.call(*args, **kwargs) if described_class.none?
+        original.call(*args, **kwargs)
+      end
+
+      quote_post = described_class.record!(quote_object, quoted_object)
+
+      expect(quote_post).to be_persisted
+      expect(described_class.where(object: quote_object, quoted_object: quoted_object).count).to eq(1)
+    end
+
+    it 'still raises when the quote cannot be recorded for another reason' do
+      quote_object.update_column(:visibility, 'unknown')
+
+      expect { described_class.record!(quote_object, quoted_object) }.to raise_error(ActiveRecord::RecordInvalid)
+    end
+  end
+
   describe 'FEP-044f support' do
     let(:quote_post) do
       create(:quote_post,
