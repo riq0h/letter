@@ -72,7 +72,6 @@ class ActivityPubObject < ApplicationRecord
   after_save :create_activity_if_needed, if: :local?
   # トランザクション完了後に実行するコールバック（DBロック保持時間を最小化）
   after_commit :enqueue_pending_activity_delivery, on: :create, if: :local?
-  after_commit :enqueue_relay_distribution, on: :create, if: -> { local? && should_distribute_to_relays? }
   after_commit :update_actor_posts_count, on: :create, if: -> { local? && object_type == 'Note' }
   after_commit :update_actor_posts_count_on_destroy, on: :destroy, if: -> { local? && object_type == 'Note' }
   # ストリーミングで配る(Streaming::Hub)
@@ -527,22 +526,12 @@ class ActivityPubObject < ApplicationRecord
       # DM：メンションされたアクターのみ（既に all_inboxes に含まれている）
     end
 
+    # 公開の投稿は購読しているリレーにも送る。Mastodonと同じく投稿の活動(Create/Update)そのものを送り、
+    # リレーがほかの購読者へ中継する
+    all_inboxes.concat(Relay.enabled.pluck(:inbox_url)) if visibility == 'public'
+
     # 重複を除去して配信
     unique_inboxes = all_inboxes.uniq.compact
     enqueue_send_activity(activity, unique_inboxes)
-  end
-
-  # === リレー配信関連 ===
-
-  def should_distribute_to_relays?
-    return false unless object_type == 'Note'
-
-    visibility == 'public'
-  end
-
-  def enqueue_relay_distribution
-    DistributeToRelaysJob.perform_later(id)
-  rescue StandardError => e
-    Rails.logger.error "💥 Relay distribution enqueue error: #{e.message}"
   end
 end

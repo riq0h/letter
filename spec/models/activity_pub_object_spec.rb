@@ -746,37 +746,45 @@ RSpec.describe ActivityPubObject, type: :model do
     end
   end
 
-  describe 'relay and distribution methods' do
-    describe '#should_distribute_to_relays?' do
-      it 'returns true for public Note objects' do
-        object = create(:activity_pub_object, local: true, visibility: 'public', object_type: 'Note')
+  describe 'delivery to relays' do
+    include ActiveJob::TestHelper
 
-        expect(object.send(:should_distribute_to_relays?)).to be true
+    let(:author) { create(:actor) }
+    let!(:relay) { create(:relay, :accepted) }
+
+    before { create(:relay, :pending) }
+
+    # 投稿の活動(Create/Update)の配送先
+    def delivery_inboxes(status)
+      inboxes = []
+      allow(status).to receive(:enqueue_send_activity) { |_activity, urls| inboxes.concat(urls) }
+      status.send(:queue_activity_delivery, Activity.find_by!(object_ap_id: status.ap_id, activity_type: 'Create'))
+      inboxes
+    end
+
+    it 'sends the activities of a public post to the subscribed relays only' do
+      status = create(:activity_pub_object, actor: author, visibility: 'public')
+
+      expect(delivery_inboxes(status)).to eq([relay.inbox_url])
+    end
+
+    it 'does not send unlisted or followers-only posts to the relays' do
+      %w[unlisted private].each do |visibility|
+        status = create(:activity_pub_object, actor: author, visibility: visibility)
+
+        expect(delivery_inboxes(status)).to be_empty
       end
+    end
 
-      it 'returns false for unlisted objects' do
-        object = create(:activity_pub_object, local: true, visibility: 'unlisted', object_type: 'Note')
+    it 'sends the Delete of a public reply to the relays, as its Create was sent there' do
+      status = create(:activity_pub_object, actor: author, visibility: 'public',
+                                            in_reply_to_ap_id: 'https://remote.example.com/notes/1')
+      clear_enqueued_jobs
 
-        expect(object.send(:should_distribute_to_relays?)).to be false
-      end
+      status.destroy!
 
-      it 'returns false for private objects' do
-        object = create(:activity_pub_object, local: true, visibility: 'private', object_type: 'Note')
-
-        expect(object.send(:should_distribute_to_relays?)).to be false
-      end
-
-      it 'returns false for direct objects' do
-        object = create(:activity_pub_object, local: true, visibility: 'direct', object_type: 'Note')
-
-        expect(object.send(:should_distribute_to_relays?)).to be false
-      end
-
-      it 'returns false for non-Note objects' do
-        object = create(:activity_pub_object, local: true, visibility: 'public', object_type: 'Article')
-
-        expect(object.send(:should_distribute_to_relays?)).to be false
-      end
+      delete_jobs = enqueued_jobs.select { |job| job['job_class'] == 'SendActivityJob' }
+      expect(delete_jobs.flat_map { |job| job['arguments'].last }).to eq([relay.inbox_url])
     end
   end
 

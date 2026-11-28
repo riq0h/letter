@@ -110,7 +110,8 @@ class ActivityPubActivityDistributor
     %w[public unlisted].include?(object.visibility)
   end
 
+  # 投稿を送ったリレーには削除も送る(公開の投稿はリプライも送っている)
   def should_distribute_to_relays?
-    object.visibility == 'public' && object.in_reply_to_ap_id.blank?
+    object.visibility == 'public'
   end
 end
