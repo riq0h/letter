@@ -100,8 +100,8 @@ class ActivityPubHttpClient
     if [301, 302, 307, 308].include?(response.code) && response.headers['location']
       return response unless follow_redirects?
 
-      redirect_uri = response.headers['location']
-      return nil unless validate_url_for_ssrf!(redirect_uri)
+      redirect_uri = redirect_target(uri, response)
+      return nil unless redirect_uri && validate_url_for_ssrf!(redirect_uri)
 
       attempt_unsigned_request(redirect_uri, timeout, redirect_depth: redirect_depth + 1)
     else
@@ -113,6 +113,14 @@ class ActivityPubHttpClient
   # fetch_verified の取り直し中はリダイレクトを追わない
   def follow_redirects?
     @follow_redirects != false
+  end
+
+  # リダイレクト先。Locationは相対パスでもよい(RFC 9110)ので、要求したURLを基準に絶対URLにする
+  def redirect_target(uri, response)
+    URI.join(uri.to_s, response.headers['location'].to_s).to_s
+  rescue URI::Error
+    Rails.logger.warn "⚠️ Invalid redirect location from #{uri}: #{response.headers['location']}"
+    nil
   end
 
   # 署名要求のハンドリング
@@ -206,7 +214,9 @@ class ActivityPubHttpClient
     if [301, 302, 307, 308].include?(response.code) && response.headers['location']
       return nil unless follow_redirects?
 
-      redirect_uri = response.headers['location']
+      redirect_uri = redirect_target(uri, response)
+      return nil unless redirect_uri
+
       Rails.logger.info "🔀 Following redirect to: #{redirect_uri}"
       return fetch_with_signature(redirect_uri, signing_actor, timeout, redirect_depth: redirect_depth + 1)
     end

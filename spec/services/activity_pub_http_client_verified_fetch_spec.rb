@@ -43,6 +43,27 @@ RSpec.describe ActivityPubHttpClient do
     expect(client.fetch_verified('https://victim.example/redirect')).to be_nil
   end
 
+  it 'follows a redirect to a relative path on the same server' do
+    allow(HTTParty).to receive(:get).with('https://origin.example/@alice/1', anything)
+                                    .and_return(redirect_to('/users/alice/statuses/1'))
+    allow(HTTParty).to receive(:get).with('https://origin.example/users/alice/statuses/1', anything)
+                                    .and_return(json_response({ 'id' => 'https://origin.example/users/alice/statuses/1' }))
+
+    expect(client.fetch_object('https://origin.example/@alice/1'))
+      .to include('id' => 'https://origin.example/users/alice/statuses/1')
+  end
+
+  it 'follows a redirect to a relative path when fetching with a signature' do
+    signer = create(:actor, local: true)
+    allow(HTTParty).to receive(:get).with('https://origin.example/@alice/1', anything)
+                                    .and_return(redirect_to('/users/alice/statuses/1'))
+    allow(HTTParty).to receive(:get).with('https://origin.example/users/alice/statuses/1', anything)
+                                    .and_return(json_response({ 'id' => 'https://origin.example/users/alice/statuses/1' }))
+
+    expect(client.fetch_object('https://origin.example/@alice/1', signing_actor: signer))
+      .to include('id' => 'https://origin.example/users/alice/statuses/1')
+  end
+
   it 'accepts a canonical id on the same server when that URL serves itself' do
     allow(HTTParty).to receive(:get).with('https://origin.example/@alice/1', anything)
                                     .and_return(json_response({ 'id' => 'https://origin.example/users/alice/statuses/1' }))
