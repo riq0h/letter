@@ -49,6 +49,7 @@ class Notification < ApplicationRecord
 
   # コールバック
   after_commit :send_push_notification, on: :create
+  after_commit :publish_to_streaming, on: :create
 
   # スコープ
   scope :unread, -> { where(read: false) }
@@ -135,6 +136,10 @@ class Notification < ApplicationRecord
   end
 
   private
+
+  def publish_to_streaming
+    StreamingEvent.publish_notification(self)
+  end
 
   def send_push_notification
     case notification_type

@@ -6,11 +6,12 @@ class HomeFeedManager
       return unless eligible_status?(object)
       return unless should_appear_in_feed?(object)
 
-      HomeFeedEntry.insert(
+      result = HomeFeedEntry.insert(
         { sort_id: object.id.to_s, object_id: object.id.to_s, reblog_id: nil,
           actor_id: object.actor_id, created_at: Time.current },
         unique_by: :sort_id
       )
+      publish_to_streaming(result, object.id)
     rescue StandardError => e
       Rails.logger.warn "[HomeFeed] Failed to add status #{object.id}: #{e.message}"
     end
@@ -20,11 +21,12 @@ class HomeFeedManager
       return unless followed_actor_ids.include?(reblog.actor_id)
       return unless %w[public unlisted].include?(reblog.object&.visibility)
 
-      HomeFeedEntry.insert(
+      result = HomeFeedEntry.insert(
         { sort_id: reblog.timeline_id, object_id: reblog.object_id.to_s, reblog_id: reblog.id,
           actor_id: reblog.actor_id, created_at: Time.current },
         unique_by: :sort_id
       )
+      publish_to_streaming(result, reblog.timeline_id)
     rescue StandardError => e
       Rails.logger.warn "[HomeFeed] Failed to add reblog #{reblog.id}: #{e.message}"
     end
@@ -77,6 +79,14 @@ class HomeFeedManager
     def local_user
       @local_user = nil # 毎回リセット（クラスメソッドなのでキャッシュが残る可能性）
       Actor.find_by(local: true)
+    end
+
+    # 新しく加わったときだけ、ホームを見ている接続に配る(Streaming::Hub)
+    def publish_to_streaming(insert_result, sort_id)
+      return if insert_result.rows.empty?
+
+      user = local_user
+      StreamingEvent.publish_home(sort_id, user.id) if user
     end
 
     def followed_tag_ids

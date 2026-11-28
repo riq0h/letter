@@ -84,7 +84,7 @@ module Api
           # 4.5互換API(公式引用・grouped notifications等)を実装しているため4.5.0を名乗る
           version: '4.5.0 (compatible; letter 0.1)',
           urls: {
-            streaming_api: "https://#{local_domain}/api/v1/streaming"
+            streaming_api: "wss://#{local_domain}"
           },
           stats: {
             user_count: Actor.where(local: true).count,
@@ -99,7 +99,7 @@ module Api
           invites_enabled: false,
           configuration: {
             urls: {
-              streaming: "https://#{local_domain}/api/v1/streaming"
+              streaming: "wss://#{local_domain}"
             },
             accounts: {
               max_featured_tags: 0,

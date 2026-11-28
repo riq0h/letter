@@ -9,6 +9,21 @@ module NotificationHelper
     %w[mention reblog favourite status update poll quote].include?(notification.notification_type)
   end
 
+  # Mastodon APIのNotification(v1)。投稿はpreload_activity_pub_objectsで読み込んだものから引く
+  def notification_json_with_preloaded(notification, activity_pub_objects)
+    status = if status_notification?(notification) && notification.activity_type == 'ActivityPubObject'
+               activity_pub_objects[notification.activity_id]
+             end
+
+    {
+      id: notification.id.to_s,
+      type: notification.notification_type,
+      created_at: notification.created_at.iso8601,
+      account: serialized_account(notification.from_account),
+      status: status ? serialized_status(status) : nil
+    }
+  end
+
   def preload_activity_pub_objects(notifications)
     object_ids = notifications.filter_map do |notification|
       notification.activity_id if notification.activity_type == 'ActivityPubObject'

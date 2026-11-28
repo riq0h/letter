@@ -106,8 +106,9 @@ Rails.application.routes.draw do
         end
       end
 
-      # ストリーミングAPI
-      get '/streaming', to: 'streaming#index'
+      # ストリーミングAPI(WebSocket)
+      get '/streaming/health', to: ->(_env) { [200, { 'content-type' => 'text/plain' }, ['OK']] }
+      get '/streaming', to: Streaming::Endpoint
 
       # ドメインブロック
       get '/domain_blocks', to: 'domain_blocks#index'

@@ -6,6 +6,9 @@ class Conversation < ApplicationRecord
   has_many :participants, through: :conversation_participants, source: :actor
   belongs_to :last_status, class_name: 'ActivityPubObject', optional: true
 
+  # 新しいメッセージが加わったら、参加しているこちらの人に配る(Streaming::Hub)
+  after_commit :publish_to_streaming, on: :update, if: :saved_change_to_last_status_id?
+
   # === バリデーション ===
   validates :unread, inclusion: { in: [true, false] }
 
@@ -69,5 +72,11 @@ class Conversation < ApplicationRecord
       .having('COUNT(conversation_participants.actor_id) = ? AND GROUP_CONCAT(conversation_participants.actor_id ORDER BY conversation_participants.actor_id) = ?',
               actor_ids.size, actor_ids.join(','))
       .first
+  end
+
+  private
+
+  def publish_to_streaming
+    StreamingEvent.publish_conversation(self, participants.where(local: true).pluck(:id))
   end
 end

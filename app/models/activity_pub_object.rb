@@ -75,6 +75,9 @@ class ActivityPubObject < ApplicationRecord
   after_commit :enqueue_relay_distribution, on: :create, if: -> { local? && should_distribute_to_relays? }
   after_commit :update_actor_posts_count, on: :create, if: -> { local? && object_type == 'Note' }
   after_commit :update_actor_posts_count_on_destroy, on: :destroy, if: -> { local? && object_type == 'Note' }
+  # ストリーミングで配る(Streaming::Hub)
+  after_commit :publish_creation_to_streaming, on: :create, if: :timeline_status?
+  after_commit :publish_deletion_to_streaming, on: :destroy, if: -> { %w[Note Question].include?(object_type) }
 
   # === URL生成メソッド ===
   def public_url
@@ -291,6 +294,9 @@ class ActivityPubObject < ApplicationRecord
     # ActivityPub配信用のUpdate活動を作成
     create_update_activity if local?
 
+    # 添付や投票も含めて編集し終えてから配る
+    StreamingEvent.publish_status_update(self)
+
     true
   end
 
@@ -325,6 +331,21 @@ class ActivityPubObject < ApplicationRecord
   end
 
   private
+
+  # === ストリーミング ===
+
+  # 公開・ハッシュタグ・リストのタイムラインに載りうる投稿か
+  def timeline_status?
+    %w[Note Question].include?(object_type) && !is_pinned_only && visibility != 'direct'
+  end
+
+  def publish_creation_to_streaming
+    StreamingEvent.publish_status(self)
+  end
+
+  def publish_deletion_to_streaming
+    StreamingEvent.publish_delete(id, public_visibility: visibility == 'public')
+  end
 
   # === ActivityPub ヘルパーメソッド ===
 

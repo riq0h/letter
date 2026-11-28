@@ -12,6 +12,8 @@ class Reblog < ApplicationRecord
 
   tracks_object_counter :reblogs_count
   after_create :create_notification_for_reblog
+  # ブーストを取り消したら、タイムラインからも消えるよう配る(Streaming::Hub)
+  after_commit :publish_deletion_to_streaming, on: :destroy
 
   # created_atとidからSnowflake互換IDを導出する
   # タイムスタンプ部分はcreated_at、シーケンス部分はid % 65536
@@ -19,5 +21,11 @@ class Reblog < ApplicationRecord
     timestamp_ms = Letter::Snowflake.timestamp_to_ms(created_at)
     sequence = id % (1 << Letter::Snowflake::SEQUENCE_BITS)
     ((timestamp_ms << Letter::Snowflake::SEQUENCE_BITS) | sequence).to_s
+  end
+
+  private
+
+  def publish_deletion_to_streaming
+    StreamingEvent.publish_delete(timeline_id, public_visibility: false)
   end
 end

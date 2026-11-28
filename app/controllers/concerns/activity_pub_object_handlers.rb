@@ -76,6 +76,7 @@ module ActivityPubObjectHandlers
     return unless object&.actor == @sender
 
     object.update!(build_update_attributes(object_data))
+    edited = object.saved_change_to_edited_at? && object.edited_at.present?
 
     # メディア添付の更新処理
     update_object_attachments(object, object_data)
@@ -85,6 +86,9 @@ module ActivityPubObjectHandlers
 
     # 編集で追加/変更されたカスタム絵文字を取り込む（domainはシリアライズ照合キーと揃える）
     process_emoji_tags(object_data['tag'], domain: object.actor&.domain)
+
+    # 添付や投票も含めて更新し終えてから、編集をストリーミングで配る
+    StreamingEvent.publish_status_update(object) if edited
 
     Rails.logger.info "📝 Object updated: #{object.id}"
   end

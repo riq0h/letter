@@ -142,20 +142,6 @@ module Api
 
         notifications.where(from_account_id: account_id)
       end
-
-      def notification_json_with_preloaded(notification, activity_pub_objects)
-        status = if status_notification?(notification) && notification.activity_type == 'ActivityPubObject'
-                   activity_pub_objects[notification.activity_id]
-                 end
-
-        {
-          id: notification.id.to_s,
-          type: notification.notification_type,
-          created_at: notification.created_at.iso8601,
-          account: serialized_account(notification.from_account),
-          status: status ? serialized_status(status) : nil
-        }
-      end
     end
   end
 end

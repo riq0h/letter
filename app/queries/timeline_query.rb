@@ -39,23 +39,10 @@ class TimelineQuery
 
   def build_home_timeline_from_feed
     # フィードテーブルからエントリ取得（キャッシュDB — プライマリDBとロック競合なし）
-    entries = HomeFeedEntry.order(Arel.sql('sort_id DESC'))
+    entries = visible_feed_entries.order(Arel.sql('sort_id DESC'))
     entries = entries.where(sort_id: ...(params[:max_id])) if params[:max_id].present?
     entries = entries.where('sort_id > ?', params[:since_id]) if params[:since_id].present? && params[:min_id].blank?
     entries = entries.where('sort_id > ?', params[:min_id]) if params[:min_id].present?
-
-    # ブロック・ミュートフィルタ（actor_idベース）
-    blocked_ids = user.blocked_actors.pluck(:id)
-    muted_ids = user.muted_actors.pluck(:id)
-    entries = entries.where.not(actor_id: blocked_ids) if blocked_ids.any?
-    entries = entries.where.not(actor_id: muted_ids) if muted_ids.any?
-
-    # ドメインブロック（プライマリDBからactor_idに変換）
-    blocked_domains = user.domain_blocks.pluck(:domain)
-    if blocked_domains.any?
-      domain_blocked_actor_ids = Actor.where(domain: blocked_domains).pluck(:id)
-      entries = entries.where.not(actor_id: domain_blocked_actor_ids) if domain_blocked_actor_ids.any?
-    end
 
     # Mastodon 5.0互換: ブーストを除外する指定
     entries = entries.where(reblog_id: nil) if filter?(:exclude_reblogs)
@@ -87,17 +74,27 @@ class TimelineQuery
     # 部分インデックスを過小評価し、複合インデックス+全件ソート
     # （ローカルTLで実測6.4秒、連合TLで2〜5.5秒）を選んでしまう。
     # 各インデックスは20260611000001/000004で作成。削除時はここも要修正
-    statuses = base_timeline_query.where(visibility: 'public')
-    statuses = if local_only?
-                 statuses.where(local: true)
-                         .from(Arel.sql('"objects" INDEXED BY "idx_objects_local_id_desc"'))
-               else
-                 statuses.from(Arel.sql('"objects" INDEXED BY "idx_objects_public_id_desc"'))
-               end
+    index = local_only? ? 'idx_objects_local_id_desc' : 'idx_objects_public_id_desc'
+    statuses = public_timeline_scope.from(Arel.sql(%("objects" INDEXED BY "#{index}")))
     apply_pagination_filters(statuses).limit(limit)
   end
 
   def build_hashtag_timeline(hashtag_name)
+    apply_pagination_filters(hashtag_timeline_scope(hashtag_name)).limit(limit)
+  end
+
+  def build_list_timeline(list)
+    apply_pagination_filters(list_timeline_scope(list)).limit(limit)
+  end
+
+  # 各タイムラインに載る投稿の条件(並び順・件数・ページングを除く)。ストリーミングで、
+  # 新しい投稿がそのタイムラインに載るかを確かめるのにも使う
+  def public_timeline_scope
+    statuses = base_timeline_query.where(visibility: 'public')
+    local_only? ? statuses.where(local: true) : statuses
+  end
+
+  def hashtag_timeline_scope(hashtag_name)
     normalized_name = hashtag_name.unicode_normalize(:nfkc).strip.downcase
     tag = Tag.find_by(name: normalized_name)
     return ActivityPubObject.none unless tag
@@ -105,16 +102,29 @@ class TimelineQuery
     statuses = base_timeline_query
                .joins(:tags)
                .where(tags: { id: tag.id })
-    statuses = apply_hashtag_visibility_filter(statuses)
-    apply_pagination_filters(statuses).limit(limit)
+    apply_hashtag_visibility_filter(statuses)
   end
 
-  def build_list_timeline(list)
+  def list_timeline_scope(list)
     member_ids = list.list_memberships.pluck(:actor_id)
     return ActivityPubObject.none if member_ids.empty?
 
-    statuses = base_timeline_query.where(actor_id: member_ids)
-    apply_pagination_filters(statuses).limit(limit)
+    base_timeline_query.where(actor_id: member_ids)
+  end
+
+  # ストリーミング用: ホームに加わった1件(sort_id)を、ホームのタイムラインと同じ条件で見せるか。
+  # 見せるなら、その投稿かブーストを返す
+  def home_feed_item(sort_id)
+    entry = visible_feed_entries.find_by(sort_id: sort_id.to_s)
+    return unless entry
+    return load_reblogs_from_entries([entry]).first if entry.reblog_id
+
+    apply_ruby_filters(load_statuses_from_entries([entry]), user).first
+  end
+
+  # ストリーミング用: 投稿がホームに(ブーストされた形も含めて)出ているか
+  def home_feed_includes?(status_id)
+    visible_feed_entries.exists?(object_id: status_id.to_s)
   end
 
   private
@@ -199,6 +209,26 @@ class TimelineQuery
   end
 
   # フィードベースのタイムライン構築用ヘルパー
+
+  # ブロック・ミュート・ドメインブロックした相手のものを除いたホームのフィード
+  def visible_feed_entries
+    entries = HomeFeedEntry.all
+
+    # ブロック・ミュートフィルタ（actor_idベース）
+    blocked_ids = user.blocked_actors.pluck(:id)
+    muted_ids = user.muted_actors.pluck(:id)
+    entries = entries.where.not(actor_id: blocked_ids) if blocked_ids.any?
+    entries = entries.where.not(actor_id: muted_ids) if muted_ids.any?
+
+    # ドメインブロック（プライマリDBからactor_idに変換）
+    blocked_domains = user.domain_blocks.pluck(:domain)
+    if blocked_domains.any?
+      domain_blocked_actor_ids = Actor.where(domain: blocked_domains).pluck(:id)
+      entries = entries.where.not(actor_id: domain_blocked_actor_ids) if domain_blocked_actor_ids.any?
+    end
+
+    entries
+  end
 
   def load_statuses_from_entries(entries)
     return [] if entries.empty?
