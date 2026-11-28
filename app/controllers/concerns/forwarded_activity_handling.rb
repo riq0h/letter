@@ -5,6 +5,8 @@
 # Mastodonは本人の署名(LD署名・FEP-8b32)を検証できない転送を破棄する。letterはそれらの
 # 署名検証を持たないため、本文は使わず次のように扱う:
 # - Create: 投稿を元のサーバから取り直して取り込む(リプライ転送の取りこぼしを防ぐ)
+# - 購読しているリレーが中継したAnnounce: ブーストされた投稿だけを元のサーバから取り直して取り込む
+#   (ブースト自体は本人のものと確かめられないので記録しない)
 # - それ以外(Delete/Update/Like/Follow等): 本人の操作と確認できないので無視する
 module ForwardedActivityHandling
   extend ActiveSupport::Concern
@@ -22,6 +24,9 @@ module ForwardedActivityHandling
     if @activity['type'] == 'Create' && object_uri && actor_uri
       FetchForwardedObjectJob.perform_later(object_uri, actor_uri, forwarding_relay&.id)
       Rails.logger.info "🔀 Forwarded Create by #{@forwarded_by}: fetching #{object_uri} from its origin"
+    elsif @activity['type'] == 'Announce' && object_uri && forwarding_relay
+      FetchForwardedObjectJob.perform_later(object_uri, nil, forwarding_relay.id)
+      Rails.logger.info "🔀 Relayed boost by #{actor_uri}: fetching #{object_uri} from its origin"
     else
       Rails.logger.info "🔀 Ignored forwarded #{@activity['type']} by #{@forwarded_by} (cannot verify #{actor_uri})"
     end
@@ -31,6 +36,8 @@ module ForwardedActivityHandling
 
   # 中継したのが購読している(承認待ちを含む)リレーなら、そのリレー
   def forwarding_relay
-    Relay.where(state: %w[accepted pending]).find { |relay| relay.actor_uri == @forwarded_by }
+    return @forwarding_relay if defined?(@forwarding_relay)
+
+    @forwarding_relay = Relay.where(state: %w[accepted pending]).find { |relay| relay.actor_uri == @forwarded_by }
   end
 end

@@ -71,6 +71,16 @@ RSpec.describe 'Activities from a subscribed relay', type: :request do
         expect(ActivityPubObject.exists?(ap_id: note['id'])).to be(false)
       end
 
+      it 'imports the post a relayed boost points to, without recording the boost itself' do
+        booster = create(:actor, :remote, domain: 'other.example', ap_id: 'https://other.example/users/bob')
+
+        expect do
+          post path, params: activity('Announce', 'https://origin.example/notes/4', actor: booster.ap_id), headers: headers
+        end.to have_enqueued_job(FetchForwardedObjectJob).with('https://origin.example/notes/4', nil, relay.id)
+
+        expect(Reblog.where(actor: booster)).to be_empty
+      end
+
       it 'does not let the relay delete a post in the name of its author' do
         status = create(:activity_pub_object, :remote, actor: author, ap_id: 'https://origin.example/notes/3')
 

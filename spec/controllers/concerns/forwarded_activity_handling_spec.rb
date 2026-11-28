@@ -30,6 +30,13 @@ RSpec.describe ForwardedActivityHandling, type: :controller do
     expect(ActivityPubObject.exists?(ap_id: 'https://victim.example/notes/1')).to be false
   end
 
+  it 'ignores a boost forwarded by someone other than a subscribed relay' do
+    body = { 'type' => 'Announce', 'actor' => victim_uri, 'object' => 'https://victim.example/notes/1' }
+
+    expect { post :test_action, body: body.to_json }.not_to have_enqueued_job
+    expect(response).to have_http_status(:accepted)
+  end
+
   it 'ignores forwarded activities other than Create (e.g. Delete)' do
     body = { 'type' => 'Delete', 'actor' => victim_uri, 'object' => 'https://victim.example/notes/1' }
 
