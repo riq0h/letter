@@ -42,6 +42,7 @@ class ActivityPubHttpClient
   end
 
   def fetch_object(uri, timeout: DEFAULT_TIMEOUT, signing_actor: nil)
+    @last_status = @last_status_uri = nil
     return nil unless validate_url_for_ssrf!(uri)
     # HTTP署名が明示的に指定されている場合は署名付きで送信
     return fetch_with_signature(uri, signing_actor, timeout) if signing_actor
@@ -73,7 +74,18 @@ class ActivityPubHttpClient
     nil
   end
 
+  # 直前の取得で、uri自身が「その文書は無い」(404/410)と答えたか。
+  # リダイレクト先や、文書が名乗った別のidが無かっただけの場合は含めない
+  def gone?(uri)
+    @last_status_uri == uri && [404, 410].include?(@last_status)
+  end
+
   private
+
+  def record_status(uri, response)
+    @last_status = response.code.to_i
+    @last_status_uri = uri
+  end
 
   # 学習済み署名でリクエスト
   def fetch_with_learned_signature(uri, domain, timeout)
@@ -106,6 +118,7 @@ class ActivityPubHttpClient
       attempt_unsigned_request(redirect_uri, timeout, redirect_depth: redirect_depth + 1)
     else
       @final_uri = uri
+      record_status(uri, response)
       response
     end
   end
@@ -193,22 +206,8 @@ class ActivityPubHttpClient
     return nil unless validate_url_for_ssrf!(uri)
     return nil if redirect_depth >= MAX_REDIRECT_DEPTH
 
-    date = Time.current.httpdate
-    uri_obj = URI(uri)
-
-    headers = {
-      'Accept' => ACCEPT_HEADERS,
-      'User-Agent' => USER_AGENT,
-      'Date' => date,
-      'Host' => uri_obj.host
-    }
-
-    # GETリクエスト用のHTTP署名を生成（content-typeを除外）
-    signature = generate_get_signature(uri, date, signing_actor)
-    headers['Signature'] = signature if signature
-
     # 署名付きリクエストではリダイレクトを無効にする（署名が無効になるため）
-    response = HTTParty.get(uri, headers: headers, timeout: timeout, follow_redirects: false)
+    response = HTTParty.get(uri, headers: signed_get_headers(uri, signing_actor), timeout: timeout, follow_redirects: false)
 
     # リダイレクトの場合はLocationヘッダーで再試行
     if [301, 302, 307, 308].include?(response.code) && response.headers['location']
@@ -221,6 +220,7 @@ class ActivityPubHttpClient
       return fetch_with_signature(redirect_uri, signing_actor, timeout, redirect_depth: redirect_depth + 1)
     end
 
+    record_status(uri, response)
     return nil unless response.success?
 
     # 署名しても普通のWebページが返るURLは、ActivityPubの文書ではない
@@ -235,6 +235,16 @@ class ActivityPubHttpClient
   rescue StandardError => e
     Rails.logger.error "❌ Failed to fetch signed ActivityPub object #{uri}: #{e.message}"
     nil
+  end
+
+  def signed_get_headers(uri, signing_actor)
+    date = Time.current.httpdate
+    headers = { 'Accept' => ACCEPT_HEADERS, 'User-Agent' => USER_AGENT, 'Date' => date, 'Host' => URI(uri).host }
+
+    # GETリクエスト用のHTTP署名を生成（content-typeを除外）
+    signature = generate_get_signature(uri, date, signing_actor)
+    headers['Signature'] = signature if signature
+    headers
   end
 
   def generate_get_signature(url, date, actor)

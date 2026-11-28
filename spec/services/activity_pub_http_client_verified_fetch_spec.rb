@@ -73,4 +73,45 @@ RSpec.describe ActivityPubHttpClient do
     expect(client.fetch_verified('https://origin.example/@alice/1'))
       .to include('id' => 'https://origin.example/users/alice/statuses/1')
   end
+
+  describe '#gone?' do
+    it 'tells that the requested URL itself answered there is no such document' do
+      allow(HTTParty).to receive(:get).with('https://origin.example/notes/1', anything)
+                                      .and_return(json_response({}, code: 410))
+
+      expect(client.fetch_verified('https://origin.example/notes/1')).to be_nil
+      expect(client.gone?('https://origin.example/notes/1')).to be(true)
+    end
+
+    it 'does not count a missing document that the response only named by another id' do
+      allow(HTTParty).to receive(:get).with('https://attacker.example/x', anything)
+                                      .and_return(json_response({ 'id' => 'https://victim.example/notes/1' }))
+      allow(HTTParty).to receive(:get).with('https://victim.example/notes/1', anything)
+                                      .and_return(json_response({}, code: 404))
+
+      client.fetch_verified('https://attacker.example/x')
+
+      expect(client.gone?('https://attacker.example/x')).to be(false)
+    end
+
+    it 'does not count a missing document at the end of a redirect' do
+      allow(HTTParty).to receive(:get).with('https://origin.example/@alice/1', anything)
+                                      .and_return(redirect_to('https://origin.example/users/alice/statuses/1'))
+      allow(HTTParty).to receive(:get).with('https://origin.example/users/alice/statuses/1', anything)
+                                      .and_return(json_response({}, code: 404))
+
+      client.fetch_verified('https://origin.example/@alice/1')
+
+      expect(client.gone?('https://origin.example/@alice/1')).to be(false)
+    end
+
+    it 'does not count a server that cannot answer' do
+      allow(HTTParty).to receive(:get).with('https://origin.example/notes/1', anything)
+                                      .and_return(json_response({}, code: 503))
+
+      client.fetch_verified('https://origin.example/notes/1')
+
+      expect(client.gone?('https://origin.example/notes/1')).to be(false)
+    end
+  end
 end

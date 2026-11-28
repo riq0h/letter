@@ -37,8 +37,28 @@ RSpec.describe ForwardedActivityHandling, type: :controller do
     expect(response).to have_http_status(:accepted)
   end
 
-  it 'ignores forwarded activities other than Create (e.g. Delete)' do
+  it 'ignores a forwarded Delete of a post this server does not have' do
     body = { 'type' => 'Delete', 'actor' => victim_uri, 'object' => 'https://victim.example/notes/1' }
+
+    expect { post :test_action, body: body.to_json }.not_to have_enqueued_job
+    expect(response).to have_http_status(:accepted)
+  end
+
+  %w[Delete Update].each do |type|
+    it "checks a forwarded #{type} of a post this server has at its origin, instead of applying it" do
+      victim = create(:actor, :remote, domain: 'victim.example', ap_id: victim_uri)
+      status = create(:activity_pub_object, :remote, actor: victim, ap_id: 'https://victim.example/notes/1', content: '<p>original</p>')
+      body = { 'type' => type, 'actor' => victim_uri,
+               'object' => { 'id' => status.ap_id, 'type' => 'Note', 'content' => 'FORGED' } }
+
+      expect { post :test_action, body: body.to_json }
+        .to have_enqueued_job(ApplyForwardedChangeJob).with(type, status.ap_id, victim_uri)
+      expect(status.reload.content).to eq('<p>original</p>')
+    end
+  end
+
+  it 'ignores other forwarded activities (e.g. Like)' do
+    body = { 'type' => 'Like', 'actor' => victim_uri, 'object' => 'https://victim.example/notes/1' }
 
     expect { post :test_action, body: body.to_json }.not_to have_enqueued_job
     expect(response).to have_http_status(:accepted)

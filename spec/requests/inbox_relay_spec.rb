@@ -81,10 +81,12 @@ RSpec.describe 'Activities from a subscribed relay', type: :request do
         expect(Reblog.where(actor: booster)).to be_empty
       end
 
-      it 'does not let the relay delete a post in the name of its author' do
+      it 'does not delete a post on the word of the relay, but checks it at its origin' do
         status = create(:activity_pub_object, :remote, actor: author, ap_id: 'https://origin.example/notes/3')
 
-        post path, params: activity('Delete', status.ap_id, actor: author.ap_id), headers: headers
+        expect do
+          post path, params: activity('Delete', status.ap_id, actor: author.ap_id), headers: headers
+        end.to have_enqueued_job(ApplyForwardedChangeJob).with('Delete', status.ap_id, author.ap_id)
 
         expect(response).to have_http_status(:accepted)
         expect(ActivityPubObject.exists?(status.id)).to be(true)

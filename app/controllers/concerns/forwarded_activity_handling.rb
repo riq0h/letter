@@ -7,7 +7,8 @@
 # - Create: 投稿を元のサーバから取り直して取り込む(リプライ転送の取りこぼしを防ぐ)
 # - 購読しているリレーが中継したAnnounce: ブーストされた投稿だけを元のサーバから取り直して取り込む
 #   (ブースト自体は本人のものと確かめられないので記録しない)
-# - それ以外(Delete/Update/Like/Follow等): 本人の操作と確認できないので無視する
+# - 手元にある投稿のUpdate/Delete: 元のサーバで今の状態を確かめて反映する(ApplyForwardedChangeJob)
+# - それ以外(Like/Follow、手元にない投稿やアカウントのUpdate/Delete等): 本人の操作と確認できないので無視する
 module ForwardedActivityHandling
   extend ActiveSupport::Concern
 
@@ -27,11 +28,18 @@ module ForwardedActivityHandling
     elsif @activity['type'] == 'Announce' && object_uri && forwarding_relay
       FetchForwardedObjectJob.perform_later(object_uri, nil, forwarding_relay.id)
       Rails.logger.info "🔀 Relayed boost by #{actor_uri}: fetching #{object_uri} from its origin"
+    elsif %w[Update Delete].include?(@activity['type']) && actor_uri && held_remote_object?(object_uri)
+      ApplyForwardedChangeJob.perform_later(@activity['type'], object_uri, actor_uri)
+      Rails.logger.info "🔀 Forwarded #{@activity['type']} by #{@forwarded_by}: checking #{object_uri} at its origin"
     else
       Rails.logger.info "🔀 Ignored forwarded #{@activity['type']} by #{@forwarded_by} (cannot verify #{actor_uri})"
     end
 
     head :accepted
+  end
+
+  def held_remote_object?(object_uri)
+    object_uri.present? && ActivityPubObject.exists?(ap_id: object_uri, local: false)
   end
 
   # 中継したのが購読している(承認待ちを含む)リレーなら、そのリレー
