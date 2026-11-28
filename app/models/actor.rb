@@ -85,7 +85,8 @@ class Actor < ApplicationRecord
   validates :username, presence: true, format: { with: /\A[a-zA-Z0-9_.-]+\z/ }
   validates :ap_id, presence: true, uniqueness: true, if: -> { !local? || !new_record? }
   validates :inbox_url, presence: true, if: -> { !local? || !new_record? }
-  validates :outbox_url, presence: true, if: -> { !local? || !new_record? }
+  # 他サーバのアカウントのoutboxは無くてもよい(リレーのアカウントなどは持たない。Mastodonも必須にしない)
+  validates :outbox_url, presence: true, if: -> { local? && !new_record? }
   validates :public_key, presence: true, if: -> { !local? || !new_record? }
   validates :password, length: { minimum: 8 }, if: -> { local? && password.present? }
   validates :display_name, length: { maximum: 500 }, allow_nil: true
@@ -105,6 +106,8 @@ class Actor < ApplicationRecord
   # 共有inboxを列にも保存する(配送先の一括取得はpluckで列を読むため。
   # 以前は列が常に空で、同じサーバのフォロワーにも1人ずつ配送していた)
   before_save :store_shared_inbox_url, if: -> { !local? && will_save_change_to_raw_data? }
+  # 列はNULLを許さないので、outboxを持たない他サーバのアカウントは空文字で持つ(Mastodonと同じ)
+  before_save -> { self.outbox_url ||= '' }, unless: :local?
   before_create :set_admin_for_local_users, if: :local?
   after_update :distribute_profile_update, if: :should_distribute_profile_update?
 

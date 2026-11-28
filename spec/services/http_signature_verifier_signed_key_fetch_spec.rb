@@ -48,4 +48,16 @@ RSpec.describe HttpSignatureVerifier do
     expect(Rails.logger).to have_received(:warn).with(/HTTP 404/)
     expect(Rails.logger).not_to have_received(:error)
   end
+
+  it 'registers the account of a relay, which has no outbox' do
+    key = OpenSSL::PKey::RSA.new(2048)
+    relay_actor = { 'id' => actor_uri, 'type' => 'Service', 'preferredUsername' => 'relay',
+                    'inbox' => 'https://origin.example/inbox',
+                    'publicKey' => { 'id' => "#{actor_uri}#main-key", 'owner' => actor_uri,
+                                     'publicKeyPem' => key.public_key.to_pem } }
+    allow(http).to receive(:request).and_return(response(200, relay_actor))
+
+    expect(verifier.send(:fetch_actor_public_key, actor_uri)).to be_present
+    expect(Actor.find_by(ap_id: actor_uri)).to have_attributes(inbox_url: 'https://origin.example/inbox', outbox_url: '')
+  end
 end
