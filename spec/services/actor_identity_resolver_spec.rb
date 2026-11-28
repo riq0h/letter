@@ -51,12 +51,64 @@ RSpec.describe ActorIdentityResolver do
       expect(result).to be_nil
     end
 
-    it 'returns nil when ap_id is the same (not a conflict)' do
+    it 'returns the actor already registered under the same ap_id as it is' do
       result = resolver.resolve_actor_identity_conflict(existing_actor.ap_id, 'alice', 'example.com', new_attrs)
 
-      expect(result).to be_nil
+      expect(result).to eq(existing_actor)
       existing_actor.reload
       expect(existing_actor.display_name).to eq('Old Alice')
+    end
+  end
+
+  # 同じアカウントについての2つのリクエストが同時に届くと、両方がアクターを登録しようとし、
+  # 後のほうは先に登録された分とぶつかる。その場合は先に登録されたアクターを使い、失敗させない
+  describe 'when another request registers the same actor at the same time' do
+    let(:ap_id) { 'https://origin.example/users/carol' }
+    let(:actor_data) do
+      {
+        'id' => ap_id,
+        'type' => 'Person',
+        'preferredUsername' => 'carol',
+        'inbox' => "#{ap_id}/inbox",
+        'outbox' => "#{ap_id}/outbox",
+        'publicKey' => { 'publicKeyPem' => public_key }
+      }
+    end
+
+    def register_meanwhile
+      create(:actor, :remote, username: 'carol', domain: 'origin.example', ap_id: ap_id)
+    end
+
+    it 'uses that actor when fetching the actor for a signed request (ActorFetcher)' do
+      fetcher = ActorFetcher.new
+      allow(fetcher).to receive(:validate_url_for_ssrf!).and_return(true)
+      allow(fetcher).to receive(:fetch_actor_data) do
+        register_meanwhile
+        actor_data
+      end
+
+      result = fetcher.fetch_and_create(ap_id)
+
+      expect(result).to eq(Actor.find_by(ap_id: ap_id))
+      expect(Actor.where(ap_id: ap_id).count).to eq(1)
+    end
+
+    it 'uses that actor when registering the signer while checking a signature (HttpSignatureVerifier)' do
+      verifier = HttpSignatureVerifier.new(method: 'POST', path: '/inbox', headers: {}, body: '')
+      registered = register_meanwhile
+
+      result = verifier.send(:create_remote_actor, ap_id, actor_data, public_key)
+
+      expect(result).to eq(registered)
+    end
+
+    it 'uses that actor when registering from ActivityPub data (ActorCreationService)' do
+      registered = register_meanwhile
+
+      result = ActorCreationService.new.create_from_activitypub_data(actor_data)
+
+      expect(result).to eq(registered)
+      expect(Actor.where(ap_id: ap_id).count).to eq(1)
     end
   end
 
